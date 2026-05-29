@@ -28,7 +28,9 @@ Three Go services, two databases, an SSR frontend — all Kubernetes-native and 
 
 Both config/metadata and time-series stats live in **vanilla PostgreSQL** — the stats store uses native time-range partitioning so the whole platform runs on managed Postgres including **AWS RDS / Aurora** (no extensions required). TimescaleDB is supported as an optional stats backend where available.
 
-See [`docs/specs/2026-05-29-lynceus-design.md`](docs/specs/2026-05-29-lynceus-design.md) for the full design and [`docs/superpowers/plans/`](docs/superpowers/plans/) for implementation plans.
+- **Design (architecture/tech):** [`docs/specs/2026-05-29-lynceus-design.md`](docs/specs/2026-05-29-lynceus-design.md)
+- **Feature parity catalog (what it does):** [`docs/specs/2026-05-29-lynceus-features.md`](docs/specs/2026-05-29-lynceus-features.md)
+- **Implementation plans:** [`docs/superpowers/plans/`](docs/superpowers/plans/)
 
 ## Status
 

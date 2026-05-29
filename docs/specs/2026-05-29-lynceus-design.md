@@ -16,6 +16,8 @@ The defining design choice that separates Lynceus from comparable tools:
 
 Where comparable products ship raw-ish samples to a cloud backend and analyze them server-side, Lynceus performs analysis locally (at the collector, next to Postgres) and transmits only normalized, literal-free results. This is a hard requirement, not a configuration option, because Lynceus is designed to operate over **health data subject to PIPEDA/PHIPA (Canada), GDPR (EU), and HIPAA (USA)**.
 
+> **Product/feature scope is defined separately** in `2026-05-29-lynceus-features.md` — the full pganalyze feature-parity catalog with per-feature priorities (MUST/SHOULD/COULD) and privacy/locality classifications. This document covers architecture and technology; that one covers what the product does.
+
 ### In scope (project, over multiple milestones)
 - Query performance monitoring (normalized `pg_stat_statements`).
 - Index recommendations (computed at the collector).
