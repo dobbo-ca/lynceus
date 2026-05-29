@@ -60,18 +60,29 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 
 ## Build & Test
 
-_Add your build and test commands here_
-
 ```bash
-# Example:
-# npm install
-# npm test
+make dev-up        # start dev databases (config Postgres + TimescaleDB) via docker-compose
+make proto         # regenerate Go from proto/ (the wire contract)
+go build ./...     # build all binaries (cmd/collector, cmd/ingestion, cmd/api)
+go test ./...      # unit + integration tests (integration uses testcontainers)
+make dev-down      # stop dev databases
 ```
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+Lynceus is an open-source, Kubernetes-native, HA PostgreSQL monitoring platform — a privacy-first reimagining of pganalyze. Three Go services share `internal/` packages and a versioned protobuf wire contract:
+
+- **collector** (`cmd/collector`) — runs near Postgres, outbound-only, as a limited DB role. Reads `pg_stat_*` / `auto_explain` / logs, **normalizes and analyzes locally**, ships only normalized (T1) data over a websocket.
+- **ingestion_server** (`cmd/ingestion`) — terminates collector websockets, rate-limits, dead-letter-queues, writes to the TimescaleDB stats store.
+- **api_server** (`cmd/api`) — OIDC/SCIM auth, RBAC, audit log, collector token issuance, config API; serves the templ+HTMX SSR frontend.
+
+Two databases: plain Postgres (config/metadata + audit) and TimescaleDB (stats).
+
+**Full design:** `docs/specs/2026-05-29-lynceus-design.md`. **MVP plan:** `docs/superpowers/plans/2026-05-29-lynceus-mvp-vertical-slice.md`.
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- **Privacy is the backbone, not a feature.** Analysis happens at the collector; only normalized, literal-free data leaves the customer's infrastructure. The proto T1 message types contain **no field capable of carrying a literal value** — there is a contract test enforcing this. Never add a raw-sample/raw-text field to a T1 message.
+- **Data classification:** T1 (normalized, broadly viewable) vs T2 (may contain literals — off by default per server, gated behind group RBAC, every read audited). The `data_tier` column and `audit_log` table exist from day one even where only T1 is produced.
+- **Postgres access is read-only.** The collector never modifies the monitored database.
+- TDD: write the failing test first (see the MVP plan). Integration tests hit real Postgres/Timescale via testcontainers — do not mock the database.
