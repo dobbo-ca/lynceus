@@ -1,0 +1,155 @@
+// Integration tests for the ingestion websocket server. They wire
+// the real Server against a real Postgres (testcontainers) and a
+// real Shipper, then assert two properties:
+//
+//   - the happy path actually lands rows in query_stats; and
+//   - an over-limit second snapshot is parked in dlq (never lost).
+package ingest_test
+
+import (
+	"context"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/testcontainers/testcontainers-go"
+	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+
+	"github.com/dobbo-ca/lynceus/internal/collector"
+	"github.com/dobbo-ca/lynceus/internal/ingest"
+	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
+	"github.com/dobbo-ca/lynceus/internal/store"
+)
+
+func setup(t *testing.T, cfg ingest.Config) (*pgxpool.Pool, *httptest.Server) {
+	t.Helper()
+	ctx := context.Background()
+
+	c, err := tcpostgres.Run(ctx,
+		"postgres:16",
+		tcpostgres.WithDatabase("lynceus_stats"),
+		tcpostgres.WithUsername("test"),
+		tcpostgres.WithPassword("test"),
+		tcpostgres.BasicWaitStrategies(),
+	)
+	if err != nil {
+		t.Skipf("docker/testcontainers unavailable: %v", err)
+	}
+	t.Cleanup(func() { _ = testcontainers.TerminateContainer(c) })
+
+	url, err := c.ConnectionString(ctx, "sslmode=disable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool, err := pgxpool.New(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+
+	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	srv := httptest.NewServer(ingest.NewServer(cfg, store.NewStats(pool), pool).Handler())
+	t.Cleanup(srv.Close)
+	return pool, srv
+}
+
+func wsURL(httpURL string) string {
+	return "ws" + strings.TrimPrefix(httpURL, "http")
+}
+
+func makeSnapshot(serverID, fp, q string, totalMs float64) *lynceusv1.Snapshot {
+	return &lynceusv1.Snapshot{
+		ServerId:        serverID,
+		CollectedAtUnix: time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC).Unix(),
+		QueryStats: []*lynceusv1.QueryStat{{
+			Fingerprint:     fp,
+			NormalizedQuery: q,
+			Calls:           7,
+			TotalTimeMs:     totalMs,
+		}},
+	}
+}
+
+func TestServer_acceptsValidSnapshotAndPersistsToStatsDB(t *testing.T) {
+	pool, srv := setup(t, ingest.Config{
+		DevToken:  "dev",
+		RateLimit: 10, RateBurst: 10,
+	})
+	ctx := context.Background()
+
+	ship := collector.NewShipper(wsURL(srv.URL), "dev")
+	if err := ship.Send(ctx, makeSnapshot("srv-1", "fp-A", "SELECT $1", 42)); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	var rows int
+	for i := 0; i < 50 && rows == 0; i++ {
+		_ = pool.QueryRow(ctx,
+			`SELECT count(*) FROM query_stats WHERE server_id='srv-1' AND fingerprint='fp-A'`,
+		).Scan(&rows)
+		if rows > 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if rows != 1 {
+		t.Fatalf("query_stats row count = %d, want 1", rows)
+	}
+
+	var dlq int
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM dlq`).Scan(&dlq)
+	if dlq != 0 {
+		t.Errorf("dlq count = %d, want 0 (nothing should have been parked)", dlq)
+	}
+}
+
+func TestServer_parksOverLimitSnapshotInDLQ(t *testing.T) {
+	// Per-server rate.Limit of 1/s with burst 1: the first snapshot
+	// consumes the burst, the second arrives "too soon" and must be
+	// DLQ'd rather than dropped.
+	pool, srv := setup(t, ingest.Config{
+		DevToken:  "dev",
+		RateLimit: 1, RateBurst: 1,
+	})
+	ctx := context.Background()
+	ship := collector.NewShipper(wsURL(srv.URL), "dev")
+
+	if err := ship.Send(ctx, makeSnapshot("srv-2", "fp-1st", "SELECT $1", 1)); err != nil {
+		t.Fatalf("first send: %v", err)
+	}
+	// Second send immediately — should be rate-limited and parked.
+	err := ship.Send(ctx, makeSnapshot("srv-2", "fp-2nd", "SELECT $1", 2))
+	// The server closes the ws with StatusTryAgainLater; our Shipper
+	// may report close-handshake difficulty but the DLQ insert is
+	// what we actually care about.
+	_ = err
+
+	// Wait for DLQ insertion to land (it may race with the close).
+	var dlq int
+	for i := 0; i < 50 && dlq == 0; i++ {
+		_ = pool.QueryRow(ctx,
+			`SELECT count(*) FROM dlq WHERE server_id='srv-2' AND reason='rate_limited'`,
+		).Scan(&dlq)
+		if dlq > 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if dlq != 1 {
+		t.Errorf("dlq count for srv-2 = %d, want 1 (over-limit must be parked, not dropped)", dlq)
+	}
+
+	// First snapshot should still have landed in query_stats.
+	var qs int
+	_ = pool.QueryRow(ctx,
+		`SELECT count(*) FROM query_stats WHERE server_id='srv-2'`,
+	).Scan(&qs)
+	if qs != 1 {
+		t.Errorf("query_stats for srv-2 = %d, want 1", qs)
+	}
+}
