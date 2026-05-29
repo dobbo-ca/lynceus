@@ -76,7 +76,7 @@ Lynceus is an open-source, Kubernetes-native, HA PostgreSQL monitoring platform 
 - **ingestion_server** (`cmd/ingestion`) — terminates collector websockets, rate-limits, dead-letter-queues, writes to the TimescaleDB stats store.
 - **api_server** (`cmd/api`) — OIDC/SCIM auth, RBAC, audit log, collector token issuance, config API; serves the templ+HTMX SSR frontend.
 
-Two databases: plain Postgres (config/metadata + audit) and TimescaleDB (stats).
+Two databases, both **vanilla PostgreSQL** (must run on AWS RDS/Aurora — no extensions): config/metadata + audit, and the stats store (native time-range partitioning managed in Go). TimescaleDB is an optional stats backend behind the `store.Stats` interface; **no feature may depend on it.**
 
 **Full design:** `docs/specs/2026-05-29-lynceus-design.md`. **MVP plan:** `docs/superpowers/plans/2026-05-29-lynceus-mvp-vertical-slice.md`.
 

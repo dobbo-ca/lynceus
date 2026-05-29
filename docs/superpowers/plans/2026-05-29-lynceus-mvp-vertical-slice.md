@@ -4,9 +4,9 @@
 
 **Goal:** Prove the entire Lynceus pipeline end-to-end — collector reads normalized `pg_stat_statements`, ships over a websocket, ingestion_server rate-limits + persists to TimescaleDB, api_server serves a templ/HTMX dashboard of top queries — with the privacy contract (T1-only wire schema, audit + data-classification columns) present from day one.
 
-**Architecture:** Single Go monorepo, three binaries (`cmd/collector`, `cmd/ingestion`, `cmd/api`) sharing `internal/` packages and a versioned protobuf wire contract in `proto/`. Two Postgres databases (config/metadata + TimescaleDB stats) run via docker-compose for dev. Collector connects outbound only.
+**Architecture:** Single Go monorepo, three binaries (`cmd/collector`, `cmd/ingestion`, `cmd/api`) sharing `internal/` packages and a versioned protobuf wire contract in `proto/`. Two vanilla Postgres databases (config/metadata + stats) run via docker-compose for dev. Collector connects outbound only.
 
-**Tech Stack:** Go 1.23+, Protocol Buffers (`protovalidate`/`protoc-gen-go`), `nhooyr.io/websocket` (or `gorilla/websocket`), TimescaleDB (Postgres 16 + timescaledb), `jackc/pgx/v5`, `a-h/templ` + HTMX, golang-migrate, testcontainers-go for integration tests.
+**Tech Stack:** Go 1.23+, Protocol Buffers (`protovalidate`/`protoc-gen-go`), `nhooyr.io/websocket` (or `gorilla/websocket`), **vanilla PostgreSQL 16** for both databases (the stats DB uses native declarative range partitioning so it runs on RDS/Aurora — **no extensions required**; TimescaleDB is an optional backend behind the `store.Stats` interface), `jackc/pgx/v5`, `a-h/templ` + HTMX, golang-migrate, testcontainers-go for integration tests.
 
 **Spec:** `docs/specs/2026-05-29-lynceus-design.md`
 
@@ -28,7 +28,8 @@ lynceus/
       normalize_test.go
     store/
       config.go                       # config/metadata DB access (audit, classification)
-      stats.go                        # TimescaleDB stats writes/reads
+      stats.go                        # stats DB writes/reads (native-partitioned Postgres)
+      partition.go                    # weekly partition create + retention (Go, no extensions)
       migrations/config/*.sql
       migrations/stats/*.sql
     ingest/
@@ -86,9 +87,9 @@ services:
     environment: { POSTGRES_PASSWORD: dev, POSTGRES_DB: lynceus_config }
     ports: ["5432:5432"]
   stats-db:
-    image: timescale/timescaledb:latest-pg16
+    image: postgres:16
     environment: { POSTGRES_PASSWORD: dev, POSTGRES_DB: lynceus_stats }
-    command: ["postgres", "-c", "shared_preload_libraries=timescaledb,pg_stat_statements"]
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements"]
     ports: ["5433:5432"]
 ```
 
@@ -273,11 +274,10 @@ CREATE TABLE audit_log (
 );
 ```
 
-- [ ] **Step 4:** Stats DB migration — TimescaleDB hypertable; `data_tier` column present even though MVP writes only tier 1:
+- [ ] **Step 4:** Stats DB migration — **native declarative range partitioning, no extensions** (runs on RDS/Aurora). `data_tier` column present even though MVP writes only tier 1:
 
 ```sql
 -- internal/store/migrations/stats/0001_init.sql
-CREATE EXTENSION IF NOT EXISTS timescaledb;
 CREATE TABLE query_stats (
   server_id TEXT NOT NULL,
   collected_at TIMESTAMPTZ NOT NULL,
@@ -286,11 +286,12 @@ CREATE TABLE query_stats (
   data_tier SMALLINT NOT NULL DEFAULT 1,
   calls BIGINT, total_time_ms DOUBLE PRECISION, mean_time_ms DOUBLE PRECISION,
   rows BIGINT, shared_blks_hit BIGINT, shared_blks_read BIGINT
-);
-SELECT create_hypertable('query_stats', 'collected_at');
+) PARTITION BY RANGE (collected_at);
+CREATE INDEX query_stats_brin_time ON query_stats USING brin (collected_at);
+CREATE INDEX query_stats_srv_fp ON query_stats (server_id, fingerprint);
 ```
 
-- [ ] **Step 5:** Implement `store.Config` and `store.Stats` (pgx pools, migration runner, `WriteQueryStats`, `TopQueriesByTotalTime`, `AppendAudit`).
+- [ ] **Step 5:** Implement `store.Config`, `store.Stats`, and `store.partition` (pgx pools, migration runner, `WriteQueryStats`, `TopQueriesByTotalTime`, `AppendAudit`). `store.Stats` is an interface; the default impl ensures the weekly partition for an incoming row's timestamp exists before insert (creating `query_stats_YYYY_WW` via `CREATE TABLE ... PARTITION OF`) and provides a retention call that drops partitions older than the configured window — all in Go, no Postgres extensions. (A TimescaleDB impl can satisfy the same interface later.)
 
 - [ ] **Step 6:** Run — expect PASS. Commit.
 

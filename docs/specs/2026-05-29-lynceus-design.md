@@ -114,9 +114,13 @@ Three Go services, two databases, an SSR frontend. Kubernetes-native and horizon
 - Single-language stack (Go), no separate Node runtime in the deploy.
 
 ### 3.5 Data stores
+
+> **Portability constraint:** Lynceus's own databases must run on managed PostgreSQL — including **AWS RDS and Aurora** (neither supports the TimescaleDB extension), Cloud SQL, and self-managed Postgres. Therefore the **baseline schema requires no Postgres extensions.**
+
 - **config/metadata DB** — plain PostgreSQL: orgs, servers, users, groups, RBAC grants, collector enrollment, audit log.
-- **stats DB** — TimescaleDB: time-series snapshots (query stats, activity, wait events, vacuum, recommendations).
-- Both deployed for HA via the **CloudNativePG** operator.
+- **stats DB** — PostgreSQL using **native declarative range partitioning** by time (e.g. weekly partitions), with partition creation and retention (drop old partitions) managed by Lynceus itself in Go. This needs **only vanilla Postgres** and runs on RDS/Aurora. Indexing favors BRIN on the time column plus btree on `(server_id, fingerprint)`.
+- **Optional stats backend — TimescaleDB.** Where operators run self-managed Postgres with the extension available, the stats store can be configured to use TimescaleDB hypertables (and compression / continuous aggregates) instead of native partitions. This is selected behind the `store.Stats` interface; **no Lynceus feature depends on it.**
+- Deployment of the databases is operator-agnostic: self-hosted via the **CloudNativePG** operator, or pointed at an external managed instance (RDS/Aurora/Cloud SQL) via connection string.
 
 ## 4. Wire Contract (collector ↔ server)
 
@@ -151,18 +155,18 @@ lynceus/
 ## 6. High Availability & Kubernetes
 
 - `api_server` and `ingestion_server` are stateless and run multiple replicas behind Services.
-- Databases run under the CloudNativePG operator (primary + replicas, failover).
-- A **Helm chart** deploys the full stack; values gate optional features (T2 capture, log sources).
+- Databases either run self-hosted under the CloudNativePG operator (primary + replicas, failover) or are external managed instances (RDS/Aurora/Cloud SQL) referenced by connection string — operator-agnostic.
+- A **Helm chart** deploys the full stack; values gate optional features (T2 capture, log sources) and select the stats backend (native-partitioned Postgres by default, TimescaleDB optional).
 - Websockets are long-lived; any ingestion replica can accept any collector.
 
 ## 7. Milestone 1 — Thin Vertical Slice (MVP)
 
 Proves the entire pipeline and the privacy contract end-to-end before deepening any component.
 
-**Flow:** collector reads `pg_stat_statements` → normalizes → opens websocket with a dev token → `ingestion_server` rate-limits + writes to TimescaleDB → `api_server` query endpoint → **templ/HTMX dashboard listing top queries by total time**.
+**Flow:** collector reads `pg_stat_statements` → normalizes → opens websocket with a dev token → `ingestion_server` rate-limits + writes to the stats DB → `api_server` query endpoint → **templ/HTMX dashboard listing top queries by total time**.
 
 **Included:**
-- Monorepo scaffold, `proto/` v1 with the T1 query-stats message, dev harness (docker-compose Postgres + Timescale).
+- Monorepo scaffold, `proto/` v1 with the T1 query-stats message, dev harness (docker-compose: config Postgres + stats Postgres, both vanilla `postgres:16`).
 - Collector: `pg_stat_statements` reader + normalization + websocket shipper.
 - ingestion_server: websocket receiver + basic rate limit + Postgres DLQ + Timescale writer.
 - api_server: dev-auth mode, query API, templ/HTMX top-queries dashboard.
@@ -184,7 +188,7 @@ Proves the entire pipeline and the privacy contract end-to-end before deepening 
 - End-to-end test of the vertical slice in CI.
 
 ## 10. Open Questions (revisit per milestone)
-- Stats DB: TimescaleDB vs. vanilla Postgres partitioning (chosen: Timescale; reconfirm at milestone 1).
+- Stats DB: **resolved** — native-partitioned vanilla Postgres is the baseline (RDS/Aurora-compatible, no extensions); TimescaleDB is an optional backend behind the `store.Stats` interface. No feature may depend on Timescale.
 - DLQ/buffer: Postgres-backed vs. NATS JetStream (chosen: Postgres for MVP; reconfirm if throughput requires).
 - Charting library for the SSR frontend.
 - Retention policy defaults and per-tier configurability.
