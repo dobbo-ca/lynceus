@@ -1,0 +1,55 @@
+// Lynceus T1 wire contract.
+//
+// This file is the SOURCE OF TRUTH for the Lynceus privacy guarantee:
+// every field on every T1 message must be a normalized identifier, a
+// fingerprint, or an aggregate metric — never a per-execution literal,
+// raw query sample, parameter value, or other content that could carry
+// PII / PHI / customer data.
+//
+// Any field that *could* carry literal-bearing content belongs in a
+// separate T2 message type (to be defined in its own file), gated
+// behind RBAC + audit. T2 capture is opt-in per server and every read
+// is recorded in the audit log.
+//
+// A contract test in internal/proto/lynceus/v1/contract_test.go
+// enforces the literal-free invariant for QueryStat. Update the
+// allowlist there whenever you legitimately add a normalized field.
+syntax = "proto3";
+
+package lynceus.v1;
+
+option go_package = "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1";
+
+// Snapshot is the unit of telemetry transmitted by a collector for a
+// single monitored Postgres server at a single point in time.
+message Snapshot {
+  string server_id = 1;
+  int64 collected_at_unix = 2;
+  repeated QueryStat query_stats = 3;
+}
+
+// QueryStat is one row of per-fingerprint query statistics, derived
+// from pg_stat_statements and normalized at the collector.
+//
+// INVARIANT: every field below is either a stable fingerprint, a
+// literal-free string, or an aggregate metric. Adding any other kind
+// of field violates the T1 privacy guarantee and will fail the
+// contract test.
+message QueryStat {
+  // Stable hash of the normalized query, suitable as a join key.
+  string fingerprint = 1;
+
+  // The query with all literals replaced by positional placeholders
+  // (e.g. "SELECT * FROM users WHERE id = $1"). Produced by the
+  // collector's pg_query-based normalizer. NEVER contains literal
+  // values from the monitored database.
+  string normalized_query = 2;
+
+  // Aggregate metrics from pg_stat_statements.
+  int64  calls            = 3;
+  double total_time_ms    = 4;
+  double mean_time_ms     = 5;
+  int64  rows             = 6;
+  int64  shared_blks_hit  = 7;
+  int64  shared_blks_read = 8;
+}
