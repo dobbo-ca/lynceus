@@ -85,4 +85,17 @@ Two databases, both **vanilla PostgreSQL** (must run on AWS RDS/Aurora — no ex
 - **Privacy is the backbone, not a feature.** Analysis happens at the collector; only normalized, literal-free data leaves the customer's infrastructure. The proto T1 message types contain **no field capable of carrying a literal value** — there is a contract test enforcing this. Never add a raw-sample/raw-text field to a T1 message.
 - **Data classification:** T1 (normalized, broadly viewable) vs T2 (may contain literals — off by default per server, gated behind group RBAC, every read audited). The `data_tier` column and `audit_log` table exist from day one even where only T1 is produced.
 - **Postgres access is read-only.** The collector never modifies the monitored database.
-- TDD: write the failing test first (see the MVP plan). Integration tests hit real Postgres/Timescale via testcontainers — do not mock the database.
+- TDD: write the failing test first (see the MVP plan). Integration tests hit real Postgres via testcontainers — do not mock the database.
+
+## Feature Work Lifecycle (M2–M6)
+
+Milestone-2+ features in beads are tracked as **discrete units of work, parallelizable once their blockers clear**. Each carries the `needs-plan` label until a plan is written.
+
+When you claim a feature issue (`bd update <id> --claim`), expected lifecycle:
+1. **Plan** — use the `superpowers:writing-plans` skill to produce a plan at `docs/superpowers/plans/<feature-slug>.md`. Commit the plan. Replace the `needs-plan` label with `ready-impl` (`bd label remove <id> needs-plan && bd label add <id> ready-impl`). At this point another worker may pick up implementation.
+2. **Implement** — execute the plan TDD-style; commit per task.
+3. **Test** — ensure the plan's test acceptance criteria pass; integration tests run against real Postgres (testcontainers), not mocks. Label `ready-test` → final verification → close.
+
+Hand-offs between agents happen at the label transitions. Use `bd note <id>` to record context for the next worker before stepping away. Always run `bd ready` to find unblocked work; never claim a blocked issue.
+
+**Feature specs:** `docs/specs/2026-05-29-lynceus-features.md` — every feature has a parity priority, data source, locality, and privacy classification.
