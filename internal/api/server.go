@@ -36,6 +36,8 @@ func NewServer(cfg Config, stats *store.Stats) *Server {
 func (s *Server) Handler() http.Handler { return s.withAuth(s.mux) }
 
 func (s *Server) routes() {
+	s.mux.HandleFunc("GET /", s.handleDashboard)
+	s.mux.HandleFunc("GET /partial/queries", s.handleQueriesPartial)
 	s.mux.HandleFunc("GET /api/queries/top", s.handleTopQueries)
 	s.mux.HandleFunc("GET /api/scim/v2/", s.notImplemented("SCIM"))
 	s.mux.HandleFunc("GET /api/oidc/", s.notImplemented("OIDC"))

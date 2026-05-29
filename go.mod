@@ -5,6 +5,7 @@ go 1.26.3
 require google.golang.org/protobuf v1.36.11
 
 require (
+	github.com/a-h/templ v0.3.1020
 	github.com/coder/websocket v1.8.14
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/pganalyze/pg_query_go/v6 v6.2.2

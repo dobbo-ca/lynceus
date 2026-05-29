@@ -1,0 +1,44 @@
+// Package web holds the templ/HTMX server-rendered UI for Lynceus.
+// Components here render only T1 (normalized, literal-free) data —
+// the privacy guarantee is enforced at the wire-contract layer
+// (internal/proto/lynceus/v1) and the templ side only displays what
+// the API hands it.
+package web
+
+// TopQuery is the view-model for one row in the top-queries table.
+// Field types deliberately mirror the API DTO so the handler does
+// not have to translate further.
+type TopQuery struct {
+	Fingerprint     string
+	NormalizedQuery string
+	Calls           int64
+	TotalTimeMs     float64
+}
+
+templ Layout(title string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ title }</title>
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+			<style>
+				body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 1200px; color: #1d1d1d; }
+				h1 { margin-bottom: 0.25rem; }
+				.subtitle { color: #666; margin-top: 0; margin-bottom: 1.5rem; }
+				table { border-collapse: collapse; width: 100%; }
+				th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
+				th { background: #f4f4f4; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; }
+				td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+				code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85rem; }
+				.empty { color: #666; font-style: italic; padding: 2rem 0; }
+			</style>
+		</head>
+		<body>
+			<h1>Lynceus</h1>
+			<p class="subtitle">top queries by total time</p>
+			{ children... }
+		</body>
+	</html>
+}

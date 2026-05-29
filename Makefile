@@ -1,4 +1,4 @@
-.PHONY: build test proto dev-up dev-down dev-logs clean
+.PHONY: build test proto templ gen dev-up dev-down dev-logs clean
 
 BINARIES := collector ingestion api
 
@@ -24,6 +24,16 @@ proto:
 	  --go_out=. \
 	  --go_opt=module=github.com/dobbo-ca/lynceus \
 	  proto/lynceus/v1/*.proto
+
+TEMPL := $(GO_BIN)/templ
+
+# Regenerate Go from web/*.templ. Auto-installs the templ CLI if missing.
+templ:
+	@test -x $(TEMPL) || go install github.com/a-h/templ/cmd/templ@latest
+	PATH="$(GO_BIN):$$PATH" templ generate
+
+# Run all code generators.
+gen: proto templ
 
 dev-up:
 	docker compose -f docker-compose.dev.yml up -d
