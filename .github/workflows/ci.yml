@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          check-latest: true
+          cache: true
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends protobuf-compiler
+
+      - name: Install generators
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install github.com/a-h/templ/cmd/templ@latest
+
+      - name: Regenerate code
+        run: make gen
+
+      # If a contributor forgot to commit regenerated proto/templ output,
+      # this catches it. Generated artefacts must match their sources.
+      - name: Verify generated code is in sync with sources
+        run: |
+          if ! git diff --quiet; then
+            echo "::error::Generated files are out of sync with their sources."
+            echo "Run 'make gen' locally and commit the result."
+            git --no-pager diff
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./... -timeout 15m -race
