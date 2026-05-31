@@ -120,6 +120,20 @@ Checks run on each snapshot with severity (info/warning/critical). All locally c
 - Parameter sets (`$1` → named params, multiple bind values) — COULD. Real params → **T2** sensitive.
 - Auto/manual `EXPLAIN ANALYZE` runner (collector-run, time-capped) — COULD.
 
+## 10b. Capability Discovery & Per-Database Operator Policy — *MUST distinguishing*
+
+Lynceus operators need to know exactly what telemetry **can** be collected from a given monitored Postgres, and they need to **turn capabilities off per database** for compliance — e.g. "on this RDS cluster, the `phi_prod` database disables query samples even though pg_stat_statements is installed." This is finer-grained than pganalyze offers and is a deliberate feature of the platform.
+
+| Feature | Priority | Locality | Source | Privacy |
+|---|---|---|---|---|
+| Capability discovery (extensions, role permissions, server version, log destination) | MUST | local (collector) | `pg_extension`, permission probes, `SHOW`, `pg_current_logfile()` | safe — metadata only |
+| Per-server / per-database capability policy (operator-toggleable) | MUST | server | config DB table `capability_policy` | every change audited |
+| Effective-policy gate at each reader (no data collected for disabled capabilities) | MUST | local (collector) | `caps.Effective(server, db, cap)` | enforcement, not data |
+| Capability matrix API (`GET /api/servers/{id}/capabilities`, `POST` to toggle) | MUST | server | api_server | toggles audited via [[ly-8b0.3]] |
+| Capability matrix UI (templ + HTMX) | SHOULD | server | api_server | renders only metadata + policy state |
+
+**Why first-class:** operators in regulated environments need (a) a single screen that tells them *what Lynceus is actually doing on this DB right now*, and (b) the ability to switch capabilities off without redeploying the collector. The audit chain ties every toggle to who/when/why — a property a compliance auditor can check independently.
+
 ## 11. Platform, Integrations & Security
 - **Collector agent** (self-hosted, filters before send) — MUST (the architecture).
 - **Managed installs** — RDS/Aurora, Azure, Cloud SQL, Heroku, Crunchy Bridge, Aiven, self-managed — SHOULD.
@@ -142,6 +156,7 @@ Checks run on each snapshot with severity (info/warning/critical). All locally c
 | **M4** Log Insights | Structured extraction, 100+ filters, multi-source ingestion (file/S3/Azure), PII filtering control plane |
 | **M5** Auth & governance | OIDC, SCIM, RBAC by group, audited T2 access |
 | **M6** HA & ops | Notification delivery (email/Slack/PagerDuty), retention, cluster-wide aggregation, replication checks, API/MCP |
+| **Cross-cutting — Capabilities** | Discovery (collector) lands alongside M2 readers so they can be gated from day one; policy + API + UI follow once the audit chain (M5 `ly-8b0.3`) is in. |
 
 ## MVP (Milestone 1) feature scope
 Only **per-query statistics** + **query normalization** + a **top-queries-by-total-time dashboard**, end to end. Everything else above is deferred to M2–M6. The MVP exists to prove the pipeline and the privacy contract, not to deliver breadth.
