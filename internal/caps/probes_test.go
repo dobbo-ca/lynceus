@@ -7,27 +7,66 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/dobbo-ca/lynceus/internal/caps"
 )
 
-func runPG(t *testing.T, extraCmd ...string) *pgxpool.Pool {
+// pgConfig is one optional Postgres customization for runPG. Use
+// withCmd to set extra `-c key=value` flags; use withLoggingCollector
+// when the test enables logging_collector=on, which silences stderr
+// (so BasicWaitStrategies times out) and forces a port-only wait.
+type pgConfig struct {
+	extraCmd  []string
+	useLogCol bool
+}
+
+type pgOpt func(*pgConfig)
+
+func withCmd(args ...string) pgOpt {
+	return func(c *pgConfig) { c.extraCmd = args }
+}
+
+// withLoggingCollector swaps the wait strategy to port-only, because
+// logging_collector=on captures all stderr into a log file so the
+// "database system is ready" message never reaches the stderr stream
+// BasicWaitStrategies watches for.
+func withLoggingCollector() pgOpt {
+	return func(c *pgConfig) { c.useLogCol = true }
+}
+
+func runPG(t *testing.T, opts ...pgOpt) *pgxpool.Pool {
 	t.Helper()
 	ctx := context.Background()
-	opts := []testcontainers.ContainerCustomizer{
+	cfg := pgConfig{}
+	for _, o := range opts {
+		o(&cfg)
+	}
+
+	tcOpts := []testcontainers.ContainerCustomizer{
 		tcpostgres.WithDatabase("lynceus_target"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
 	}
-	if len(extraCmd) > 0 {
-		opts = append(opts, testcontainers.WithCmd(extraCmd...))
+	if cfg.useLogCol {
+		tcOpts = append(tcOpts,
+			testcontainers.WithWaitStrategy(
+				wait.ForListeningPort("5432/tcp").WithStartupTimeout(60*time.Second),
+			),
+		)
+	} else {
+		tcOpts = append(tcOpts, tcpostgres.BasicWaitStrategies())
 	}
-	c, err := tcpostgres.Run(ctx, "postgres:16", opts...)
+	if len(cfg.extraCmd) > 0 {
+		tcOpts = append(tcOpts, testcontainers.WithCmd(cfg.extraCmd...))
+	}
+
+	c, err := tcpostgres.Run(ctx, "postgres:16", tcOpts...)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)
 	}
@@ -42,11 +81,26 @@ func runPG(t *testing.T, extraCmd ...string) *pgxpool.Pool {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
+
+	// Port-only wait can return before Postgres has finished initdb /
+	// the second start. Poll until SELECT 1 succeeds.
+	if cfg.useLogCol {
+		deadline := time.Now().Add(60 * time.Second)
+		for {
+			if _, err := pool.Exec(ctx, "SELECT 1"); err == nil {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("pg never became queryable")
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
 	return pool
 }
 
 func TestProbeExtensions_pgStatStatementsInstalled(t *testing.T) {
-	pool := runPG(t, "postgres", "-c", "shared_preload_libraries=pg_stat_statements")
+	pool := runPG(t, withCmd("postgres", "-c", "shared_preload_libraries=pg_stat_statements"))
 	if _, err := pool.Exec(context.Background(),
 		`CREATE EXTENSION pg_stat_statements`); err != nil {
 		t.Fatal(err)
@@ -129,9 +183,12 @@ func TestProbeStatActivityFullRead_visibleAsSuperuser(t *testing.T) {
 
 func TestProbeLogDestination_pickupValueAndCollector(t *testing.T) {
 	pool := runPG(t,
-		"postgres",
-		"-c", "log_destination=csvlog,stderr",
-		"-c", "logging_collector=on",
+		withCmd(
+			"postgres",
+			"-c", "log_destination=csvlog,stderr",
+			"-c", "logging_collector=on",
+		),
+		withLoggingCollector(),
 	)
 	out := caps.Set{}
 	caps.ProbeLogDestination(context.Background(), pool, out)
@@ -171,11 +228,11 @@ func TestProbeAutoExplain_disabledWithoutPreload(t *testing.T) {
 }
 
 func TestProbeAutoExplain_enabledWhenPreloadAndThreshold(t *testing.T) {
-	pool := runPG(t,
+	pool := runPG(t, withCmd(
 		"postgres",
 		"-c", "shared_preload_libraries=auto_explain",
 		"-c", "auto_explain.log_min_duration=0",
-	)
+	))
 	out := caps.Set{}
 	caps.ProbeAutoExplain(context.Background(), pool, out)
 	st := out[caps.AutoExplain]
@@ -184,5 +241,62 @@ func TestProbeAutoExplain_enabledWhenPreloadAndThreshold(t *testing.T) {
 	}
 	if !strings.Contains(st.Reason, "log_min_duration=0") {
 		t.Errorf("Reason should include threshold, got %q", st.Reason)
+	}
+}
+
+func TestDiscover_returnsEntryForEveryDeclaredCapability(t *testing.T) {
+	pool := runPG(t,
+		withCmd(
+			"postgres",
+			"-c", "shared_preload_libraries=pg_stat_statements,auto_explain",
+			"-c", "auto_explain.log_min_duration=0",
+			"-c", "log_destination=csvlog,stderr",
+			"-c", "logging_collector=on",
+		),
+		withLoggingCollector(),
+	)
+	if _, err := pool.Exec(context.Background(),
+		`CREATE EXTENSION pg_stat_statements`); err != nil {
+		t.Fatal(err)
+	}
+
+	d := caps.NewDiscoverer(pool)
+	set, err := d.Discover(context.Background())
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+
+	for _, c := range caps.Declared() {
+		if _, ok := set[c]; !ok {
+			t.Errorf("Discover missing key %q", c)
+		}
+	}
+
+	for _, c := range []caps.Capability{
+		caps.PgStatStatements, caps.AutoExplain,
+		caps.LogDestination, caps.ServerVersion,
+		caps.RolePermissions, caps.PgStatActivityFullRead,
+	} {
+		if !set[c].Available {
+			t.Errorf("%s expected Available=true in fully-tooled container, got %+v", c, set[c])
+		}
+	}
+
+	for _, c := range []caps.Capability{
+		caps.PgBuffercache, caps.PgWaitSampling, caps.PgStatTuple,
+	} {
+		if set[c].Available {
+			t.Errorf("%s expected Available=false (not installed), got %+v", c, set[c])
+		}
+	}
+}
+
+func TestDiscover_contextCancelledReturnsError(t *testing.T) {
+	pool := runPG(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	d := caps.NewDiscoverer(pool)
+	if _, err := d.Discover(ctx); err == nil {
+		t.Error("Discover with pre-cancelled context should error")
 	}
 }

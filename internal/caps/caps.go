@@ -10,6 +10,12 @@
 // shipping results to the api_server are handled by ly-xnk.2.
 package caps
 
+import (
+	"context"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
 // Capability is the stable identifier of one probed capability. The
 // string form is the wire/storage representation that will be reused by
 // downstream beads (ly-xnk.2 storage, ly-xnk.4 API).
@@ -60,3 +66,53 @@ type Status struct {
 // Set is the output of Discover. Every Capability returned by Declared()
 // is guaranteed to be present as a key.
 type Set map[Capability]Status
+
+// Discoverer probes a monitored Postgres instance for the capabilities
+// declared in Declared(). It is safe to call Discover repeatedly; each
+// call issues fresh probe queries.
+type Discoverer struct {
+	pool *pgxpool.Pool
+}
+
+// NewDiscoverer returns a Discoverer bound to pool.
+func NewDiscoverer(pool *pgxpool.Pool) *Discoverer {
+	return &Discoverer{pool: pool}
+}
+
+// Discover runs every probe and returns the resulting Set. The returned
+// Set is guaranteed to contain exactly one entry per Declared()
+// capability — probes that fail or report "not installed" still produce
+// a key with Available=false and a descriptive Reason.
+//
+// Discover only returns a non-nil error for infrastructure failures
+// (context cancellation, total pool acquisition failure). Individual
+// probe SQL errors are surfaced as Status entries, not bubbled.
+func (d *Discoverer) Discover(ctx context.Context) (Set, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	conn, err := d.pool.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	conn.Release()
+
+	out := make(Set, len(Declared()))
+
+	ProbeExtensions(ctx, d.pool, out)
+	ProbeServerVersion(ctx, d.pool, out)
+	ProbeRolePermissions(ctx, d.pool, out)
+	ProbeStatActivityFullRead(ctx, d.pool, out)
+	ProbeLogDestination(ctx, d.pool, out)
+	ProbeAutoExplain(ctx, d.pool, out)
+
+	for _, c := range Declared() {
+		if _, ok := out[c]; !ok {
+			out[c] = Status{
+				Available: false,
+				Reason:    "probe did not record a result (bug)",
+			}
+		}
+	}
+	return out, nil
+}
