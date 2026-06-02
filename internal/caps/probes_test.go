@@ -87,3 +87,42 @@ func TestProbeExtensions_alwaysWritesEveryExtensionKey(t *testing.T) {
 		}
 	}
 }
+
+func TestProbeServerVersion_picksUpVersionNum(t *testing.T) {
+	pool := runPG(t)
+	out := caps.Set{}
+	caps.ProbeServerVersion(context.Background(), pool, out)
+	st := out[caps.ServerVersion]
+	if !st.Available {
+		t.Fatalf("ServerVersion expected Available, got %+v", st)
+	}
+	if !strings.HasPrefix(st.Reason, "server_version_num=") {
+		t.Errorf("Reason missing prefix: %q", st.Reason)
+	}
+}
+
+func TestProbeRolePermissions_reportsPgMonitorGrant(t *testing.T) {
+	pool := runPG(t)
+	out := caps.Set{}
+	caps.ProbeRolePermissions(context.Background(), pool, out)
+	st := out[caps.RolePermissions]
+	if !st.Available {
+		t.Errorf("RolePermissions expected Available (superuser implies pg_monitor), got %+v", st)
+	}
+	if !strings.Contains(st.Reason, "rolsuper=true") {
+		t.Errorf("Reason should mention rolsuper=true for superuser, got %q", st.Reason)
+	}
+	if !strings.Contains(st.Reason, "pg_monitor=true") {
+		t.Errorf("Reason should mention pg_monitor=true, got %q", st.Reason)
+	}
+}
+
+func TestProbeStatActivityFullRead_visibleAsSuperuser(t *testing.T) {
+	pool := runPG(t)
+	out := caps.Set{}
+	caps.ProbeStatActivityFullRead(context.Background(), pool, out)
+	st := out[caps.PgStatActivityFullRead]
+	if !st.Available {
+		t.Errorf("PgStatActivityFullRead expected Available as superuser, got %+v", st)
+	}
+}
