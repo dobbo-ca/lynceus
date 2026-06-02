@@ -126,3 +126,63 @@ func TestProbeStatActivityFullRead_visibleAsSuperuser(t *testing.T) {
 		t.Errorf("PgStatActivityFullRead expected Available as superuser, got %+v", st)
 	}
 }
+
+func TestProbeLogDestination_pickupValueAndCollector(t *testing.T) {
+	pool := runPG(t,
+		"postgres",
+		"-c", "log_destination=csvlog,stderr",
+		"-c", "logging_collector=on",
+	)
+	out := caps.Set{}
+	caps.ProbeLogDestination(context.Background(), pool, out)
+	st := out[caps.LogDestination]
+	if !st.Available {
+		t.Errorf("LogDestination expected Available with csvlog+collector, got %+v", st)
+	}
+	if !strings.Contains(st.Reason, "dest=csvlog,stderr") {
+		t.Errorf("Reason missing dest value: %q", st.Reason)
+	}
+	if !strings.Contains(st.Reason, "collector=true") {
+		t.Errorf("Reason missing collector=true: %q", st.Reason)
+	}
+}
+
+func TestProbeLogDestination_stderrOnlyIsUnavailable(t *testing.T) {
+	pool := runPG(t)
+	out := caps.Set{}
+	caps.ProbeLogDestination(context.Background(), pool, out)
+	st := out[caps.LogDestination]
+	if st.Available {
+		t.Errorf("LogDestination should be unavailable with bare stderr, got %+v", st)
+	}
+}
+
+func TestProbeAutoExplain_disabledWithoutPreload(t *testing.T) {
+	pool := runPG(t)
+	out := caps.Set{}
+	caps.ProbeAutoExplain(context.Background(), pool, out)
+	st := out[caps.AutoExplain]
+	if st.Available {
+		t.Errorf("AutoExplain should be unavailable without preload, got %+v", st)
+	}
+	if !strings.Contains(st.Reason, "not in shared_preload_libraries") {
+		t.Errorf("Reason should explain preload absence, got %q", st.Reason)
+	}
+}
+
+func TestProbeAutoExplain_enabledWhenPreloadAndThreshold(t *testing.T) {
+	pool := runPG(t,
+		"postgres",
+		"-c", "shared_preload_libraries=auto_explain",
+		"-c", "auto_explain.log_min_duration=0",
+	)
+	out := caps.Set{}
+	caps.ProbeAutoExplain(context.Background(), pool, out)
+	st := out[caps.AutoExplain]
+	if !st.Available {
+		t.Errorf("AutoExplain expected Available with preload+threshold, got %+v", st)
+	}
+	if !strings.Contains(st.Reason, "log_min_duration=0") {
+		t.Errorf("Reason should include threshold, got %q", st.Reason)
+	}
+}

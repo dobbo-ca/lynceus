@@ -165,3 +165,94 @@ func ProbeStatActivityFullRead(ctx context.Context, pool *pgxpool.Pool, out Set)
 		Reason:   fmt.Sprintf("pg_read_all_stats=%t,rolsuper=%t", hasRead, isSuper),
 	}
 }
+
+// ProbeLogDestination writes a LogDestination entry into out. Available
+// iff log_destination is more than bare stderr OR logging_collector is on
+// (i.e. logs land somewhere ingestion can reach later).
+func ProbeLogDestination(ctx context.Context, pool *pgxpool.Pool, out Set) {
+	var dest, collector string
+	if err := pool.QueryRow(ctx, `SHOW log_destination`).Scan(&dest); err != nil {
+		out[LogDestination] = Status{
+			Available: false,
+			Reason:    fmt.Sprintf("probe error: %s", err.Error()),
+		}
+		return
+	}
+	if err := pool.QueryRow(ctx, `SHOW logging_collector`).Scan(&collector); err != nil {
+		out[LogDestination] = Status{
+			Available: false,
+			Reason:    fmt.Sprintf("probe error: %s", err.Error()),
+		}
+		return
+	}
+	collectorOn := strings.EqualFold(collector, "on")
+
+	var fileRaw *string
+	_ = pool.QueryRow(ctx, `SELECT pg_current_logfile()`).Scan(&fileRaw)
+	file := ""
+	if fileRaw != nil {
+		file = *fileRaw
+	}
+
+	avail := collectorOn || !strings.EqualFold(strings.TrimSpace(dest), "stderr")
+	out[LogDestination] = Status{
+		Available: avail,
+		Reason: fmt.Sprintf("dest=%s; collector=%t; file=%s",
+			dest, collectorOn, file),
+	}
+}
+
+// ProbeAutoExplain writes an AutoExplain entry into out. Available iff
+// auto_explain is loaded via shared_preload_libraries AND its
+// log_min_duration GUC is something other than '-1' (i.e. it is actually
+// instrumenting something).
+func ProbeAutoExplain(ctx context.Context, pool *pgxpool.Pool, out Set) {
+	var preload string
+	if err := pool.QueryRow(ctx, `SHOW shared_preload_libraries`).Scan(&preload); err != nil {
+		out[AutoExplain] = Status{
+			Available: false,
+			Reason:    fmt.Sprintf("probe error: %s", err.Error()),
+		}
+		return
+	}
+	if !libraryListed(preload, "auto_explain") {
+		out[AutoExplain] = Status{
+			Available: false,
+			Reason:    "not in shared_preload_libraries",
+		}
+		return
+	}
+
+	var threshold string
+	if err := pool.QueryRow(ctx, `SHOW auto_explain.log_min_duration`).Scan(&threshold); err != nil {
+		out[AutoExplain] = Status{
+			Available: false,
+			Reason:    fmt.Sprintf("preloaded but threshold unreadable: %s", err.Error()),
+		}
+		return
+	}
+	threshold = strings.TrimSpace(threshold)
+	if threshold == "-1" {
+		out[AutoExplain] = Status{
+			Available: false,
+			Reason:    "preloaded but log_min_duration=-1 (disabled)",
+		}
+		return
+	}
+	out[AutoExplain] = Status{
+		Available: true,
+		Reason:    fmt.Sprintf("log_min_duration=%s", threshold),
+	}
+}
+
+// libraryListed reports whether name appears in the comma-separated GUC
+// value (whitespace and quoting handled). Postgres formats
+// shared_preload_libraries as e.g. `pg_stat_statements,auto_explain`.
+func libraryListed(value, name string) bool {
+	for p := range strings.SplitSeq(value, ",") {
+		if strings.EqualFold(strings.Trim(strings.TrimSpace(p), "\"'"), name) {
+			return true
+		}
+	}
+	return false
+}
