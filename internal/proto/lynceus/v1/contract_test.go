@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // TestQueryStatHasOnlyNormalizedFields enforces the T1 privacy guarantee:
@@ -55,5 +56,65 @@ func TestNormalizedQueryFieldShape(t *testing.T) {
 	}
 	if got := f.Kind().String(); got != "string" {
 		t.Fatalf("normalized_query must be string kind, got %s", got)
+	}
+}
+
+// TestLogEventHasOnlyClassificationFields enforces the T1 privacy guarantee
+// for the log-insights pipeline: the LogEvent wire message must carry only
+// classification metadata (event type, severity, timestamps, process info).
+// It must NEVER carry the statement text, bind parameters, error detail,
+// or any other field capable of holding a literal value from the monitored
+// database. Sensitive payload travels in a separate T2 message (defined
+// later) gated behind RBAC + audit.
+func TestLogEventHasOnlyClassificationFields(t *testing.T) {
+	allowed := map[string]struct{}{
+		"event_type":       {},
+		"severity":         {},
+		"occurred_at_unix": {},
+		"logged_at_unix":   {},
+		"pid":              {},
+		"backend_type":     {},
+		"database_name":    {},
+		"user_name":        {},
+		"application_name": {},
+		"client_addr_hash": {},
+		"sql_state":        {},
+		"session_line_num": {},
+		"transaction_id":   {},
+	}
+
+	fields := (&lynceusv1.LogEvent{}).ProtoReflect().Descriptor().Fields()
+	for i := 0; i < fields.Len(); i++ {
+		name := string(fields.Get(i).Name())
+		if _, ok := allowed[name]; !ok {
+			t.Fatalf(
+				"unexpected field %q in T1 LogEvent — possible literal leak. "+
+					"T1 log events carry only classification metadata. Statement "+
+					"text, bind params, error detail, hint, and the raw message "+
+					"belong in a separate T2 LogPayload message gated behind "+
+					"RBAC + audit (see docs/specs/2026-05-29-lynceus-design.md §2).",
+				name,
+			)
+		}
+	}
+}
+
+// TestLogEventScalarFieldShapes guards against type-changing regressions
+// where a string field is replaced by bytes or a nested message that
+// could embed unstructured content.
+func TestLogEventScalarFieldShapes(t *testing.T) {
+	fields := (&lynceusv1.LogEvent{}).ProtoReflect().Descriptor().Fields()
+	wantString := []string{
+		"event_type", "backend_type", "database_name", "user_name",
+		"application_name", "client_addr_hash", "sql_state",
+	}
+	for _, fn := range wantString {
+		f := fields.ByName(protoreflect.Name(fn))
+		if f == nil {
+			t.Fatalf("field %q missing from LogEvent", fn)
+		}
+		if got := f.Kind().String(); got != "string" {
+			t.Fatalf("%s must be string kind, got %s", fn, got)
+		}
 	}
 }

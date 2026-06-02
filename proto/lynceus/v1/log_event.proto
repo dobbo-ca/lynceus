@@ -1,0 +1,72 @@
+// Lynceus T1 wire contract — log insights.
+//
+// LogEvent is the classification-only counterpart for a parsed Postgres
+// log line. Any field capable of carrying literal values from the
+// monitored database (statement text, bind parameters, error detail,
+// hint, the raw log message itself) belongs in a separate T2
+// LogPayload message — never here.
+//
+// The contract test in internal/proto/lynceus/v1/contract_test.go
+// enforces the literal-free invariant. Update its allowlist whenever
+// you legitimately add a normalized field.
+syntax = "proto3";
+
+package lynceus.v1;
+
+option go_package = "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1";
+
+// LogEvent is one classified Postgres log event. Every field is either
+// a fixed-vocabulary string (event_type, severity, sql_state), a Postgres
+// catalog identifier (database_name, user_name), or a coarse numeric
+// counter. client_addr is hashed at the collector (SHA-256) because raw
+// IP addresses are PII under GDPR. No field carries the raw message.
+message LogEvent {
+  // Canonical event type from the Lynceus vocabulary, e.g.
+  //   "connection.authorized", "connection.disconnected",
+  //   "checkpoint.completed", "checkpoint.starting",
+  //   "vacuum.completed", "vacuum.autovacuum_completed",
+  //   "lock.deadlock_detected", "lock.acquired_after_wait",
+  //   "query.duration", "query.canceled_due_to_timeout",
+  //   "error.constraint_violation", "error.syntax",
+  //   "auto_explain.plan", "temp_file.created", "log.unclassified".
+  string event_type = 1;
+
+  // PANIC | FATAL | ERROR | WARNING | NOTICE | INFO | LOG | DEBUG.
+  string severity = 2;
+
+  // Event timestamp, unix seconds UTC (when the event occurred in
+  // Postgres — from the log line's own timestamp, not when we read it).
+  int64 occurred_at_unix = 3;
+
+  // When the collector observed the line. Lets the server detect skew.
+  int64 logged_at_unix = 4;
+
+  // Postgres backend pid.
+  int64 pid = 5;
+
+  // e.g. "client backend", "autovacuum worker", "checkpointer".
+  string backend_type = 6;
+
+  // Postgres database name (catalog identifier, not user data).
+  string database_name = 7;
+
+  // Postgres role name (catalog identifier).
+  string user_name = 8;
+
+  // application_name from the connection (catalog identifier — pgsql
+  // truncates/sanitizes this; treated as low-risk normalized metadata).
+  string application_name = 9;
+
+  // SHA-256 (hex) of the client IP. Lets us count distinct clients
+  // without storing the IP itself.
+  string client_addr_hash = 10;
+
+  // Postgres SQLSTATE 5-char code, e.g. "23505".
+  string sql_state = 11;
+
+  // Per-session line number from csvlog (cheap correlation key).
+  int64 session_line_num = 12;
+
+  // Postgres transaction id at the time of the event (or 0 if none).
+  int64 transaction_id = 13;
+}
