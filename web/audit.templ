@@ -1,0 +1,110 @@
+package web
+
+import "fmt"
+
+// AuditRow is the view-model for one rendered audit-log row. All fields
+// are already-normalized strings/ints from the config DB; the detail is
+// the canonical JSON text as stored (may be empty).
+type AuditRow struct {
+	ID       int64
+	Actor    string
+	Action   string
+	ServerID string
+	DataTier int16
+	Detail   string
+	At       string // pre-formatted timestamp (RFC3339, UTC)
+}
+
+// AuditFilterValues echoes the active filter back into the form so the
+// inputs stay populated across HTMX submissions.
+type AuditFilterValues struct {
+	Actor    string
+	Action   string
+	ServerID string
+	Since    string // yyyy-mm-dd or empty
+	Until    string // yyyy-mm-dd or empty
+	Tier     string // "", "1", or "2"
+}
+
+// AuditPage is the full filterable audit-log page.
+templ AuditPage(f AuditFilterValues, rows []AuditRow) {
+	@Layout("Lynceus — audit log", "tamper-evident audit log") {
+		@AuditFilterForm(f)
+		@AuditTable(rows)
+	}
+}
+
+// AuditFilterForm submits via hx-get to /partial/audit and swaps the
+// results table (#audit-table) in place. A normal submit (no JS) falls
+// back to a full-page GET /audit with the same query params.
+templ AuditFilterForm(f AuditFilterValues) {
+	<form class="filters" action="/audit" method="get"
+		hx-get="/partial/audit" hx-target="#audit-table" hx-swap="outerHTML">
+		<label>
+			Actor
+			<input type="text" name="actor" value={ f.Actor } placeholder="any"/>
+		</label>
+		<label>
+			Action
+			<input type="text" name="action" value={ f.Action } placeholder="any"/>
+		</label>
+		<label>
+			Server
+			<input type="text" name="server" value={ f.ServerID } placeholder="any"/>
+		</label>
+		<label>
+			Tier
+			<select name="tier">
+				<option value="" selected?={ f.Tier == "" }>Any</option>
+				<option value="1" selected?={ f.Tier == "1" }>T1</option>
+				<option value="2" selected?={ f.Tier == "2" }>T2</option>
+			</select>
+		</label>
+		<label>
+			From
+			<input type="date" name="since" value={ f.Since }/>
+		</label>
+		<label>
+			To
+			<input type="date" name="until" value={ f.Until }/>
+		</label>
+		<button type="submit">Filter</button>
+	</form>
+}
+
+// AuditTable renders just the results table. The wrapping div carries the
+// id used as the HTMX swap target.
+templ AuditTable(rows []AuditRow) {
+	<div id="audit-table">
+		if len(rows) == 0 {
+			<p class="empty">No audit entries match the current filter.</p>
+		} else {
+			<table>
+				<thead>
+					<tr>
+						<th class="num">ID</th>
+						<th>Time (UTC)</th>
+						<th>Actor</th>
+						<th>Action</th>
+						<th>Server</th>
+						<th class="num">Tier</th>
+						<th>Detail</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range rows {
+						<tr>
+							<td class="num">{ fmt.Sprintf("%d", r.ID) }</td>
+							<td>{ r.At }</td>
+							<td>{ r.Actor }</td>
+							<td><code>{ r.Action }</code></td>
+							<td>{ r.ServerID }</td>
+							<td class="num">{ fmt.Sprintf("%d", r.DataTier) }</td>
+							<td><code>{ r.Detail }</code></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}
