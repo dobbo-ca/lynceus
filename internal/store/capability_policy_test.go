@@ -7,6 +7,7 @@ package store_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/dobbo-ca/lynceus/internal/store"
 )
@@ -283,5 +284,45 @@ func TestListCapabilityPolicies_returnsAllForServer(t *testing.T) {
 		if p.ServerID != "srv-1" {
 			t.Errorf("list returned foreign server row: %+v", p)
 		}
+	}
+}
+
+func TestSetCapabilityPolicy_keepsAuditChainIntact(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyConfigMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO servers (id, name) VALUES ('srv-1', 'srv one')`,
+	); err != nil {
+		t.Fatalf("seed server: %v", err)
+	}
+	cfg := store.NewConfig(pool)
+
+	for i := 0; i < 5; i++ {
+		if _, err := cfg.SetCapabilityPolicy(ctx, store.SetCapabilityPolicyInput{
+			ServerID: "srv-1", Capability: "auto_explain",
+			Enabled: i%2 == 0, SetBy: "alice", Reason: "toggle",
+		}); err != nil {
+			t.Fatalf("set %d: %v", i, err)
+		}
+	}
+
+	// Every toggle wrote an audit row and the chain still verifies.
+	bad, reason, err := cfg.VerifyChain(ctx, time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if bad != -1 {
+		t.Fatalf("audit chain broken after toggles: bad=%d reason=%q", bad, reason)
+	}
+
+	var auditCount int
+	_ = pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_log WHERE action = 'capability_policy.set'`,
+	).Scan(&auditCount)
+	if auditCount != 5 {
+		t.Errorf("audit rows = %d, want 5", auditCount)
 	}
 }
