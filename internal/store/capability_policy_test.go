@@ -66,3 +66,55 @@ func TestCapabilityPolicyMigration_createsTableAndConstraints(t *testing.T) {
 		t.Fatalf("re-apply: %v", err)
 	}
 }
+
+func TestSetCapabilityPolicy_insertsAndAudits(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyConfigMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	// FK requires the server row to exist first.
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO servers (id, name) VALUES ('srv-1', 'srv one')`,
+	); err != nil {
+		t.Fatalf("seed server: %v", err)
+	}
+	cfg := store.NewConfig(pool)
+
+	got, err := cfg.SetCapabilityPolicy(ctx, store.SetCapabilityPolicyInput{
+		ServerID:     "srv-1",
+		DatabaseName: "", // server-wide default
+		Capability:   "pg_stat_statements",
+		Enabled:      true,
+		SetBy:        "alice",
+		Reason:       "extension confirmed installed",
+	})
+	if err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	if !got.Enabled || got.ServerID != "srv-1" || got.Capability != "pg_stat_statements" {
+		t.Fatalf("unexpected returned policy: %+v", got)
+	}
+	if got.DatabaseName != "" {
+		t.Errorf("server-wide row should report empty DatabaseName, got %q", got.DatabaseName)
+	}
+	if got.AuditChainID == 0 {
+		t.Fatal("AuditChainID not populated")
+	}
+	if got.SetAt.IsZero() {
+		t.Error("SetAt not populated")
+	}
+
+	// An audit row exists with the assigned id and references the toggle.
+	var action, actor, serverID string
+	if err := pool.QueryRow(ctx,
+		`SELECT action, actor, COALESCE(server_id,'') FROM audit_log WHERE id = $1`,
+		got.AuditChainID,
+	).Scan(&action, &actor, &serverID); err != nil {
+		t.Fatalf("audit row missing: %v", err)
+	}
+	if action != "capability_policy.set" || actor != "alice" || serverID != "srv-1" {
+		t.Errorf("audit row = (%q,%q,%q), want (capability_policy.set, alice, srv-1)",
+			action, actor, serverID)
+	}
+}
