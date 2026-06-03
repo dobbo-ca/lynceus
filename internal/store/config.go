@@ -12,10 +12,24 @@ import (
 )
 
 // Config is typed access to the config/metadata database.
-type Config struct{ pool *pgxpool.Pool }
+type Config struct {
+	pool *pgxpool.Pool // primary (read-write): writes + read-your-writes reads
+	ro   *pgxpool.Pool // read replica; defaults to pool when not split
+}
 
-// NewConfig returns a Config bound to pool.
-func NewConfig(pool *pgxpool.Pool) *Config { return &Config{pool: pool} }
+// NewConfig returns a Config bound to its primary pool. Standalone reads
+// fall back to the primary until a replica is attached via WithReadPool.
+func NewConfig(pool *pgxpool.Pool) *Config { return &Config{pool: pool, ro: pool} }
+
+// WithReadPool attaches a read-replica pool used to serve standalone
+// reads (ListAudit, VerifyChain, capability-policy getters). A nil ro is
+// ignored. Returns the receiver for chaining.
+func (c *Config) WithReadPool(ro *pgxpool.Pool) *Config {
+	if ro != nil {
+		c.ro = ro
+	}
+	return c
+}
 
 // auditLockKey is the bigint advisory-lock key used to serialize all
 // audit appenders across the cluster. Treat it as a pinned constant —
@@ -103,7 +117,7 @@ func (c *Config) ListAudit(ctx context.Context, f AuditFilter) ([]AuditRecord, e
 	args = append(args, limit)
 	q += fmt.Sprintf(" ORDER BY id DESC LIMIT $%d", len(args))
 
-	rows, err := c.pool.Query(ctx, q, args...)
+	rows, err := c.ro.Query(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list audit: %w", err)
 	}
@@ -252,7 +266,7 @@ func (c *Config) VerifyChain(ctx context.Context, since, until time.Time) (int, 
 		args = []any{since, until}
 	}
 
-	rows, err := c.pool.Query(ctx, q, args...)
+	rows, err := c.ro.Query(ctx, q, args...)
 	if err != nil {
 		return 0, "", fmt.Errorf("query: %w", err)
 	}
