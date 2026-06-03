@@ -11,25 +11,32 @@ build:
 test:
 	go test ./...
 
-GO_BIN        := $(shell go env GOPATH)/bin
-PROTOC_GEN_GO := $(GO_BIN)/protoc-gen-go
+GO_BIN := $(shell go env GOPATH)/bin
+
+# Pinned generator versions. These must match the version stamps baked into
+# the committed generated files, or CI's "generated code in sync" check fails.
+# protoc-gen-go tracks the google.golang.org/protobuf version in go.mod; protoc
+# itself is pinned via .tool-versions and CI's setup-protoc (libprotoc 35.0 ->
+# stamp protoc v7.35.0). Bumping any of these means regenerating in the same
+# commit. We install the pinned versions every run because `go install` won't
+# downgrade an already-present binary on its own.
+PROTOC_GEN_GO_VERSION := v1.36.11
+TEMPL_VERSION         := v0.3.1020
 
 # Regenerate Go from proto/. Output paths are derived from each .proto's
-# go_package option (module= strips the module prefix). Requires `protoc`
-# on PATH; auto-installs protoc-gen-go if missing.
+# go_package option (module= strips the module prefix). Requires protoc 35.0
+# on PATH (see .tool-versions); installs the pinned protoc-gen-go.
 proto:
-	@command -v protoc >/dev/null 2>&1 || (echo "ERROR: protoc not on PATH (brew install protobuf)" && exit 1)
-	@test -x $(PROTOC_GEN_GO) || go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	@command -v protoc >/dev/null 2>&1 || (echo "ERROR: protoc not on PATH (need libprotoc 35.0 — see .tool-versions, or 'brew install protobuf')" && exit 1)
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)
 	PATH="$(GO_BIN):$$PATH" protoc \
 	  --go_out=. \
 	  --go_opt=module=github.com/dobbo-ca/lynceus \
 	  proto/lynceus/v1/*.proto
 
-TEMPL := $(GO_BIN)/templ
-
-# Regenerate Go from web/*.templ. Auto-installs the templ CLI if missing.
+# Regenerate Go from web/*.templ. Installs the pinned templ CLI.
 templ:
-	@test -x $(TEMPL) || go install github.com/a-h/templ/cmd/templ@latest
+	go install github.com/a-h/templ/cmd/templ@$(TEMPL_VERSION)
 	PATH="$(GO_BIN):$$PATH" templ generate
 
 # Run all code generators.
