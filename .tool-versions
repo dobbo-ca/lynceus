@@ -1,0 +1,4 @@
+# Pins protoc for asdf/mise so locally regenerated code matches CI's stamp.
+# Must stay in sync with .github/workflows/ci.yml (setup-protoc) and the
+# committed generated files (protoc v7.35.0 / libprotoc 35.0).
+protoc 35.0
