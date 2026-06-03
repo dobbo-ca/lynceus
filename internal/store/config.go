@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -129,4 +130,113 @@ func (c *Config) AppendAuditReturning(ctx context.Context, e AuditEntry) (AuditR
 		DataTier: e.DataTier, Detail: detail, At: at,
 		PrevHash: prev, RowHash: rowHash,
 	}, nil
+}
+
+// VerifyChain walks audit_log rows ordered by id ASC and recomputes each
+// row's hash chain. It returns (-1, "", nil) when the chain is intact.
+// Otherwise it returns the 0-based ordinal of the first inconsistent
+// row in the walk along with a short reason.
+//
+// since and until bound the time window (inclusive); pass zero values to
+// scan the whole table. Bounding is intended for sharded verification on
+// large tables; the chain is still anchored from the table's earliest id
+// regardless of the time window, because the predecessor's hash is read
+// from the previous row in the walk — which means a partial-window walk
+// validates only the rows inside the window AND only checks that they
+// chain to each other. To validate the chain anchors to genesis you must
+// call with since == time.Time{} (i.e. scan from the start).
+func (c *Config) VerifyChain(ctx context.Context, since, until time.Time) (int, string, error) {
+	var (
+		q    string
+		args []any
+	)
+	switch {
+	case since.IsZero() && until.IsZero():
+		q = `SELECT id, actor, action, COALESCE(server_id,''), COALESCE(data_tier,0),
+		            COALESCE(detail::text, ''), at, prev_hash, row_hash
+		       FROM audit_log ORDER BY id ASC`
+	default:
+		q = `SELECT id, actor, action, COALESCE(server_id,''), COALESCE(data_tier,0),
+		            COALESCE(detail::text, ''), at, prev_hash, row_hash
+		       FROM audit_log
+		      WHERE at >= $1 AND at <= $2
+		      ORDER BY id ASC`
+		if since.IsZero() {
+			since = time.Unix(0, 0)
+		}
+		if until.IsZero() {
+			until = time.Now().Add(24 * time.Hour)
+		}
+		args = []any{since, until}
+	}
+
+	rows, err := c.pool.Query(ctx, q, args...)
+	if err != nil {
+		return 0, "", fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	expectedPrev := make([]byte, 32) // genesis
+	var (
+		idx         int
+		lastID      int64
+		walkStarted bool
+	)
+	for rows.Next() {
+		var (
+			id      int64
+			actor   string
+			action  string
+			srvID   string
+			tier    int16
+			detail  string
+			at      time.Time
+			prev    []byte
+			rowHash []byte
+		)
+		if err := rows.Scan(&id, &actor, &action, &srvID, &tier, &detail, &at, &prev, &rowHash); err != nil {
+			return idx, "scan", err
+		}
+
+		if walkStarted && id != lastID+1 {
+			return idx, fmt.Sprintf("id gap: expected %d, got %d", lastID+1, id), nil
+		}
+
+		var detailBytes []byte
+		if detail != "" {
+			canon, err := canonicalJSON([]byte(detail))
+			if err != nil {
+				return idx, "detail not canonicalizable", err
+			}
+			detailBytes = canon
+		}
+
+		// When walking a windowed range, only the very first row of the
+		// table itself is allowed to have genesis prev; subsequent rows
+		// must chain to expectedPrev. If this is a windowed walk that
+		// does not start at id=1, expectedPrev is seeded from the row's
+		// own prev_hash on the first iteration (we cannot validate the
+		// link to a row outside the window — that's documented above).
+		if !walkStarted && id != 1 {
+			expectedPrev = prev
+		}
+
+		if !bytes.Equal(prev, expectedPrev) {
+			return idx, fmt.Sprintf("prev_hash mismatch at id=%d", id), nil
+		}
+
+		recomputed := hashAuditRow(uint64(id), prev, actor, action, srvID, tier, detailBytes, at.UTC().Truncate(time.Microsecond))
+		if !bytes.Equal(recomputed, rowHash) {
+			return idx, fmt.Sprintf("row_hash mismatch at id=%d", id), nil
+		}
+
+		expectedPrev = rowHash
+		lastID = id
+		walkStarted = true
+		idx++
+	}
+	if err := rows.Err(); err != nil {
+		return idx, "rows.Err", err
+	}
+	return -1, "", nil
 }
