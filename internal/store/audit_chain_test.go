@@ -162,3 +162,51 @@ func TestVerifyChain_detectsOutOfOrderInsertion(t *testing.T) {
 		t.Fatalf("expected bad=1, got bad=%d reason=%q", bad, reason)
 	}
 }
+
+func TestAppendAudit_concurrentAppendersProduceValidChain(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyConfigMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	cfg := store.NewConfig(pool)
+
+	const writers = 8
+	const perWriter = 25
+	errCh := make(chan error, writers)
+	for w := 0; w < writers; w++ {
+		go func(w int) {
+			for i := 0; i < perWriter; i++ {
+				_, err := cfg.AppendAuditReturning(ctx, store.AuditEntry{
+					Actor:  "actor",
+					Action: "concurrent",
+					Detail: map[string]any{"w": w, "i": i},
+				})
+				if err != nil {
+					errCh <- err
+					return
+				}
+			}
+			errCh <- nil
+		}(w)
+	}
+	for i := 0; i < writers; i++ {
+		if err := <-errCh; err != nil {
+			t.Fatalf("writer: %v", err)
+		}
+	}
+
+	bad, reason, err := cfg.VerifyChain(ctx, time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if bad != -1 {
+		t.Fatalf("chain broken under concurrent appenders: bad=%d reason=%q", bad, reason)
+	}
+
+	var total int
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM audit_log`).Scan(&total)
+	if total != writers*perWriter {
+		t.Fatalf("row count = %d, want %d", total, writers*perWriter)
+	}
+}
