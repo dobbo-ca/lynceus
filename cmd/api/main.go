@@ -20,6 +20,10 @@ func main() {
 	if dsn == "" {
 		log.Fatal("LYNCEUS_STATS_DSN required")
 	}
+	configDSN := os.Getenv("LYNCEUS_CONFIG_DSN")
+	if configDSN == "" {
+		log.Fatal("LYNCEUS_CONFIG_DSN required")
+	}
 	addr := os.Getenv("LYNCEUS_API_ADDR")
 	if addr == "" {
 		addr = ":8080"
@@ -36,7 +40,14 @@ func main() {
 	}
 	defer pool.Close()
 
-	srv := api.NewServer(api.Config{DevAuth: devAuth}, store.NewStats(pool))
+	configPool, err := pgxpool.New(ctx, configDSN)
+	if err != nil {
+		log.Fatalf("connect config db: %v", err)
+	}
+	defer configPool.Close()
+
+	srv := api.NewServer(api.Config{DevAuth: devAuth},
+		store.NewStats(pool), store.NewConfig(configPool))
 
 	httpSrv := &http.Server{
 		Addr:        addr,
