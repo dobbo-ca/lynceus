@@ -186,3 +186,102 @@ func TestGetCapabilityPolicy_exactRowAndUpsertOverwrite(t *testing.T) {
 		t.Errorf("row count = %d, want 1", n)
 	}
 }
+
+func TestEffectiveCapability_overrideBeatsDefault(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyConfigMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO servers (id, name) VALUES ('srv-1', 'srv one')`,
+	); err != nil {
+		t.Fatalf("seed server: %v", err)
+	}
+	cfg := store.NewConfig(pool)
+
+	// No policy at all: not found.
+	_, src, found, err := cfg.EffectiveCapability(ctx, "srv-1", "appdb", "pg_stat_statements")
+	if err != nil {
+		t.Fatalf("effective (none): %v", err)
+	}
+	if found {
+		t.Fatalf("expected not found, got source=%v", src)
+	}
+
+	// Server-wide default: enabled. With no DB override, effective uses it.
+	if _, err := cfg.SetCapabilityPolicy(ctx, store.SetCapabilityPolicyInput{
+		ServerID: "srv-1", Capability: "pg_stat_statements",
+		Enabled: true, SetBy: "alice",
+	}); err != nil {
+		t.Fatalf("set default: %v", err)
+	}
+	enabled, src, found, err := cfg.EffectiveCapability(ctx, "srv-1", "appdb", "pg_stat_statements")
+	if err != nil || !found {
+		t.Fatalf("effective (default): found=%v err=%v", found, err)
+	}
+	if !enabled || src != store.PolicySourceServerDefault {
+		t.Errorf("got enabled=%v source=%v, want true/server-default", enabled, src)
+	}
+
+	// DB-specific override: disabled for appdb. Override wins.
+	if _, err := cfg.SetCapabilityPolicy(ctx, store.SetCapabilityPolicyInput{
+		ServerID: "srv-1", DatabaseName: "appdb", Capability: "pg_stat_statements",
+		Enabled: false, SetBy: "bob", Reason: "noisy on appdb",
+	}); err != nil {
+		t.Fatalf("set override: %v", err)
+	}
+	enabled, src, found, err = cfg.EffectiveCapability(ctx, "srv-1", "appdb", "pg_stat_statements")
+	if err != nil || !found {
+		t.Fatalf("effective (override): found=%v err=%v", found, err)
+	}
+	if enabled || src != store.PolicySourceDatabaseOverride {
+		t.Errorf("got enabled=%v source=%v, want false/db-override", enabled, src)
+	}
+
+	// A different database with no override still sees the server default.
+	enabled, src, found, err = cfg.EffectiveCapability(ctx, "srv-1", "otherdb", "pg_stat_statements")
+	if err != nil || !found {
+		t.Fatalf("effective (other db): found=%v err=%v", found, err)
+	}
+	if !enabled || src != store.PolicySourceServerDefault {
+		t.Errorf("otherdb got enabled=%v source=%v, want true/server-default", enabled, src)
+	}
+}
+
+func TestListCapabilityPolicies_returnsAllForServer(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyConfigMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO servers (id, name) VALUES ('srv-1','srv one'), ('srv-2','srv two')`,
+	); err != nil {
+		t.Fatalf("seed servers: %v", err)
+	}
+	cfg := store.NewConfig(pool)
+
+	mustSet := func(in store.SetCapabilityPolicyInput) {
+		t.Helper()
+		if _, err := cfg.SetCapabilityPolicy(ctx, in); err != nil {
+			t.Fatalf("set %+v: %v", in, err)
+		}
+	}
+	mustSet(store.SetCapabilityPolicyInput{ServerID: "srv-1", Capability: "pg_stat_statements", Enabled: true, SetBy: "a"})
+	mustSet(store.SetCapabilityPolicyInput{ServerID: "srv-1", DatabaseName: "appdb", Capability: "pg_stat_statements", Enabled: false, SetBy: "a"})
+	mustSet(store.SetCapabilityPolicyInput{ServerID: "srv-2", Capability: "auto_explain", Enabled: true, SetBy: "a"})
+
+	got, err := cfg.ListCapabilityPolicies(ctx, "srv-1")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d rows for srv-1, want 2", len(got))
+	}
+	for _, p := range got {
+		if p.ServerID != "srv-1" {
+			t.Errorf("list returned foreign server row: %+v", p)
+		}
+	}
+}

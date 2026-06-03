@@ -145,3 +145,84 @@ func (c *Config) GetCapabilityPolicy(ctx context.Context, serverID, databaseName
 	}
 	return out, true, nil
 }
+
+// PolicySource identifies which row supplied an effective capability
+// decision.
+type PolicySource string
+
+const (
+	// PolicySourceServerDefault means the decision came from the
+	// server-wide default row (database_name IS NULL).
+	PolicySourceServerDefault PolicySource = "server-default"
+	// PolicySourceDatabaseOverride means a database-specific row
+	// overrode the server-wide default.
+	PolicySourceDatabaseOverride PolicySource = "database-override"
+)
+
+// EffectiveCapability resolves whether a capability is enabled for a
+// specific database on a server: a database-specific override row wins
+// over the server-wide default. found is false when neither row exists
+// (the caller decides the absent-policy default). The single query asks
+// for both the override and the default and prefers the override via
+// ORDER BY, so it is one round trip.
+func (c *Config) EffectiveCapability(ctx context.Context, serverID, databaseName, capability string) (enabled bool, source PolicySource, found bool, err error) {
+	var isOverride bool
+	row := c.pool.QueryRow(ctx,
+		`SELECT enabled, (database_name IS NOT NULL) AS is_override
+		   FROM capability_policy
+		  WHERE server_id = $1
+		    AND capability = $2
+		    AND (database_name = $3 OR database_name IS NULL)
+		  ORDER BY (database_name IS NOT NULL) DESC
+		  LIMIT 1`,
+		serverID, capability, databaseName)
+	scanErr := row.Scan(&enabled, &isOverride)
+	if scanErr == pgx.ErrNoRows {
+		return false, "", false, nil
+	}
+	if scanErr != nil {
+		return false, "", false, fmt.Errorf("effective capability: %w", scanErr)
+	}
+	if isOverride {
+		source = PolicySourceDatabaseOverride
+	} else {
+		source = PolicySourceServerDefault
+	}
+	return enabled, source, true, nil
+}
+
+// ListCapabilityPolicies returns every capability_policy row for one
+// server, ordered for stable display (server-wide defaults first, then
+// per-database overrides, by capability). Intended for the matrix API
+// (ly-xnk.4).
+func (c *Config) ListCapabilityPolicies(ctx context.Context, serverID string) ([]CapabilityPolicy, error) {
+	rows, err := c.pool.Query(ctx,
+		`SELECT server_id, database_name, capability, enabled,
+		        set_by, set_at, reason, audit_chain_id
+		   FROM capability_policy
+		  WHERE server_id = $1
+		  ORDER BY capability, (database_name IS NOT NULL), database_name`,
+		serverID)
+	if err != nil {
+		return nil, fmt.Errorf("list capability policies: %w", err)
+	}
+	defer rows.Close()
+
+	var out []CapabilityPolicy
+	for rows.Next() {
+		var p CapabilityPolicy
+		var dbName *string
+		if err := rows.Scan(&p.ServerID, &dbName, &p.Capability, &p.Enabled,
+			&p.SetBy, &p.SetAt, &p.Reason, &p.AuditChainID); err != nil {
+			return nil, fmt.Errorf("scan capability policy: %w", err)
+		}
+		if dbName != nil {
+			p.DatabaseName = *dbName
+		}
+		out = append(out, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate capability policies: %w", err)
+	}
+	return out, nil
+}
