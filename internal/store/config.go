@@ -48,6 +48,88 @@ type AuditRecord struct {
 	RowHash  []byte // 32 bytes
 }
 
+// AuditFilter narrows a ListAudit query. Empty strings and zero times
+// impose no constraint. Tier is a pointer so the caller can distinguish
+// "any tier" (nil) from a specific tier value. Limit caps the result
+// set; ListAudit applies a sane default and ceiling if it is <= 0 or
+// absurdly large.
+type AuditFilter struct {
+	Actor    string
+	Action   string
+	ServerID string
+	Since    time.Time
+	Until    time.Time
+	Tier     *int16
+	Limit    int
+}
+
+// ListAudit returns audit records matching f, ordered most-recent-first
+// (id DESC). It is read-only and never touches the hash chain. The
+// projection mirrors VerifyChain so callers get fully-populated
+// AuditRecords (including the chain hashes, for display).
+func (c *Config) ListAudit(ctx context.Context, f AuditFilter) ([]AuditRecord, error) {
+	limit := f.Limit
+	if limit <= 0 || limit > 1000 {
+		limit = 200
+	}
+
+	q := `SELECT id, actor, action, COALESCE(server_id,''), COALESCE(data_tier,0),
+	             COALESCE(detail::text,''), at, prev_hash, row_hash
+	        FROM audit_log
+	       WHERE 1=1`
+	var args []any
+	add := func(clause string, val any) {
+		args = append(args, val)
+		q += fmt.Sprintf(" AND %s $%d", clause, len(args))
+	}
+	if f.Actor != "" {
+		add("actor =", f.Actor)
+	}
+	if f.Action != "" {
+		add("action =", f.Action)
+	}
+	if f.ServerID != "" {
+		add("server_id =", f.ServerID)
+	}
+	if f.Tier != nil {
+		add("data_tier =", *f.Tier)
+	}
+	if !f.Since.IsZero() {
+		add("at >=", f.Since)
+	}
+	if !f.Until.IsZero() {
+		add("at <=", f.Until)
+	}
+	args = append(args, limit)
+	q += fmt.Sprintf(" ORDER BY id DESC LIMIT $%d", len(args))
+
+	rows, err := c.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list audit: %w", err)
+	}
+	defer rows.Close()
+
+	var out []AuditRecord
+	for rows.Next() {
+		var (
+			rec    AuditRecord
+			detail string
+		)
+		if err := rows.Scan(&rec.ID, &rec.Actor, &rec.Action, &rec.ServerID,
+			&rec.DataTier, &detail, &rec.At, &rec.PrevHash, &rec.RowHash); err != nil {
+			return nil, fmt.Errorf("scan audit row: %w", err)
+		}
+		if detail != "" {
+			rec.Detail = []byte(detail)
+		}
+		out = append(out, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("audit rows: %w", err)
+	}
+	return out, nil
+}
+
 // AppendAudit records an entry in the audit log. Detail is JSON-encoded
 // and the row is chained to its predecessor via SHA-256. The transaction
 // holds an advisory lock so concurrent appenders are serialized cluster-
