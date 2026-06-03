@@ -106,3 +106,59 @@ func TestVerifyChain_detectsDeletion(t *testing.T) {
 		t.Fatalf("expected bad=2 (id gap at id=4), got bad=%d reason=%q", bad, reason)
 	}
 }
+
+func TestVerifyChain_detectsOutOfOrderInsertion(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyConfigMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	cfg := store.NewConfig(pool)
+
+	for i := 0; i < 3; i++ {
+		if _, err := cfg.AppendAuditReturning(ctx, store.AuditEntry{
+			Actor: "alice", Action: "login",
+		}); err != nil {
+			t.Fatalf("append %d: %v", i, err)
+		}
+	}
+
+	// Disable trigger; splice an attacker row with a fabricated prev_hash
+	// that does not match id=1's row_hash.
+	if _, err := pool.Exec(ctx, `ALTER TABLE audit_log DISABLE TRIGGER USER`); err != nil {
+		t.Fatalf("disable: %v", err)
+	}
+	// Shift ids 2,3 → 3,4 (still strictly increasing) so we can splice a
+	// fabricated row at id=2 before the original id=3.
+	if _, err := pool.Exec(ctx, `UPDATE audit_log SET id = id + 10 WHERE id IN (2,3)`); err != nil {
+		t.Fatalf("shift: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE audit_log SET id = id - 9 WHERE id IN (12,13)`); err != nil {
+		t.Fatalf("re-shift: %v", err)
+	}
+	// Now ids in table: 1, 3, 4. Splice id=2 with fabricated prev.
+	fakePrev := make([]byte, 32) // not equal to row 1's row_hash
+	fakePrev[0] = 0xFF
+	fakeHash := make([]byte, 32)
+	for i := range fakeHash {
+		fakeHash[i] = byte(i + 1)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO audit_log (id, actor, action, prev_hash, row_hash, at)
+		 VALUES (2, 'mallory', 'planted', $1, $2, now())`, fakePrev, fakeHash,
+	); err != nil {
+		t.Fatalf("splice: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `ALTER TABLE audit_log ENABLE TRIGGER USER`); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+
+	bad, reason, err := cfg.VerifyChain(ctx, time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	// idx 0 = id=1 (good); idx 1 = id=2 (planted, prev_hash mismatch).
+	if bad != 1 {
+		t.Fatalf("expected bad=1, got bad=%d reason=%q", bad, reason)
+	}
+}
