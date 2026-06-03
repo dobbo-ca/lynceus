@@ -118,3 +118,71 @@ func TestSetCapabilityPolicy_insertsAndAudits(t *testing.T) {
 			action, actor, serverID)
 	}
 }
+
+func TestGetCapabilityPolicy_exactRowAndUpsertOverwrite(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyConfigMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO servers (id, name) VALUES ('srv-1', 'srv one')`,
+	); err != nil {
+		t.Fatalf("seed server: %v", err)
+	}
+	cfg := store.NewConfig(pool)
+
+	// Not found before any write.
+	_, found, err := cfg.GetCapabilityPolicy(ctx, "srv-1", "", "pg_stat_statements")
+	if err != nil {
+		t.Fatalf("get (absent): %v", err)
+	}
+	if found {
+		t.Fatal("expected not found before any write")
+	}
+
+	// First write: disabled.
+	first, err := cfg.SetCapabilityPolicy(ctx, store.SetCapabilityPolicyInput{
+		ServerID: "srv-1", Capability: "pg_stat_statements",
+		Enabled: false, SetBy: "alice", Reason: "off by default",
+	})
+	if err != nil {
+		t.Fatalf("set #1: %v", err)
+	}
+
+	// Second write to the same key flips it and is a single row (upsert).
+	second, err := cfg.SetCapabilityPolicy(ctx, store.SetCapabilityPolicyInput{
+		ServerID: "srv-1", Capability: "pg_stat_statements",
+		Enabled: true, SetBy: "bob", Reason: "operator enabled",
+	})
+	if err != nil {
+		t.Fatalf("set #2: %v", err)
+	}
+	if second.AuditChainID == first.AuditChainID {
+		t.Error("second toggle should produce a new audit id")
+	}
+
+	got, found, err := cfg.GetCapabilityPolicy(ctx, "srv-1", "", "pg_stat_statements")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !found {
+		t.Fatal("expected found after write")
+	}
+	if !got.Enabled || got.SetBy != "bob" || got.Reason != "operator enabled" {
+		t.Errorf("got %+v, want enabled/bob/operator enabled", got)
+	}
+	if got.AuditChainID != second.AuditChainID {
+		t.Errorf("got.AuditChainID=%d, want %d", got.AuditChainID, second.AuditChainID)
+	}
+
+	// Exactly one row for the key (upsert, not insert-twice).
+	var n int
+	_ = pool.QueryRow(ctx,
+		`SELECT count(*) FROM capability_policy
+		   WHERE server_id='srv-1' AND database_name IS NULL AND capability='pg_stat_statements'`,
+	).Scan(&n)
+	if n != 1 {
+		t.Errorf("row count = %d, want 1", n)
+	}
+}

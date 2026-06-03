@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // CapabilityPolicy is one row of capability_policy: whether a capability
@@ -102,4 +104,44 @@ func dbNameDetail(name string) any {
 		return nil
 	}
 	return name
+}
+
+// GetCapabilityPolicy returns the exact policy row for the given key.
+// databaseName == "" selects the server-wide default row (database_name
+// IS NULL); a non-empty value selects that database's override row. It
+// does NOT fall back between the two — use EffectiveCapability for
+// resolution. found is false when no such row exists.
+func (c *Config) GetCapabilityPolicy(ctx context.Context, serverID, databaseName, capability string) (CapabilityPolicy, bool, error) {
+	var (
+		out    CapabilityPolicy
+		dbName *string
+		row    pgx.Row
+	)
+	if databaseName == "" {
+		row = c.pool.QueryRow(ctx,
+			`SELECT server_id, database_name, capability, enabled,
+			        set_by, set_at, reason, audit_chain_id
+			   FROM capability_policy
+			  WHERE server_id = $1 AND database_name IS NULL AND capability = $2`,
+			serverID, capability)
+	} else {
+		row = c.pool.QueryRow(ctx,
+			`SELECT server_id, database_name, capability, enabled,
+			        set_by, set_at, reason, audit_chain_id
+			   FROM capability_policy
+			  WHERE server_id = $1 AND database_name = $2 AND capability = $3`,
+			serverID, databaseName, capability)
+	}
+	err := row.Scan(&out.ServerID, &dbName, &out.Capability, &out.Enabled,
+		&out.SetBy, &out.SetAt, &out.Reason, &out.AuditChainID)
+	if err == pgx.ErrNoRows {
+		return CapabilityPolicy{}, false, nil
+	}
+	if err != nil {
+		return CapabilityPolicy{}, false, fmt.Errorf("get capability policy: %w", err)
+	}
+	if dbName != nil {
+		out.DatabaseName = *dbName
+	}
+	return out, true, nil
 }
