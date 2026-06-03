@@ -69,3 +69,40 @@ func TestVerifyChain_detectsRowMutation(t *testing.T) {
 		t.Fatalf("expected bad=2 (id=3), got bad=%d reason=%q", bad, reason)
 	}
 }
+
+func TestVerifyChain_detectsDeletion(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyConfigMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	cfg := store.NewConfig(pool)
+
+	for i := 0; i < 5; i++ {
+		if _, err := cfg.AppendAuditReturning(ctx, store.AuditEntry{
+			Actor: "alice", Action: "viewed.t2", DataTier: 2,
+		}); err != nil {
+			t.Fatalf("append %d: %v", i, err)
+		}
+	}
+
+	if _, err := pool.Exec(ctx, `ALTER TABLE audit_log DISABLE TRIGGER USER`); err != nil {
+		t.Fatalf("disable: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM audit_log WHERE id = 3`); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `ALTER TABLE audit_log ENABLE TRIGGER USER`); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+
+	bad, reason, err := cfg.VerifyChain(ctx, time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	// After deleting id=3 the walk sees ids 1,2,4,5. The first failure
+	// is at idx 2 (id=4) due to the id-gap check.
+	if bad != 2 {
+		t.Fatalf("expected bad=2 (id gap at id=4), got bad=%d reason=%q", bad, reason)
+	}
+}
