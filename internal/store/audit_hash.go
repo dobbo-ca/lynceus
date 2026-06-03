@@ -14,9 +14,6 @@ import (
 // note in 0002_audit_chain.sql) if the canonical layout below changes.
 const hashDomain = "lynceus.audit.v1\x00"
 
-// genesisPrev is the 32-byte zero value used as prev_hash for row id 1.
-var genesisPrev = make([]byte, 32)
-
 // hashAuditRow returns SHA-256 over the canonical byte layout specified
 // in the plan doc. detail is the canonical JSON bytes of the row's JSONB
 // column (zero length when SQL NULL). at is truncated to nanosecond UTC.
