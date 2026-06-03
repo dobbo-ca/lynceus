@@ -118,6 +118,7 @@ func TestVerticalSlice_normalizedQueryRoundtripsAndCanaryNeverLeaks(t *testing.T
 	apiSrv := httptest.NewServer(api.NewServer(
 		api.Config{DevAuth: true},
 		store.NewStats(statsPool),
+		store.NewConfig(statsPool),
 	).Handler())
 	t.Cleanup(apiSrv.Close)
 
