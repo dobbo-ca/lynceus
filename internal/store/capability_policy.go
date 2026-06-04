@@ -118,14 +118,14 @@ func (c *Config) GetCapabilityPolicy(ctx context.Context, serverID, databaseName
 		row    pgx.Row
 	)
 	if databaseName == "" {
-		row = c.pool.QueryRow(ctx,
+		row = c.ro.QueryRow(ctx,
 			`SELECT server_id, database_name, capability, enabled,
 			        set_by, set_at, reason, audit_chain_id
 			   FROM capability_policy
 			  WHERE server_id = $1 AND database_name IS NULL AND capability = $2`,
 			serverID, capability)
 	} else {
-		row = c.pool.QueryRow(ctx,
+		row = c.ro.QueryRow(ctx,
 			`SELECT server_id, database_name, capability, enabled,
 			        set_by, set_at, reason, audit_chain_id
 			   FROM capability_policy
@@ -167,7 +167,7 @@ const (
 // ORDER BY, so it is one round trip.
 func (c *Config) EffectiveCapability(ctx context.Context, serverID, databaseName, capability string) (enabled bool, source PolicySource, found bool, err error) {
 	var isOverride bool
-	row := c.pool.QueryRow(ctx,
+	row := c.ro.QueryRow(ctx,
 		`SELECT enabled, (database_name IS NOT NULL) AS is_override
 		   FROM capability_policy
 		  WHERE server_id = $1
@@ -196,7 +196,7 @@ func (c *Config) EffectiveCapability(ctx context.Context, serverID, databaseName
 // per-database overrides, by capability). Intended for the matrix API
 // (ly-xnk.4).
 func (c *Config) ListCapabilityPolicies(ctx context.Context, serverID string) ([]CapabilityPolicy, error) {
-	rows, err := c.pool.Query(ctx,
+	rows, err := c.ro.Query(ctx,
 		`SELECT server_id, database_name, capability, enabled,
 		        set_by, set_at, reason, audit_chain_id
 		   FROM capability_policy

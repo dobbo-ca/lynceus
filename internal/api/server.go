@@ -22,12 +22,14 @@ type Config struct {
 type Server struct {
 	cfg   Config
 	stats *store.Stats
+	conf  *store.Config
 	mux   *http.ServeMux
 }
 
-// NewServer returns a fully wired Server.
-func NewServer(cfg Config, stats *store.Stats) *Server {
-	s := &Server{cfg: cfg, stats: stats, mux: http.NewServeMux()}
+// NewServer returns a fully wired Server. stats is the stats-DB store;
+// conf is the config/metadata-DB store (used by the audit-log viewer).
+func NewServer(cfg Config, stats *store.Stats, conf *store.Config) *Server {
+	s := &Server{cfg: cfg, stats: stats, conf: conf, mux: http.NewServeMux()}
 	s.routes()
 	return s
 }
@@ -38,6 +40,8 @@ func (s *Server) Handler() http.Handler { return s.withAuth(s.mux) }
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /", s.handleDashboard)
 	s.mux.HandleFunc("GET /partial/queries", s.handleQueriesPartial)
+	s.mux.HandleFunc("GET /audit", s.handleAuditPage)
+	s.mux.HandleFunc("GET /partial/audit", s.handleAuditPartial)
 	s.mux.HandleFunc("GET /api/queries/top", s.handleTopQueries)
 	s.mux.HandleFunc("GET /api/scim/v2/", s.notImplemented("SCIM"))
 	s.mux.HandleFunc("GET /api/oidc/", s.notImplemented("OIDC"))

@@ -4,7 +4,7 @@ import "fmt"
 
 // QueriesPage is the full top-queries dashboard.
 templ QueriesPage(rows []TopQuery) {
-	@Layout("Lynceus — top queries") {
+	@Layout("Lynceus — top queries", "top queries by total time") {
 		@QueriesTable(rows)
 	}
 }

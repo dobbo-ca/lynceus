@@ -16,13 +16,15 @@ import (
 	"github.com/dobbo-ca/lynceus/internal/store"
 )
 
-func setup(t *testing.T, cfg api.Config) (*pgxpool.Pool, *httptest.Server) {
+// newPGPool starts a fresh postgres:16 container and returns a connected
+// pool. Cleanup terminates the container and closes the pool.
+func newPGPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	ctx := context.Background()
 
 	c, err := tcpostgres.Run(ctx,
 		"postgres:16",
-		tcpostgres.WithDatabase("lynceus_stats"),
+		tcpostgres.WithDatabase("lynceus_test"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
 		tcpostgres.BasicWaitStrategies(),
@@ -41,11 +43,36 @@ func setup(t *testing.T, cfg api.Config) (*pgxpool.Pool, *httptest.Server) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
+	return pool
+}
 
-	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
-		t.Fatalf("migrate: %v", err)
+// setup wires a server backed by the stats DB (the original MVP path).
+// The config store points at the same pool but is unused by these tests;
+// it exists only to satisfy NewServer.
+func setup(t *testing.T, cfg api.Config) (*pgxpool.Pool, *httptest.Server) {
+	t.Helper()
+	pool := newPGPool(t)
+	if err := store.ApplyStatsMigrations(context.Background(), pool); err != nil {
+		t.Fatalf("migrate stats: %v", err)
 	}
-	srv := httptest.NewServer(api.NewServer(cfg, store.NewStats(pool)).Handler())
+	srv := httptest.NewServer(
+		api.NewServer(cfg, store.NewStats(pool), store.NewConfig(pool)).Handler())
+	t.Cleanup(srv.Close)
+	return pool, srv
+}
+
+// setupAudit wires a server backed by the config DB. Only the config
+// migrations are applied — in production the audit log lives in its own
+// database, and applying both migration sets to one pool would collide
+// on the shared schema_migrations version "0001_init".
+func setupAudit(t *testing.T, cfg api.Config) (*pgxpool.Pool, *httptest.Server) {
+	t.Helper()
+	pool := newPGPool(t)
+	if err := store.ApplyConfigMigrations(context.Background(), pool); err != nil {
+		t.Fatalf("migrate config: %v", err)
+	}
+	srv := httptest.NewServer(
+		api.NewServer(cfg, store.NewStats(pool), store.NewConfig(pool)).Handler())
 	t.Cleanup(srv.Close)
 	return pool, srv
 }
@@ -62,6 +89,22 @@ func seedStats(t *testing.T, pool *pgxpool.Pool) {
 	}
 	if err := s.WriteQueryStats(ctx, rows); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func seedAudit(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ctx := context.Background()
+	cfg := store.NewConfig(pool)
+	entries := []store.AuditEntry{
+		{Actor: "alice", Action: "login", ServerID: "srv-1", DataTier: 0},
+		{Actor: "alice", Action: "viewed.t2", ServerID: "srv-1", DataTier: 2},
+		{Actor: "bob", Action: "config.toggle", ServerID: "srv-2", DataTier: 1},
+	}
+	for i, e := range entries {
+		if _, err := cfg.AppendAuditReturning(ctx, e); err != nil {
+			t.Fatalf("seed audit %d: %v", i, err)
+		}
 	}
 }
 

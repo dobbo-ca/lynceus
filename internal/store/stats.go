@@ -15,10 +15,24 @@ import (
 // The underlying query_stats table is range-partitioned by week.
 // Stats.WriteQueryStats transparently creates the necessary weekly
 // partitions before insert, so the caller never has to.
-type Stats struct{ pool *pgxpool.Pool }
+type Stats struct {
+	pool *pgxpool.Pool // primary (read-write): writes, DDL, migrations
+	ro   *pgxpool.Pool // read replica; defaults to pool when not split
+}
 
-// NewStats returns a Stats bound to pool.
-func NewStats(pool *pgxpool.Pool) *Stats { return &Stats{pool: pool} }
+// NewStats returns a Stats bound to its primary pool. Standalone reads
+// fall back to the primary until a replica is attached via WithReadPool.
+func NewStats(pool *pgxpool.Pool) *Stats { return &Stats{pool: pool, ro: pool} }
+
+// WithReadPool attaches a read-replica pool used to serve standalone
+// reads (TopQueriesByTotalTime). A nil ro is ignored. Returns the
+// receiver for chaining.
+func (s *Stats) WithReadPool(ro *pgxpool.Pool) *Stats {
+	if ro != nil {
+		s.ro = ro
+	}
+	return s
+}
 
 // QueryStat is one T1 row of per-fingerprint query statistics.
 // DataTier zero is treated as 1 (T1) on insert — see package comment.
@@ -97,7 +111,7 @@ type TopQuery struct {
 // TopQueriesByTotalTime returns up to limit T1 queries in [since, until)
 // ordered by total time descending.
 func (s *Stats) TopQueriesByTotalTime(ctx context.Context, since, until time.Time, limit int) ([]TopQuery, error) {
-	rows, err := s.pool.Query(ctx,
+	rows, err := s.ro.Query(ctx,
 		`SELECT fingerprint, normalized_query, SUM(calls), SUM(total_time_ms)
 		   FROM query_stats
 		  WHERE collected_at >= $1 AND collected_at < $2 AND data_tier = 1

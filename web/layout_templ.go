@@ -28,7 +28,7 @@ type TopQuery struct {
 	TotalTimeMs     float64
 }
 
-func Layout(title string) templ.Component {
+func Layout(title, subtitle string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -62,7 +62,20 @@ func Layout(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</title><script src=\"https://unpkg.com/htmx.org@2.0.4\"></script><style>\n\t\t\t\tbody { font-family: system-ui, sans-serif; margin: 2rem; max-width: 1200px; color: #1d1d1d; }\n\t\t\t\th1 { margin-bottom: 0.25rem; }\n\t\t\t\t.subtitle { color: #666; margin-top: 0; margin-bottom: 1.5rem; }\n\t\t\t\ttable { border-collapse: collapse; width: 100%; }\n\t\t\t\tth, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e0e0e0; vertical-align: top; }\n\t\t\t\tth { background: #f4f4f4; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; }\n\t\t\t\ttd.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }\n\t\t\t\tcode { font-family: ui-monospace, \"SF Mono\", Menlo, monospace; font-size: 0.85rem; }\n\t\t\t\t.empty { color: #666; font-style: italic; padding: 2rem 0; }\n\t\t\t</style></head><body><h1>Lynceus</h1><p class=\"subtitle\">top queries by total time</p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</title><script src=\"https://unpkg.com/htmx.org@2.0.4\"></script><style>\n\t\t\t\tbody { font-family: system-ui, sans-serif; margin: 2rem; max-width: 1200px; color: #1d1d1d; }\n\t\t\t\th1 { margin-bottom: 0.25rem; }\n\t\t\t\tnav { margin-bottom: 0.5rem; }\n\t\t\t\tnav a { color: #2b6cb0; text-decoration: none; margin-right: 1rem; font-size: 0.9rem; }\n\t\t\t\tnav a:hover { text-decoration: underline; }\n\t\t\t\t.subtitle { color: #666; margin-top: 0; margin-bottom: 1.5rem; }\n\t\t\t\ttable { border-collapse: collapse; width: 100%; }\n\t\t\t\tth, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e0e0e0; vertical-align: top; }\n\t\t\t\tth { background: #f4f4f4; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; }\n\t\t\t\ttd.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }\n\t\t\t\tcode { font-family: ui-monospace, \"SF Mono\", Menlo, monospace; font-size: 0.85rem; }\n\t\t\t\t.empty { color: #666; font-style: italic; padding: 2rem 0; }\n\t\t\t\tform.filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 1.25rem; }\n\t\t\t\tform.filters label { display: flex; flex-direction: column; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #666; gap: 0.2rem; }\n\t\t\t\tform.filters input, form.filters select { padding: 0.35rem 0.5rem; font-size: 0.9rem; }\n\t\t\t\tform.filters button { padding: 0.4rem 0.9rem; font-size: 0.9rem; cursor: pointer; }\n\t\t\t</style></head><body><h1>Lynceus</h1><nav><a href=\"/\">Top queries</a> <a href=\"/audit\">Audit log</a></nav><p class=\"subtitle\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var3 string
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(subtitle)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layout.templ`, Line: 51, Col: 33}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -70,7 +83,7 @@ func Layout(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
