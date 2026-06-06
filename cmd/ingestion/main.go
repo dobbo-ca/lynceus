@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dobbo-ca/lynceus/internal/ingest"
+	"github.com/dobbo-ca/lynceus/internal/secure"
 	"github.com/dobbo-ca/lynceus/internal/store"
 )
 
@@ -20,6 +21,9 @@ func main() {
 	dsn := os.Getenv("LYNCEUS_STATS_DSN")
 	if dsn == "" {
 		log.Fatal("LYNCEUS_STATS_DSN required")
+	}
+	if err := secure.CheckDatabaseDSN(dsn, secure.RequireTLS()); err != nil {
+		log.Fatal(err)
 	}
 	addr := envDefault("LYNCEUS_INGESTION_ADDR", ":8081")
 	token := os.Getenv("LYNCEUS_DEV_TOKEN") // empty disables auth — dev only
