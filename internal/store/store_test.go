@@ -275,6 +275,50 @@ func TestWriteQueryStats_createsPartitionAndRoundtripsTopQueries(t *testing.T) {
 	}
 }
 
+func TestWriteQueryStats_defaultsTierAndRoutesMultiWeek(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	s := store.NewStats(pool)
+
+	wk1 := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC) // ISO week A
+	wk2 := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)  // ISO week B
+	rows := []store.QueryStat{
+		// DataTier left 0 — must be stored as 1 (T1 default).
+		{ServerID: "srv-1", CollectedAt: wk1, Fingerprint: "fp-a", NormalizedQuery: "SELECT 1", Calls: 1, TotalTimeMs: 1},
+		{ServerID: "srv-1", CollectedAt: wk2, Fingerprint: "fp-b", NormalizedQuery: "SELECT 2", Calls: 1, TotalTimeMs: 1},
+	}
+	if err := s.WriteQueryStats(ctx, rows); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	// Both weekly partitions were created and rows routed across them.
+	var partCount, rowCount int
+	_ = pool.QueryRow(ctx,
+		`SELECT count(*) FROM pg_inherits WHERE inhparent = 'query_stats'::regclass`,
+	).Scan(&partCount)
+	if partCount != 2 {
+		t.Fatalf("partitions = %d, want 2", partCount)
+	}
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM query_stats`).Scan(&rowCount)
+	if rowCount != 2 {
+		t.Fatalf("rows = %d, want 2", rowCount)
+	}
+
+	// DataTier 0 was defaulted to 1 on insert.
+	var tier int16
+	if err := pool.QueryRow(ctx,
+		`SELECT data_tier FROM query_stats WHERE fingerprint = $1`, "fp-a",
+	).Scan(&tier); err != nil {
+		t.Fatalf("select tier: %v", err)
+	}
+	if tier != 1 {
+		t.Errorf("data_tier = %d, want 1 (defaulted)", tier)
+	}
+}
+
 func TestDropPartitionsOlderThan_dropsOldKeepsNew(t *testing.T) {
 	pool := newPool(t)
 	ctx := context.Background()
