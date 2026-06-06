@@ -104,6 +104,13 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusInternalError, "")
 		return
 	}
+	if buckets := snapshotToActivityBuckets(&snap); len(buckets) > 0 {
+		if err := s.stats.WriteActivityBuckets(ctx, buckets); err != nil {
+			s.parkDLQ(ctx, snap.ServerId, "write activity: "+err.Error(), data)
+			_ = conn.Close(websocket.StatusInternalError, "")
+			return
+		}
+	}
 	_ = conn.Close(websocket.StatusNormalClosure, "")
 }
 
@@ -151,4 +158,24 @@ func snapshotToRows(snap *lynceusv1.Snapshot) []store.QueryStat {
 		})
 	}
 	return rows
+}
+
+func snapshotToActivityBuckets(snap *lynceusv1.Snapshot) []store.ActivityBucket {
+	out := make([]store.ActivityBucket, 0, len(snap.ActivityBuckets))
+	for _, b := range snap.ActivityBuckets {
+		out = append(out, store.ActivityBucket{
+			ServerID:      snap.ServerId,
+			Database:      b.DatabaseName,
+			State:         b.State,
+			WaitEventType: b.WaitEventType,
+			WaitEvent:     b.WaitEvent,
+			BucketStart:   time.Unix(b.BucketStartUnix, 0).UTC(),
+			BucketSeconds: b.BucketSeconds,
+			SampleCount:   b.SampleCount,
+			CountSum:      b.CountSum,
+			CountMax:      b.CountMax,
+			DataTier:      1,
+		})
+	}
+	return out
 }

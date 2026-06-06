@@ -45,6 +45,9 @@ type Snapshot struct {
 	ServerId        string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	CollectedAtUnix int64                  `protobuf:"varint,2,opt,name=collected_at_unix,json=collectedAtUnix,proto3" json:"collected_at_unix,omitempty"`
 	QueryStats      []*QueryStat           `protobuf:"bytes,3,rep,name=query_stats,json=queryStats,proto3" json:"query_stats,omitempty"`
+	// Per-bucket connection-state histograms from pg_stat_activity. See
+	// ActivityBucket — T1, counts/labels only.
+	ActivityBuckets []*ActivityBucket `protobuf:"bytes,4,rep,name=activity_buckets,json=activityBuckets,proto3" json:"activity_buckets,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -96,6 +99,13 @@ func (x *Snapshot) GetCollectedAtUnix() int64 {
 func (x *Snapshot) GetQueryStats() []*QueryStat {
 	if x != nil {
 		return x.QueryStats
+	}
+	return nil
+}
+
+func (x *Snapshot) GetActivityBuckets() []*ActivityBucket {
+	if x != nil {
+		return x.ActivityBuckets
 	}
 	return nil
 }
@@ -213,17 +223,150 @@ func (x *QueryStat) GetSharedBlksRead() int64 {
 	return 0
 }
 
+// ActivityBucket is a 60-second histogram bucket of pg_stat_activity samples
+// for one (database, state, wait_event_type, wait_event) tuple on one server.
+//
+// INVARIANT: every field below is either a stable label (server, database,
+// state, wait event) or an aggregate count. pg_stat_activity also exposes
+// the live `query` text — Lynceus deliberately NEVER selects that column for
+// T1, and no field on this message can carry it. Live query text belongs to
+// the separate T2 "connection traces" feature (ly-xqf.4) and lives in its
+// own message file.
+//
+// Aggregation: the collector samples pg_stat_activity every ~10s and folds
+// the per-sample counts for each label tuple into one bucket per 60s window.
+// sample_count is how many samples were folded in (expected 6 per minute,
+// fewer if a sample errored). count_sum and count_max are computed over
+// those samples; mean active connections in the bucket is count_sum /
+// sample_count, computed at read time so the wire format is additive.
+type ActivityBucket struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ServerId        string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	DatabaseName    string                 `protobuf:"bytes,2,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`             // pg_stat_activity.datname; "" for shared backends
+	State           string                 `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"`                                               // active | idle | idle in transaction | idle in transaction (aborted) | fastpath function call | disabled | "" (unknown)
+	WaitEventType   string                 `protobuf:"bytes,4,opt,name=wait_event_type,json=waitEventType,proto3" json:"wait_event_type,omitempty"`        // pg_stat_activity.wait_event_type; "" if not waiting
+	WaitEvent       string                 `protobuf:"bytes,5,opt,name=wait_event,json=waitEvent,proto3" json:"wait_event,omitempty"`                      // pg_stat_activity.wait_event;      "" if not waiting
+	BucketStartUnix int64                  `protobuf:"varint,6,opt,name=bucket_start_unix,json=bucketStartUnix,proto3" json:"bucket_start_unix,omitempty"` // floor-of-minute UTC unix seconds
+	BucketSeconds   int32                  `protobuf:"varint,7,opt,name=bucket_seconds,json=bucketSeconds,proto3" json:"bucket_seconds,omitempty"`         // bucket width — currently always 60
+	SampleCount     int32                  `protobuf:"varint,8,opt,name=sample_count,json=sampleCount,proto3" json:"sample_count,omitempty"`               // how many ~10s samples fed this bucket
+	CountSum        int64                  `protobuf:"varint,9,opt,name=count_sum,json=countSum,proto3" json:"count_sum,omitempty"`                        // sum of per-sample connection counts
+	CountMax        int64                  `protobuf:"varint,10,opt,name=count_max,json=countMax,proto3" json:"count_max,omitempty"`                       // peak per-sample connection count
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ActivityBucket) Reset() {
+	*x = ActivityBucket{}
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivityBucket) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivityBucket) ProtoMessage() {}
+
+func (x *ActivityBucket) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivityBucket.ProtoReflect.Descriptor instead.
+func (*ActivityBucket) Descriptor() ([]byte, []int) {
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ActivityBucket) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *ActivityBucket) GetDatabaseName() string {
+	if x != nil {
+		return x.DatabaseName
+	}
+	return ""
+}
+
+func (x *ActivityBucket) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *ActivityBucket) GetWaitEventType() string {
+	if x != nil {
+		return x.WaitEventType
+	}
+	return ""
+}
+
+func (x *ActivityBucket) GetWaitEvent() string {
+	if x != nil {
+		return x.WaitEvent
+	}
+	return ""
+}
+
+func (x *ActivityBucket) GetBucketStartUnix() int64 {
+	if x != nil {
+		return x.BucketStartUnix
+	}
+	return 0
+}
+
+func (x *ActivityBucket) GetBucketSeconds() int32 {
+	if x != nil {
+		return x.BucketSeconds
+	}
+	return 0
+}
+
+func (x *ActivityBucket) GetSampleCount() int32 {
+	if x != nil {
+		return x.SampleCount
+	}
+	return 0
+}
+
+func (x *ActivityBucket) GetCountSum() int64 {
+	if x != nil {
+		return x.CountSum
+	}
+	return 0
+}
+
+func (x *ActivityBucket) GetCountMax() int64 {
+	if x != nil {
+		return x.CountMax
+	}
+	return 0
+}
+
 var File_proto_lynceus_v1_snapshot_proto protoreflect.FileDescriptor
 
 const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\n" +
 	"\x1fproto/lynceus/v1/snapshot.proto\x12\n" +
-	"lynceus.v1\"\x8b\x01\n" +
+	"lynceus.v1\"\xd2\x01\n" +
 	"\bSnapshot\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12*\n" +
 	"\x11collected_at_unix\x18\x02 \x01(\x03R\x0fcollectedAtUnix\x126\n" +
 	"\vquery_stats\x18\x03 \x03(\v2\x15.lynceus.v1.QueryStatR\n" +
-	"queryStats\"\x9a\x02\n" +
+	"queryStats\x12E\n" +
+	"\x10activity_buckets\x18\x04 \x03(\v2\x1a.lynceus.v1.ActivityBucketR\x0factivityBuckets\"\x9a\x02\n" +
 	"\tQueryStat\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12)\n" +
 	"\x10normalized_query\x18\x02 \x01(\tR\x0fnormalizedQuery\x12\x14\n" +
@@ -233,7 +376,20 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"meanTimeMs\x12\x12\n" +
 	"\x04rows\x18\x06 \x01(\x03R\x04rows\x12&\n" +
 	"\x0fshared_blks_hit\x18\a \x01(\x03R\rsharedBlksHit\x12(\n" +
-	"\x10shared_blks_read\x18\b \x01(\x03R\x0esharedBlksReadBAZ?github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1b\x06proto3"
+	"\x10shared_blks_read\x18\b \x01(\x03R\x0esharedBlksRead\"\xdf\x02\n" +
+	"\x0eActivityBucket\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12#\n" +
+	"\rdatabase_name\x18\x02 \x01(\tR\fdatabaseName\x12\x14\n" +
+	"\x05state\x18\x03 \x01(\tR\x05state\x12&\n" +
+	"\x0fwait_event_type\x18\x04 \x01(\tR\rwaitEventType\x12\x1d\n" +
+	"\n" +
+	"wait_event\x18\x05 \x01(\tR\twaitEvent\x12*\n" +
+	"\x11bucket_start_unix\x18\x06 \x01(\x03R\x0fbucketStartUnix\x12%\n" +
+	"\x0ebucket_seconds\x18\a \x01(\x05R\rbucketSeconds\x12!\n" +
+	"\fsample_count\x18\b \x01(\x05R\vsampleCount\x12\x1b\n" +
+	"\tcount_sum\x18\t \x01(\x03R\bcountSum\x12\x1b\n" +
+	"\tcount_max\x18\n" +
+	" \x01(\x03R\bcountMaxBAZ?github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1b\x06proto3"
 
 var (
 	file_proto_lynceus_v1_snapshot_proto_rawDescOnce sync.Once
@@ -247,18 +403,20 @@ func file_proto_lynceus_v1_snapshot_proto_rawDescGZIP() []byte {
 	return file_proto_lynceus_v1_snapshot_proto_rawDescData
 }
 
-var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_proto_lynceus_v1_snapshot_proto_goTypes = []any{
-	(*Snapshot)(nil),  // 0: lynceus.v1.Snapshot
-	(*QueryStat)(nil), // 1: lynceus.v1.QueryStat
+	(*Snapshot)(nil),       // 0: lynceus.v1.Snapshot
+	(*QueryStat)(nil),      // 1: lynceus.v1.QueryStat
+	(*ActivityBucket)(nil), // 2: lynceus.v1.ActivityBucket
 }
 var file_proto_lynceus_v1_snapshot_proto_depIdxs = []int32{
 	1, // 0: lynceus.v1.Snapshot.query_stats:type_name -> lynceus.v1.QueryStat
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	2, // 1: lynceus.v1.Snapshot.activity_buckets:type_name -> lynceus.v1.ActivityBucket
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_proto_lynceus_v1_snapshot_proto_init() }
@@ -272,7 +430,7 @@ func file_proto_lynceus_v1_snapshot_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_lynceus_v1_snapshot_proto_rawDesc), len(file_proto_lynceus_v1_snapshot_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

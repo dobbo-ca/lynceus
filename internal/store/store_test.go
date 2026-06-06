@@ -319,6 +319,84 @@ func TestWriteQueryStats_defaultsTierAndRoutesMultiWeek(t *testing.T) {
 	}
 }
 
+func TestApplyStatsMigrations_createsPartitionedActivityBuckets(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	var strategy string
+	err := pool.QueryRow(ctx,
+		`SELECT partstrat::text FROM pg_partitioned_table
+		 WHERE partrelid = 'activity_buckets'::regclass`,
+	).Scan(&strategy)
+	if err != nil {
+		t.Fatalf("activity_buckets not partitioned: %v", err)
+	}
+	if strategy != "r" {
+		t.Fatalf("partition strategy = %q, want 'r' (range)", strategy)
+	}
+}
+
+func TestWriteActivityBuckets_createsPartitionAndRoundtrips(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	s := store.NewStats(pool)
+
+	now := time.Date(2026, 5, 27, 12, 34, 0, 0, time.UTC) // a Wednesday
+	rows := []store.ActivityBucket{
+		{
+			ServerID: "srv-1", Database: "app", State: "active",
+			BucketStart: now, BucketSeconds: 60,
+			SampleCount: 6, CountSum: 30, CountMax: 7,
+		},
+		{
+			ServerID: "srv-1", Database: "app", State: "idle",
+			BucketStart: now, BucketSeconds: 60,
+			SampleCount: 6, CountSum: 42, CountMax: 9,
+		},
+		{
+			ServerID: "srv-1", Database: "app", State: "active",
+			WaitEventType: "IO", WaitEvent: "DataFileRead",
+			BucketStart: now, BucketSeconds: 60,
+			SampleCount: 4, CountSum: 8, CountMax: 3,
+		},
+	}
+	if err := s.WriteActivityBuckets(ctx, rows); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	// Partition was created.
+	var partCount int
+	_ = pool.QueryRow(ctx,
+		`SELECT count(*) FROM pg_inherits WHERE inhparent = 'activity_buckets'::regclass`,
+	).Scan(&partCount)
+	if partCount == 0 {
+		t.Fatal("write did not create a weekly partition")
+	}
+
+	// Round-trip read by state.
+	out, err := s.TopActivityBucketsByState(ctx,
+		"srv-1", now.Add(-time.Hour), now.Add(time.Hour), 10)
+	if err != nil {
+		t.Fatalf("top: %v", err)
+	}
+	want := map[string]int64{"active": 30 + 8, "idle": 42}
+	got := map[string]int64{}
+	for _, b := range out {
+		got[b.State] += b.CountSum
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("state %q sum = %d, want %d", k, got[k], v)
+		}
+	}
+}
+
 func TestDropPartitionsOlderThan_dropsOldKeepsNew(t *testing.T) {
 	pool := newPool(t)
 	ctx := context.Background()
