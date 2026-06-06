@@ -74,7 +74,7 @@ Tracked as milestone epics in beads. Run `bd ready` for unblocked work; `bd quer
 
 **Highest-leverage next moves** (long-reach unblocks):
 
-1. `ly-xqf.10` auto_explain plan extraction — now unblocked (log parsing `ly-cxe.1` done); cascades into all 8 M3 EXPLAIN insights.
+1. `ly-xqf.14` auto_explain plan extraction — **plan written + `ready-impl` (PR #10)**; cascades into all 8 M3 EXPLAIN insights (blocks 13 beads). Implement next.
 2. `ly-xqf.3` wait-event histograms — read path over the `activity_buckets` data already collected by `ly-xqf.1` (no new schema/wire).
 3. `ly-xnk.1` capability discovery — gates per-DB operator policy + safe feature enablement on RDS.
 
@@ -143,7 +143,9 @@ Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.1`, `ly-xqf.5`, `
 
 ## Session log
 
-- **2026-06-05** — Verified MVP (Goal 1, 62 tests). Established this tracker + security/perf CI tooling (PR #7). Filed perf/security review epics (`ly-69x`, `ly-1g1`). Shipped `ly-3na` CopyFrom write path (PR #8) and `ly-xqf.1` pg_stat_activity connection-state history end-to-end (PR #9). Suite now 70 tests. Wrote HITRUST control-evidence doc (`ly-kwk` ✅) and recorded the `ly-ry1` reader/writer endpoint decision (satisfied at service boundary). Open PRs: #7 (docs+CI+HITRUST), #8 (perf), #9 (feature) — awaiting merge.
+- **2026-06-05** — Verified MVP (Goal 1, 62 tests). Established this tracker + security/perf CI tooling (PR #7). Filed perf/security review epics (`ly-69x`, `ly-1g1`). Shipped `ly-3na` CopyFrom write path (PR #8) and `ly-xqf.1` pg_stat_activity connection-state history end-to-end (PR #9). Suite now 70 tests. Wrote HITRUST control-evidence doc (`ly-kwk` ✅) and recorded the `ly-ry1` reader/writer endpoint decision (satisfied at service boundary). Wrote auto_explain extraction plan (`ly-xqf.14` → `ready-impl`, PR #10) — unblocks 13 M3 beads when implemented. Open PRs: #7 (docs+CI+HITRUST), #8 (perf), #9 (feature), #10 (plan) — awaiting merge.
+
+> **Next-session note:** merge PRs #8/#9 before implementing more `stats.go`/`server.go` features — those files are touched by both, and `ly-xqf.14` + `ly-bsf` will touch them again. Merge first to avoid compounding rebases.
 
 ## How to pick this up next session
 
