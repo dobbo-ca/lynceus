@@ -36,8 +36,17 @@ type QueryStat struct {
 	SharedBlksRead   int64
 }
 
-// WriteQueryStats inserts a batch of rows, creating any missing weekly
-// partitions first. All inserts run in one transaction.
+// queryStatsColumns is the column order written by WriteQueryStats,
+// shared by the COPY stream below.
+var queryStatsColumns = []string{
+	"server_id", "collected_at", "fingerprint", "normalized_query", "data_tier",
+	"calls", "total_time_ms", "mean_time_ms", "rows", "shared_blks_hit", "shared_blks_read",
+}
+
+// WriteQueryStats appends a batch of rows using the COPY protocol,
+// creating any missing weekly partitions first. COPY routes each row to
+// its weekly partition and is markedly lighter on the storage database
+// than per-row INSERTs (one round-trip, no per-row parse/plan).
 func (s *Stats) WriteQueryStats(ctx context.Context, rows []QueryStat) error {
 	if len(rows) == 0 {
 		return nil
@@ -53,37 +62,18 @@ func (s *Stats) WriteQueryStats(ctx context.Context, rows []QueryStat) error {
 		}
 	}
 
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	batch := &pgx.Batch{}
-	for _, r := range rows {
+	src := pgx.CopyFromSlice(len(rows), func(i int) ([]any, error) {
+		r := rows[i]
 		if r.DataTier == 0 {
 			r.DataTier = 1
 		}
-		batch.Queue(
-			`INSERT INTO query_stats
-			   (server_id, collected_at, fingerprint, normalized_query, data_tier,
-			    calls, total_time_ms, mean_time_ms, rows, shared_blks_hit, shared_blks_read)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		return []any{
 			r.ServerID, r.CollectedAt, r.Fingerprint, r.NormalizedQuery, r.DataTier,
 			r.Calls, r.TotalTimeMs, r.MeanTimeMs, r.Rows, r.SharedBlksHit, r.SharedBlksRead,
-		)
-	}
-	br := tx.SendBatch(ctx, batch)
-	for range rows {
-		if _, err := br.Exec(); err != nil {
-			_ = br.Close()
-			return err
-		}
-	}
-	if err := br.Close(); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+		}, nil
+	})
+	_, err := s.pool.CopyFrom(ctx, pgx.Identifier{"query_stats"}, queryStatsColumns, src)
+	return err
 }
 
 // TopQuery is one row returned by TopQueriesByTotalTime.
