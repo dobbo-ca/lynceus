@@ -2,7 +2,9 @@
 
 > **Purpose:** Single living status file for the overarching product goal, so any session (or machine) can pick the work back up. Update this file whenever a goal sub-item advances. Companion to the dated session handoffs in `docs/superpowers/`.
 >
-> **Last updated:** 2026-06-05 · **Repo HEAD at update:** see `git log` · **Branch:** `goal-status-ci-3f9a`
+> **Last updated:** 2026-06-06 · **Repo HEAD:** `main` @ `f844369` · all session PRs merged.
+
+> **Merge state (2026-06-06):** PRs #7–#12 merged to `main`; #13 closed (duplicate of #3). A **parallel session** also landed #3 tamper-evident audit log (`ly-8b0.3`), #4 CI generator pinning (`ly-eg3`), #5 capability-policy storage (`ly-xnk.2`), #6 audit-log viewer (`ly-8b0.7`) + **read/write DSN split (`ly-lt9`)** — the latter implements what this file called `ly-ry1`. `main` is green: `go test ./...` passes incl. e2e, secure, store.
 
 ## The Goal (verbatim intent)
 
@@ -29,8 +31,8 @@ Build Lynceus — a privacy-first, Kubernetes-native, HA PostgreSQL monitoring p
 |---|------|--------|------------------|
 | 1 | MVP vertical slice | ✅ **DONE & VERIFIED** | `ly-58w` epic closed (9/9). `go test ./...` → 62 tests pass across 12 pkgs incl. `test/e2e/slice_test.go`. |
 | 2 | pganalyze parity | 🟡 **In progress** | M2–M6 epics; ~80 features in `docs/specs/2026-05-29-lynceus-features.md`. 87 open beads. |
-| 3 | Performance review + CI tooling | 🟡 **In progress** | CI perf/lint workflows being added; per-hotspot review tracked in beads (see below). |
-| 4 | Security review + CI tooling (HITRUST) | 🟡 **In progress** | SAST/SCA/secret/container scanning workflows being added; HITRUST control mapping below. |
+| 3 | Performance review + CI tooling | 🟡 **In progress** | CI lint+bench merged (`.golangci.yml`, `lint.yml`); `ly-3na` CopyFrom writes merged; reader/writer split merged (`ly-lt9`). Remaining: `ly-bsf` partition cache, `ly-awh` collector fan-out. |
+| 4 | Security review + CI tooling (HITRUST) | 🟡 **In progress** | Scanning merged (`security.yml`, `dependency-review.yml`); `govulncheck` clean (`ly-17l`); TLS-in-transit guards merged (`ly-cli`, DB half); tamper-evident audit log merged (`ly-8b0.3`); [HITRUST map](security/hitrust-controls.md). Remaining: OIDC/SCIM (M5), Helm controls (`ly-7ck.1`), collector wss (`ly-ckd`). |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started · 🔴 blocked
 
@@ -145,7 +147,9 @@ Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.1`, `ly-xqf.5`, `
 
 - **2026-06-05** — Verified MVP (Goal 1, 62 tests). Established this tracker + security/perf CI tooling (PR #7). Filed perf/security review epics (`ly-69x`, `ly-1g1`). Shipped `ly-3na` CopyFrom write path (PR #8) and `ly-xqf.1` pg_stat_activity connection-state history end-to-end (PR #9). Suite now 70 tests. Wrote HITRUST control-evidence doc (`ly-kwk` ✅) and recorded the `ly-ry1` reader/writer endpoint decision (satisfied at service boundary). Wrote auto_explain extraction plan (`ly-xqf.14` → `ready-impl`, PR #10) — unblocks 13 M3 beads when implemented. Remediated security findings: `ly-17l` Go toolchain bump → govulncheck clean (PR #11); `ly-cli` TLS-in-transit guards (PR #12, partial). Implemented tamper-evident audit log (`ly-8b0.3`, PR #13) — hash chain + VerifyChain + append-only triggers (HITRUST 09.aa). Open PRs: #7 (docs+CI+HITRUST), #8 (perf), #9 (feature), #10 (plan), #11 (toolchain), #12 (TLS), #13 (audit chain) — awaiting merge.
 
-> **Next-session note:** merge PRs #8/#9 before implementing more `stats.go`/`server.go` features — those files are touched by both, and `ly-xqf.14` + `ly-bsf` will touch them again. Merge first to avoid compounding rebases.
+- **2026-06-06** — Merged all session PRs to `main` (#7–#12); closed #13 as duplicate of the parallel session's #3. Rebased #9 (activity) and #12 (TLS) over the parallel work (`ly-lt9` read/write split, `ly-8b0.3` audit). `main` green end-to-end. **`ly-ry1` is satisfied by merged `ly-lt9`** (api uses read pool via `WithReadPool`; ingestion writes to primary).
+
+> **Next-session start here:** `main` is the source of truth (no open PRs). Highest-leverage next: implement `ly-xqf.14` (plan in `docs/superpowers/plans/2026-06-05-*`, `ready-impl`, unblocks 13 M3 beads). Then `ly-bsf`/`ly-awh` (perf), `ly-ckd` (collector wss), M5 OIDC/SCIM. Run `bd ready` for the full unblocked set.
 
 ## How to pick this up next session
 
