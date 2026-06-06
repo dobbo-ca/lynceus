@@ -1,0 +1,37 @@
+# golangci-lint config — Goal 3 (performance + simplification).
+# Surfaces allocation, complexity, and idiom issues without blocking on style noise.
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - gocritic     # idiom + simplification (5-lines-not-20)
+    - prealloc     # slice preallocation in hot loops
+    - gocyclo      # flag overly complex functions for review
+    - bodyclose    # leaked HTTP/ws response bodies
+    - rowserrcheck # sql.Rows error handling (storage correctness)
+    - sqlclosecheck
+
+linters-settings:
+  gocyclo:
+    min-complexity: 20
+  gocritic:
+    enabled-tags:
+      - performance
+      - diagnostic
+
+issues:
+  # Generated files carry their own conventions; don't lint them.
+  exclude-rules:
+    - path: '(\.pb\.go|_templ\.go)$'
+      linters:
+        - all
+  exclude-dirs:
+    - test/e2e
