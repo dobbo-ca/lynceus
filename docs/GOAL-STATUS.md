@@ -99,7 +99,7 @@ Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.1`, `ly-xqf.5`, `
 **Findings filed (epic `ly-69x`):**
 
 - `ly-3na` — ✅ **done (PR #8)**: `stats.WriteQueryStats` now uses `CopyFrom` (COPY protocol) instead of per-row INSERTs. (New `activity_buckets` writer also uses COPY.)
-- `ly-ry1` — split RDS **reader vs writer endpoint** (reads on reader pool, writes on writer pool).
+- `ly-ry1` — RDS **reader vs writer endpoint**. **Design decided:** the split is satisfied at the *service boundary* — `api_server` is read-only (point its DSN at the RDS **reader** endpoint), `ingestion_server` is write-only (point at the **writer** endpoint). No single process mixes read/write against one endpoint, so no in-process split-pool is needed yet (YAGNI). Enforced via Helm values in `ly-7ck.1`. Bead remains open to track the chart wiring + a guard if a future service does both.
 - `ly-bsf` — cache known weekly partitions to skip a `CREATE TABLE` round-trip per write.
 - `ly-awh` — collector bounded concurrent reader fan-out + global query budget (forward-looking, for M2 readers).
 
@@ -132,7 +132,7 @@ Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.1`, `ly-xqf.5`, `
 
 - `ly-17l` — bump Go toolchain to clear the 2 reachable stdlib vulns (patch/vuln mgmt 10.m).
 - `ly-cli` — enforce TLS in transit: collector websocket (wss) + pgx `sslmode=require`/`verify-full` on RDS.
-- `ly-kwk` — HITRUST control-to-evidence mapping doc (`docs/security/hitrust-controls.md`).
+- `ly-kwk` — ✅ **done**: HITRUST control-to-evidence mapping doc at [`docs/security/hitrust-controls.md`](security/hitrust-controls.md).
 - Tamper-evident audit log writer (`ly-8b0.3`, plan written) — audit-trail integrity (09.aa).
 - Scoped collector token issuance + rotation (`ly-8b0.8`); RBAC + least privilege (M5 `ly-8b0`).
 - Secrets management (no plaintext creds) — gitleaks gate now enforces.
@@ -143,7 +143,7 @@ Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.1`, `ly-xqf.5`, `
 
 ## Session log
 
-- **2026-06-05** — Verified MVP (Goal 1, 62 tests). Established this tracker + security/perf CI tooling (PR #7). Filed perf/security review epics (`ly-69x`, `ly-1g1`). Shipped `ly-3na` CopyFrom write path (PR #8) and `ly-xqf.1` pg_stat_activity connection-state history end-to-end (PR #9). Suite now 70 tests. Open PRs: #7 (docs+CI), #8 (perf), #9 (feature) — awaiting merge.
+- **2026-06-05** — Verified MVP (Goal 1, 62 tests). Established this tracker + security/perf CI tooling (PR #7). Filed perf/security review epics (`ly-69x`, `ly-1g1`). Shipped `ly-3na` CopyFrom write path (PR #8) and `ly-xqf.1` pg_stat_activity connection-state history end-to-end (PR #9). Suite now 70 tests. Wrote HITRUST control-evidence doc (`ly-kwk` ✅) and recorded the `ly-ry1` reader/writer endpoint decision (satisfied at service boundary). Open PRs: #7 (docs+CI+HITRUST), #8 (perf), #9 (feature) — awaiting merge.
 
 ## How to pick this up next session
 
