@@ -70,10 +70,12 @@ Tracked as milestone epics in beads. Run `bd ready` for unblocked work; `bd quer
 | M6 | `ly-7ck` | HA & ops (Helm hardening, retention, cluster aggregation, public API) | open |
 | — | `ly-xnk` | Capability discovery + per-database operator policy | `ly-xnk.1` ready |
 
+**Recently shipped:** `ly-xqf.1` pg_stat_activity reader + connection-state history — **done (PR #9)**: collector samples → 10s/60s aggregation → T1 `ActivityBucket` → ingestion persists → partitioned `activity_buckets`. Unblocks `ly-xqf.3` (wait events — labels already collected).
+
 **Highest-leverage next moves** (long-reach unblocks):
 
 1. `ly-xqf.10` auto_explain plan extraction — now unblocked (log parsing `ly-cxe.1` done); cascades into all 8 M3 EXPLAIN insights.
-2. `ly-xqf.1` pg_stat_activity reader — plan written (`ready-impl`), core to activity/wait/lock features.
+2. `ly-xqf.3` wait-event histograms — read path over the `activity_buckets` data already collected by `ly-xqf.1` (no new schema/wire).
 3. `ly-xnk.1` capability discovery — gates per-DB operator policy + safe feature enablement on RDS.
 
 Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.1`, `ly-xqf.5`, `ly-8b0.3`, `ly-cxe.1`(done).
@@ -96,7 +98,7 @@ Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.1`, `ly-xqf.5`, `
 
 **Findings filed (epic `ly-69x`):**
 
-- `ly-3na` — `stats.WriteQueryStats`: replace `pgx.Batch` of singleton INSERTs with `CopyFrom` (COPY protocol) — lighter storage-DB writes.
+- `ly-3na` — ✅ **done (PR #8)**: `stats.WriteQueryStats` now uses `CopyFrom` (COPY protocol) instead of per-row INSERTs. (New `activity_buckets` writer also uses COPY.)
 - `ly-ry1` — split RDS **reader vs writer endpoint** (reads on reader pool, writes on writer pool).
 - `ly-bsf` — cache known weekly partitions to skip a `CREATE TABLE` round-trip per write.
 - `ly-awh` — collector bounded concurrent reader fan-out + global query budget (forward-looking, for M2 readers).
@@ -138,6 +140,10 @@ Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.1`, `ly-xqf.5`, `
 **Status:** scanning workflows added (`security.yml`, `dependency-review.yml`); local scans run; findings filed under `ly-1g1`.
 
 ---
+
+## Session log
+
+- **2026-06-05** — Verified MVP (Goal 1, 62 tests). Established this tracker + security/perf CI tooling (PR #7). Filed perf/security review epics (`ly-69x`, `ly-1g1`). Shipped `ly-3na` CopyFrom write path (PR #8) and `ly-xqf.1` pg_stat_activity connection-state history end-to-end (PR #9). Suite now 70 tests. Open PRs: #7 (docs+CI), #8 (perf), #9 (feature) — awaiting merge.
 
 ## How to pick this up next session
 
