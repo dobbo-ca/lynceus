@@ -1,0 +1,58 @@
+name: Lint & Bench
+
+# Goal 3 (performance) tooling: static analysis that surfaces
+# allocation/complexity/simplification opportunities, plus a benchmark run.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  golangci:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+      # Generated proto/templ output is needed for the linter to type-check.
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends protobuf-compiler
+      - name: Install generators
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install github.com/a-h/templ/cmd/templ@latest
+      - name: Regenerate code
+        run: make gen
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  bench:
+    name: go test -bench
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends protobuf-compiler
+      - name: Install generators
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install github.com/a-h/templ/cmd/templ@latest
+      - name: Regenerate code
+        run: make gen
+      # Benchmarks only (no testcontainers here); -benchtime kept short.
+      - name: Run benchmarks
+        run: go test -run '^$' -bench . -benchmem -benchtime 100x ./... || true
