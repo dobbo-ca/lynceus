@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dobbo-ca/lynceus/internal/api"
+	"github.com/dobbo-ca/lynceus/internal/secure"
 	"github.com/dobbo-ca/lynceus/internal/store"
 )
 
@@ -26,6 +27,14 @@ func main() {
 	}
 	statsRODSN := os.Getenv("LYNCEUS_STATS_RO_DSN")
 	configRODSN := os.Getenv("LYNCEUS_CONFIG_RO_DSN")
+	for _, d := range []string{dsn, configDSN, statsRODSN, configRODSN} {
+		if d == "" {
+			continue
+		}
+		if err := secure.CheckDatabaseDSN(d, secure.RequireTLS()); err != nil {
+			log.Fatal(err)
+		}
+	}
 	addr := os.Getenv("LYNCEUS_API_ADDR")
 	if addr == "" {
 		addr = ":8080"
