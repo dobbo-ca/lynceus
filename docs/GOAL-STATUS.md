@@ -130,8 +130,8 @@ Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.1`, `ly-xqf.5`, `
 
 **HITRUST gaps to close (epic `ly-1g1`):**
 
-- `ly-17l` — bump Go toolchain to clear the 2 reachable stdlib vulns (patch/vuln mgmt 10.m).
-- `ly-cli` — enforce TLS in transit: collector websocket (wss) + pgx `sslmode=require`/`verify-full` on RDS.
+- `ly-17l` — ✅ **done (PR #11)**: pinned `toolchain go1.26.4`; `govulncheck` now reports no vulnerabilities.
+- `ly-cli` — 🟡 **partial (PR #12)**: `internal/secure` fail-closed guards (`CheckDatabaseDSN` sslmode + `CheckWebsocketURL` wss) wired into api/ingestion mains, 15 unit tests. Remaining (`ly-ckd`): collector wss wiring + TLS listener (with Helm `ly-7ck.1`).
 - `ly-kwk` — ✅ **done**: HITRUST control-to-evidence mapping doc at [`docs/security/hitrust-controls.md`](security/hitrust-controls.md).
 - Tamper-evident audit log writer (`ly-8b0.3`, plan written) — audit-trail integrity (09.aa).
 - Scoped collector token issuance + rotation (`ly-8b0.8`); RBAC + least privilege (M5 `ly-8b0`).
@@ -143,7 +143,7 @@ Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.1`, `ly-xqf.5`, `
 
 ## Session log
 
-- **2026-06-05** — Verified MVP (Goal 1, 62 tests). Established this tracker + security/perf CI tooling (PR #7). Filed perf/security review epics (`ly-69x`, `ly-1g1`). Shipped `ly-3na` CopyFrom write path (PR #8) and `ly-xqf.1` pg_stat_activity connection-state history end-to-end (PR #9). Suite now 70 tests. Wrote HITRUST control-evidence doc (`ly-kwk` ✅) and recorded the `ly-ry1` reader/writer endpoint decision (satisfied at service boundary). Wrote auto_explain extraction plan (`ly-xqf.14` → `ready-impl`, PR #10) — unblocks 13 M3 beads when implemented. Open PRs: #7 (docs+CI+HITRUST), #8 (perf), #9 (feature), #10 (plan) — awaiting merge.
+- **2026-06-05** — Verified MVP (Goal 1, 62 tests). Established this tracker + security/perf CI tooling (PR #7). Filed perf/security review epics (`ly-69x`, `ly-1g1`). Shipped `ly-3na` CopyFrom write path (PR #8) and `ly-xqf.1` pg_stat_activity connection-state history end-to-end (PR #9). Suite now 70 tests. Wrote HITRUST control-evidence doc (`ly-kwk` ✅) and recorded the `ly-ry1` reader/writer endpoint decision (satisfied at service boundary). Wrote auto_explain extraction plan (`ly-xqf.14` → `ready-impl`, PR #10) — unblocks 13 M3 beads when implemented. Remediated security findings: `ly-17l` Go toolchain bump → govulncheck clean (PR #11); `ly-cli` TLS-in-transit guards (PR #12, partial). Open PRs: #7 (docs+CI+HITRUST), #8 (perf), #9 (feature), #10 (plan), #11 (toolchain), #12 (TLS) — awaiting merge.
 
 > **Next-session note:** merge PRs #8/#9 before implementing more `stats.go`/`server.go` features — those files are touched by both, and `ly-xqf.14` + `ly-bsf` will touch them again. Merge first to avoid compounding rebases.
 

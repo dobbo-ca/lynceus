@@ -40,7 +40,7 @@ Lynceus's core architecture is a data-minimization control: analysis happens at 
 |-----|---------|--------|----------|
 | 10.b | Secure coding / input validation | ✅ | All DB access uses **parameterized queries** (`pgx`, `$1` placeholders) — no string-built SQL with user input; partition DDL uses validated ISO-week-derived names only. SAST: CodeQL `security-extended` + gosec in CI. |
 | 10.k | Change control | ✅ | All changes via PR; CI gates (`ci.yml` test+vet+race, `lint.yml`, `security.yml`) must pass. Generated code (proto/templ) verified in-sync in CI. |
-| 10.m | Vulnerability & patch management | 🟡 | govulncheck + Trivy in CI; Dependency Review blocks high-severity new deps on PRs (`dependency-review.yml`). **Open:** 2 reachable Go stdlib vulns → toolchain bump `ly-17l`. |
+| 10.m | Vulnerability & patch management | ✅ | govulncheck + Trivy in CI; Dependency Review blocks high-severity new deps on PRs (`dependency-review.yml`). Toolchain pinned to **go1.26.4** (`ly-17l`, PR #11) — `govulncheck ./...` reports no vulnerabilities. |
 | 10.m | Supply-chain integrity | ✅ | `go.mod`/`go.sum` pinned; Dependency Review action on every PR. |
 
 ### Data Protection & Privacy (Encryption)
@@ -48,7 +48,7 @@ Lynceus's core architecture is a data-minimization control: analysis happens at 
 | Ref | Control | Status | Evidence |
 |-----|---------|--------|----------|
 | — | Data minimization | ✅ | Privacy-by-design (see top section) — T1 carries no literals; contract-test enforced. |
-| — | Encryption in transit | 🟡 | App-to-DB and collector-to-ingestion TLS: **`ly-cli`** (planned — enforce `sslmode=verify-full` on RDS, wss on the websocket). |
+| — | Encryption in transit | 🟡 | **Enforced at startup** via `internal/secure` (`ly-cli`, PR #12): `CheckDatabaseDSN` rejects non-encrypting `sslmode`, `CheckWebsocketURL` requires `wss://`; wired into api + ingestion mains, default-on. Remaining (`ly-ckd`): collector wss wiring + TLS listener cert (Helm `ly-7ck.1`). |
 | — | Encryption at rest | 🟡 | Delegated to RDS (KMS-encrypted storage) — a deployment control to assert in the Helm/runbook (`ly-7ck.1`); no app-managed at-rest keys. |
 | — | Data segregation by sensitivity | ✅ | `data_tier` column on every data row; T2 off by default per server, RBAC-gated, audited. |
 
@@ -66,8 +66,8 @@ Lynceus's core architecture is a data-minimization control: analysis happens at 
 
 Tracked under security epic **`ly-1g1`** and referenced milestones:
 
-1. **`ly-cli`** — TLS in transit (wss + `sslmode=verify-full`). *Encryption-in-transit control.*
-2. **`ly-17l`** — bump Go toolchain to clear 2 reachable stdlib vulns. *10.m.*
+1. **`ly-cli`** ✅ partial (PR #12) / **`ly-ckd`** — finish TLS in transit (collector wss + TLS listener). *Encryption-in-transit control.*
+2. ~~`ly-17l`~~ ✅ **done** (PR #11) — toolchain go1.26.4, govulncheck clean. *10.m.*
 3. **`ly-8b0.3`** — tamper-evident (hash-chained) audit log. *09.aa integrity.*
 4. **`ly-8b0.1/.2/.8`** — OIDC + SCIM + scoped token issuance/rotation. *01.b/.c/.d.*
 5. **`ly-7ck.1`** — Helm chart asserting RDS KMS-at-rest, network policy, non-root/read-only-rootfs pod security. *Deployment controls.*
