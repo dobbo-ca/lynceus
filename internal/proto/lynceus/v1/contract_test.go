@@ -99,6 +99,58 @@ func TestLogEventHasOnlyClassificationFields(t *testing.T) {
 	}
 }
 
+// TestActivityBucketHasOnlyAggregateFields enforces the T1 privacy guarantee for
+// the connection-state histogram message. ActivityBucket must contain only
+// labels (database name, state, wait_event_type, wait_event) and aggregate
+// counts — never a query text, parameter value, or any per-execution literal.
+// pg_stat_activity exposes a `query` column; the existence of this allowlist
+// makes it impossible to silently add such a field on the wire.
+func TestActivityBucketHasOnlyAggregateFields(t *testing.T) {
+	allowed := map[string]struct{}{
+		"server_id":         {},
+		"database_name":     {},
+		"state":             {},
+		"wait_event_type":   {},
+		"wait_event":        {},
+		"bucket_start_unix":  {},
+		"bucket_seconds":    {},
+		"sample_count":      {},
+		"count_sum":         {},
+		"count_max":         {},
+	}
+
+	fields := (&lynceusv1.ActivityBucket{}).ProtoReflect().Descriptor().Fields()
+	for i := 0; i < fields.Len(); i++ {
+		name := string(fields.Get(i).Name())
+		if _, ok := allowed[name]; !ok {
+			t.Fatalf(
+				"unexpected field %q in T1 ActivityBucket — possible literal leak. "+
+					"pg_stat_activity exposes raw query text in its `query` column; "+
+					"T1 must never carry it. If you need live query samples, define a "+
+					"separate T2 message (see ly-xqf.4 connection traces) and gate it "+
+					"behind RBAC + audit (docs/specs/2026-05-29-lynceus-design.md §2).",
+				name,
+			)
+		}
+	}
+}
+
+// TestActivityBucketStateIsScalarString sanity-checks that the state label
+// stayed a plain string. Guards against a refactor that swaps it for `bytes`
+// or a nested message that could embed arbitrary content.
+func TestActivityBucketStateIsScalarString(t *testing.T) {
+	fields := (&lynceusv1.ActivityBucket{}).ProtoReflect().Descriptor().Fields()
+	for _, name := range []string{"state", "wait_event_type", "wait_event", "database_name"} {
+		f := fields.ByName(protoreflect.Name(name))
+		if f == nil {
+			t.Fatalf("field %q missing from ActivityBucket", name)
+		}
+		if got := f.Kind().String(); got != "string" {
+			t.Fatalf("ActivityBucket.%s must be string kind, got %s", name, got)
+		}
+	}
+}
+
 // TestLogEventScalarFieldShapes guards against type-changing regressions
 // where a string field is replaced by bytes or a nested message that
 // could embed unstructured content.

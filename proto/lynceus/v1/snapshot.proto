@@ -26,6 +26,10 @@ message Snapshot {
   string server_id = 1;
   int64 collected_at_unix = 2;
   repeated QueryStat query_stats = 3;
+
+  // Per-bucket connection-state histograms from pg_stat_activity. See
+  // ActivityBucket — T1, counts/labels only.
+  repeated ActivityBucket activity_buckets = 4;
 }
 
 // QueryStat is one row of per-fingerprint query statistics, derived
@@ -52,4 +56,34 @@ message QueryStat {
   int64  rows             = 6;
   int64  shared_blks_hit  = 7;
   int64  shared_blks_read = 8;
+}
+
+// ActivityBucket is a 60-second histogram bucket of pg_stat_activity samples
+// for one (database, state, wait_event_type, wait_event) tuple on one server.
+//
+// INVARIANT: every field below is either a stable label (server, database,
+// state, wait event) or an aggregate count. pg_stat_activity also exposes
+// the live `query` text — Lynceus deliberately NEVER selects that column for
+// T1, and no field on this message can carry it. Live query text belongs to
+// the separate T2 "connection traces" feature (ly-xqf.4) and lives in its
+// own message file.
+//
+// Aggregation: the collector samples pg_stat_activity every ~10s and folds
+// the per-sample counts for each label tuple into one bucket per 60s window.
+// sample_count is how many samples were folded in (expected 6 per minute,
+// fewer if a sample errored). count_sum and count_max are computed over
+// those samples; mean active connections in the bucket is count_sum /
+// sample_count, computed at read time so the wire format is additive.
+message ActivityBucket {
+  string server_id          = 1;
+  string database_name      = 2;  // pg_stat_activity.datname; "" for shared backends
+  string state              = 3;  // active | idle | idle in transaction | idle in transaction (aborted) | fastpath function call | disabled | "" (unknown)
+  string wait_event_type    = 4;  // pg_stat_activity.wait_event_type; "" if not waiting
+  string wait_event         = 5;  // pg_stat_activity.wait_event;      "" if not waiting
+
+  int64  bucket_start_unix  = 6;  // floor-of-minute UTC unix seconds
+  int32  bucket_seconds     = 7;  // bucket width — currently always 60
+  int32  sample_count       = 8;  // how many ~10s samples fed this bucket
+  int64  count_sum          = 9;  // sum of per-sample connection counts
+  int64  count_max          = 10; // peak per-sample connection count
 }
