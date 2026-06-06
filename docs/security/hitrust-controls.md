@@ -31,7 +31,7 @@ Lynceus's core architecture is a data-minimization control: analysis happens at 
 | Ref | Control | Status | Evidence |
 |-----|---------|--------|----------|
 | 09.aa | Audit logging of access to covered data | ✅ schema / 🟡 coverage | `audit_log` table exists from day one ([`internal/store/migrations/config`](../../internal/store/migrations/config), `internal/store/config.go` `AppendAudit`). Every T2 read is designed to append an audit entry. Roundtrip test: `TestAuditAppend_roundtrips`. |
-| 09.aa | Audit trail integrity (tamper-evidence) | ⬜ | Tamper-evident (hash-chained) audit writer: `ly-8b0.3` (plan written). |
+| 09.aa | Audit trail integrity (tamper-evidence) | ✅ | Hash-chained, append-only audit log (`ly-8b0.3`, PR #13): each row SHA-256-chained to its predecessor; `BEFORE UPDATE/DELETE` triggers reject mutation; `VerifyChain` detects tamper/deletion. `internal/store/audit_hash.go`, `config.go`, migration `0002_audit_chain.sql`. |
 | 09.ab | Monitoring / vulnerability identification | ✅ | CI: CodeQL (SAST), gosec (SAST), govulncheck (SCA), Trivy (CVE), weekly scheduled scan. `.github/workflows/security.yml`. |
 
 ### 10 — Secure SDLC, Vulnerability & Change Management
@@ -68,7 +68,7 @@ Tracked under security epic **`ly-1g1`** and referenced milestones:
 
 1. **`ly-cli`** ✅ partial (PR #12) / **`ly-ckd`** — finish TLS in transit (collector wss + TLS listener). *Encryption-in-transit control.*
 2. ~~`ly-17l`~~ ✅ **done** (PR #11) — toolchain go1.26.4, govulncheck clean. *10.m.*
-3. **`ly-8b0.3`** — tamper-evident (hash-chained) audit log. *09.aa integrity.*
+3. ~~`ly-8b0.3`~~ ✅ **done** (PR #13) — hash-chained append-only audit log + VerifyChain. *09.aa integrity.*
 4. **`ly-8b0.1/.2/.8`** — OIDC + SCIM + scoped token issuance/rotation. *01.b/.c/.d.*
 5. **`ly-7ck.1`** — Helm chart asserting RDS KMS-at-rest, network policy, non-root/read-only-rootfs pod security. *Deployment controls.*
 
