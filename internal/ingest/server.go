@@ -111,6 +111,13 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if plans := snapshotToQueryPlans(&snap); len(plans) > 0 {
+		if err := s.stats.WriteQueryPlans(ctx, plans); err != nil {
+			s.parkDLQ(ctx, snap.ServerId, "write plans: "+err.Error(), data)
+			_ = conn.Close(websocket.StatusInternalError, "")
+			return
+		}
+	}
 	_ = conn.Close(websocket.StatusNormalClosure, "")
 }
 
@@ -158,6 +165,19 @@ func snapshotToRows(snap *lynceusv1.Snapshot) []store.QueryStat {
 		})
 	}
 	return rows
+}
+
+func snapshotToQueryPlans(snap *lynceusv1.Snapshot) []store.QueryPlanRow {
+	out := make([]store.QueryPlanRow, 0, len(snap.QueryPlans))
+	for _, p := range snap.QueryPlans {
+		out = append(out, store.QueryPlanRow{
+			ServerID:   snap.ServerId,
+			CapturedAt: time.Unix(p.CapturedAtUnix, 0).UTC(),
+			Plan:       p,
+			DataTier:   1,
+		})
+	}
+	return out
 }
 
 func snapshotToActivityBuckets(snap *lynceusv1.Snapshot) []store.ActivityBucket {
