@@ -64,7 +64,7 @@ A **new partitioned table `query_plans`**, not a column on `query_stats`:
 
 **Files:** create `proto/lynceus/v1/plan.proto`; modify `internal/proto/lynceus/v1/contract_test.go`; regenerate.
 
-- [ ] **Step 1: Write the failing contract test FIRST** (append to `contract_test.go`):
+- [x] **Step 1: Write the failing contract test FIRST** (append to `contract_test.go`):
 
 ```go
 // TestQueryPlanHasNoLiteralFields enforces the T1 guarantee for extracted
@@ -93,9 +93,9 @@ func TestQueryPlanHasNoLiteralFields(t *testing.T) {
 
 Add a small `assertOnlyAllowed(t, fields, allowed, msgName)` helper (factor the existing loop body) so the QueryStat/LogEvent/ActivityBucket tests can use it too — but do that refactor in a SEPARATE commit if it touches their bodies, to keep this diff focused. (If you prefer zero refactor, inline the loop as the other tests do.)
 
-- [ ] **Step 2: Run — expect compile failure** (`undefined: lynceusv1.QueryPlan`). `go test ./internal/proto/lynceus/v1/...`
+- [x] **Step 2: Run — expect compile failure** (`undefined: lynceusv1.QueryPlan`). `go test ./internal/proto/lynceus/v1/...`
 
-- [ ] **Step 3: Add `proto/lynceus/v1/plan.proto`:**
+- [x] **Step 3: Add `proto/lynceus/v1/plan.proto`:**
 
 ```proto
 syntax = "proto3";
@@ -141,10 +141,10 @@ message PlanNode {
 }
 ```
 
-- [ ] **Step 4:** add `repeated QueryPlan query_plans = 5;` to `Snapshot` in `snapshot.proto`.
-- [ ] **Step 5:** `make proto` → regenerates `plan.pb.go` + updated `snapshot.pb.go`.
-- [ ] **Step 6:** `go test ./internal/proto/lynceus/v1/...` → PASS.
-- [ ] **Step 7:** commit `feat(proto): T1 QueryPlan/PlanNode messages + privacy contract test`.
+- [x] **Step 4:** add `repeated QueryPlan query_plans = 5;` to `Snapshot` in `snapshot.proto`.
+- [x] **Step 5:** `make proto` → regenerates `plan.pb.go` + updated `snapshot.pb.go`.
+- [x] **Step 6:** `go test ./internal/proto/lynceus/v1/...` → PASS.
+- [x] **Step 7:** commit `feat(proto): T1 QueryPlan/PlanNode messages + privacy contract test`.
 
 ---
 
@@ -154,7 +154,7 @@ message PlanNode {
 
 auto_explain condition strings look like `(orders.status = 'shipped'::text)` or `(id = ANY ('{1,2,3}'::integer[]))`. These are boolean expressions, not full statements, so wrap them before handing to `normalize.Normalize`.
 
-- [ ] **Step 1: failing unit test:**
+- [x] **Step 1: failing unit test:**
 
 ```go
 func TestNormalizeCondition_stripsLiterals(t *testing.T) {
@@ -173,8 +173,8 @@ func TestNormalizeCondition_stripsLiterals(t *testing.T) {
 
 The hard assertion is **"no literal survives"** (a `'`-quoted string or numeric array never appears in output). Exact placeholder form is secondary — the test asserts the safety property, not a golden string.
 
-- [ ] **Step 2: implement `NormalizeCondition(cond string) string`:** wrap as `SELECT 1 WHERE <cond>` (or `SELECT CASE WHEN <cond> ...`), run `normalize.Normalize`, and if `Tier == TierNormalized` extract the normalized predicate back out; otherwise return `""`. Prefer returning `""` over any risk of a leak — **fail closed**.
-- [ ] **Step 3:** tests PASS. Commit `feat(planextract): fail-closed condition normalizer`.
+- [x] **Step 2: implement `NormalizeCondition(cond string) string`:** wrap as `SELECT 1 WHERE <cond>` (or `SELECT CASE WHEN <cond> ...`), run `normalize.Normalize`, and if `Tier == TierNormalized` extract the normalized predicate back out; otherwise return `""`. Prefer returning `""` over any risk of a leak — **fail closed**.
+- [x] **Step 3:** tests PASS. Commit `feat(planextract): fail-closed condition normalizer`.
 
 ---
 
@@ -182,17 +182,17 @@ The hard assertion is **"no literal survives"** (a `'`-quoted string or numeric 
 
 **Files:** create `internal/planextract/extract.go`, `extract_test.go`, `testdata/*.json`.
 
-- [ ] **Step 1: capture fixtures.** Run against a real Postgres with auto_explain to capture genuine JSON output (commit the JSON under `testdata/`). At minimum: a Seq Scan with a literal `Filter`, an Index Scan with `Index Cond`, and an `EXPLAIN ANALYZE` nested loop with actual times. Each fixture is the JSON array auto_explain logs (`[{"Plan": {...}}]`).
+- [x] **Step 1: capture fixtures.** Run against a real Postgres with auto_explain to capture genuine JSON output (commit the JSON under `testdata/`). At minimum: a Seq Scan with a literal `Filter`, an Index Scan with `Index Cond`, and an `EXPLAIN ANALYZE` nested loop with actual times. Each fixture is the JSON array auto_explain logs (`[{"Plan": {...}}]`).
 
-- [ ] **Step 2: failing test** asserting: the root node type/cost/rows are parsed; the tree depth matches; every `normalized_condition` contains no `'`-quoted literal; `actual_*` populated only for the ANALYZE fixture; `fingerprint` is set from the statement (passed in by the caller, since the plan JSON's `Query Text` is T2 and not trusted here).
+- [x] **Step 2: failing test** asserting: the root node type/cost/rows are parsed; the tree depth matches; every `normalized_condition` contains no `'`-quoted literal; `actual_*` populated only for the ANALYZE fixture; `fingerprint` is set from the statement (passed in by the caller, since the plan JSON's `Query Text` is T2 and not trusted here).
 
-- [ ] **Step 3: implement `Extract(planJSON []byte, fingerprint string, capturedAt time.Time) (*lynceusv1.QueryPlan, error)`:**
+- [x] **Step 3: implement `Extract(planJSON []byte, fingerprint string, capturedAt time.Time) (*lynceusv1.QueryPlan, error)`:**
   - `json.Unmarshal` into an internal struct mirroring the auto_explain JSON (`Plan` with `Node Type`, `Relation Name`, `Index Name`, `Alias`, `Startup Cost`, `Total Cost`, `Plan Rows`, `Plan Width`, `Actual Startup Time`, `Actual Total Time`, `Actual Rows`, `Actual Loops`, `Join Type`, `Scan Direction`, `Filter`, `Index Cond`, `Hash Cond`, `Join Filter`, `Recheck Cond`, `Plans []`).
   - Map recursively into `PlanNode`. Collapse the various condition fields into `normalized_condition` via `NormalizeCondition` (concatenate the present ones, normalize each, drop any that fail).
   - Never copy `Output`, `Query Text`, or any string field verbatim.
   - Return `ErrUnsupportedPlanFormat` if the bytes are not the expected JSON shape (e.g. text-format body).
 
-- [ ] **Step 4:** tests PASS (`go test ./internal/planextract/...`). Commit `feat(planextract): JSON auto_explain plan -> normalized T1 QueryPlan`.
+- [x] **Step 4:** tests PASS (`go test ./internal/planextract/...`). Commit `feat(planextract): JSON auto_explain plan -> normalized T1 QueryPlan`.
 
 ---
 
@@ -200,9 +200,9 @@ The hard assertion is **"no literal survives"** (a `'`-quoted string or numeric 
 
 **Files:** create `internal/store/migrations/stats/0004_query_plans.sql`, `internal/store/plans.go`, `internal/store/plans_test.go`.
 
-- [ ] **Step 1: failing integration tests** (mirror `TestWriteActivityBuckets...`): assert `query_plans` is range-partitioned; `WriteQueryPlans` creates the weekly partition and round-trips via `TopPlansByQuery(serverID, fingerprint, since, until, limit)`.
+- [x] **Step 1: failing integration tests** (mirror `TestWriteActivityBuckets...`): assert `query_plans` is range-partitioned; `WriteQueryPlans` creates the weekly partition and round-trips via `TopPlansByQuery(serverID, fingerprint, since, until, limit)`.
 
-- [ ] **Step 2: migration `0004_query_plans.sql`:**
+- [x] **Step 2: migration `0004_query_plans.sql`:**
 
 ```sql
 CREATE TABLE query_plans (
@@ -220,9 +220,9 @@ CREATE INDEX query_plans_brin_time ON query_plans USING brin (captured_at);
 CREATE INDEX query_plans_srv_fp ON query_plans (server_id, fingerprint, captured_at);
 ```
 
-- [ ] **Step 3: implement `internal/store/plans.go`** — `QueryPlanRow` struct, `WriteQueryPlans` via `pgx.CopyFrom` (marshal the normalized tree to JSONB with `json.Marshal`), `TopPlansByQuery`, `EnsurePlansWeeklyPartition` + `plansPartitionName` (reuse `isoWeekBounds`). Mirror `stats.go` patterns; **use CopyFrom, not per-row INSERT** (consistent with `ly-3na`).
+- [x] **Step 3: implement `internal/store/plans.go`** — `QueryPlanRow` struct, `WriteQueryPlans` via `pgx.CopyFrom` (marshal the normalized tree to JSONB with `json.Marshal`), `TopPlansByQuery`, `EnsurePlansWeeklyPartition` + `plansPartitionName` (reuse `isoWeekBounds`). Mirror `stats.go` patterns; **use CopyFrom, not per-row INSERT** (consistent with `ly-3na`).
 
-- [ ] **Step 4:** `go vet ./internal/store/...`; tests PASS. Commit `feat(store): query_plans partitioned table + COPY writer`.
+- [x] **Step 4:** `go vet ./internal/store/...`; tests PASS. Commit `feat(store): query_plans partitioned table + COPY writer`.
 
 ---
 
@@ -230,13 +230,13 @@ CREATE INDEX query_plans_srv_fp ON query_plans (server_id, fingerprint, captured
 
 **Files:** create `internal/collector/plan_pipeline.go` (+test); modify `internal/ingest/server.go`, `cmd/collector/main.go`.
 
-- [ ] **Step 1:** `plan_pipeline.go` — given the `(LogEvent, LogPayload)` pairs from `logparse.ParseStream`, for each `EventAutoExplainPlan` call `planextract.Extract(payload-body, fingerprintFromPayloadStatement, occurredAt)`; collect `[]*lynceusv1.QueryPlan`. The fingerprint comes from normalizing the payload's `StatementText` via `normalize.Fingerprint` (collector-local; only the fingerprint, never the text, leaves). Unit-test with a fixture payload.
+- [x] **Step 1:** `plan_pipeline.go` — given the `(LogEvent, LogPayload)` pairs from `logparse.ParseStream`, for each `EventAutoExplainPlan` call `planextract.Extract(payload-body, fingerprintFromPayloadStatement, occurredAt)`; collect `[]*lynceusv1.QueryPlan`. The fingerprint comes from normalizing the payload's `StatementText` via `normalize.Fingerprint` (collector-local; only the fingerprint, never the text, leaves). Unit-test with a fixture payload.
 
-- [ ] **Step 2:** ingestion `server.go` — add `snapshotToQueryPlans(&snap)` and `s.stats.WriteQueryPlans(...)` after the activity-buckets write, same DLQ-on-error pattern.
+- [x] **Step 2:** ingestion `server.go` — add `snapshotToQueryPlans(&snap)` and `s.stats.WriteQueryPlans(...)` after the activity-buckets write, same DLQ-on-error pattern.
 
-- [ ] **Step 3:** `cmd/collector/main.go` — wherever the log source is read (or, until a log source is wired, behind the same shipper), feed parsed payloads through `plan_pipeline` and attach `QueryPlans` to a `Snapshot`. If no log source is configured yet, this step is a no-op path guarded by config — do not block on `ly-cxe.2` (log source) landing; the extractor + store + contract are independently valuable and tested.
+- [x] **Step 3:** `cmd/collector/main.go` — wherever the log source is read (or, until a log source is wired, behind the same shipper), feed parsed payloads through `plan_pipeline` and attach `QueryPlans` to a `Snapshot`. If no log source is configured yet, this step is a no-op path guarded by config — do not block on `ly-cxe.2` (log source) landing; the extractor + store + contract are independently valuable and tested.
 
-- [ ] **Step 4:** `go build ./... && go test ./... -timeout 15m` → PASS. Commit `feat(collector): extract auto_explain plans into T1 QueryPlan records`.
+- [x] **Step 4:** `go build ./... && go test ./... -timeout 15m` → PASS. Commit `feat(collector): extract auto_explain plans into T1 QueryPlan records`.
 
 ---
 

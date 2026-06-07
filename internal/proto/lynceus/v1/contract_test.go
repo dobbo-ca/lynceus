@@ -151,6 +151,67 @@ func TestActivityBucketStateIsScalarString(t *testing.T) {
 	}
 }
 
+// assertOnlyAllowed fails if any field in fields is not present in allowed.
+// Used by the T1 privacy contract tests to enforce a field allowlist on a
+// wire message: adding a field that could carry a literal becomes a build
+// failure until the allowlist is deliberately updated.
+func assertOnlyAllowed(t *testing.T, fields protoreflect.FieldDescriptors, allowed map[string]struct{}, msgName string) {
+	t.Helper()
+	for i := 0; i < fields.Len(); i++ {
+		name := string(fields.Get(i).Name())
+		if _, ok := allowed[name]; !ok {
+			t.Fatalf(
+				"unexpected field %q in T1 %s — possible literal leak. T1 messages "+
+					"must contain only normalized/aggregate fields. If you need to carry "+
+					"literal-bearing data, define a separate T2 message type and gate it "+
+					"behind RBAC + audit (see docs/specs/2026-05-29-lynceus-design.md §2).",
+				name, msgName,
+			)
+		}
+	}
+}
+
+// TestQueryPlanHasNoLiteralFields enforces the T1 guarantee for extracted
+// EXPLAIN plans. QueryPlan/PlanNode may carry only structural plan metadata
+// (node type, relation/index name, cost/row/time estimates and actuals) and
+// NORMALIZED condition strings — never a raw Filter/Output expression or any
+// literal value from the monitored database. auto_explain plans are derived
+// from real executions and the source plan body (in the collector-local T2
+// LogPayload) is full of literals; this allowlist makes it impossible to
+// silently ship one on the wire.
+func TestQueryPlanHasNoLiteralFields(t *testing.T) {
+	planAllowed := map[string]struct{}{
+		"fingerprint": {}, "captured_at_unix": {}, "format_version": {},
+		"total_cost": {}, "actual_total_time_ms": {}, "root": {},
+	}
+	assertOnlyAllowed(t, (&lynceusv1.QueryPlan{}).ProtoReflect().Descriptor().Fields(), planAllowed, "QueryPlan")
+
+	nodeAllowed := map[string]struct{}{
+		"node_type": {}, "relation_name": {}, "index_name": {}, "alias": {},
+		"join_type": {}, "scan_direction": {},
+		"startup_cost": {}, "total_cost": {}, "plan_rows": {}, "plan_width": {},
+		"actual_startup_time_ms": {}, "actual_total_time_ms": {},
+		"actual_rows": {}, "actual_loops": {},
+		"normalized_condition": {},
+		"plans":                {}, // recursive children
+	}
+	assertOnlyAllowed(t, (&lynceusv1.PlanNode{}).ProtoReflect().Descriptor().Fields(), nodeAllowed, "PlanNode")
+}
+
+// TestPlanNodeConditionFieldIsScalarString sanity-checks that
+// normalized_condition stayed a plain string. Guards against a refactor that
+// swaps it for bytes or a nested message able to embed unstructured content.
+func TestPlanNodeConditionFieldIsScalarString(t *testing.T) {
+	fields := (&lynceusv1.PlanNode{}).ProtoReflect().Descriptor().Fields()
+	f := fields.ByName("normalized_condition")
+	if f == nil {
+		t.Fatal("normalized_condition field missing from PlanNode")
+	}
+	if got := f.Kind().String(); got != "string" {
+		t.Fatalf("normalized_condition must be string kind, got %s", got)
+	}
+}
+
 // TestLogEventScalarFieldShapes guards against type-changing regressions
 // where a string field is replaced by bytes or a nested message that
 // could embed unstructured content.

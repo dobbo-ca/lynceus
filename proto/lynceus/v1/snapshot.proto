@@ -20,6 +20,8 @@ package lynceus.v1;
 
 option go_package = "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1";
 
+import "proto/lynceus/v1/plan.proto";
+
 // Snapshot is the unit of telemetry transmitted by a collector for a
 // single monitored Postgres server at a single point in time.
 message Snapshot {
@@ -30,6 +32,10 @@ message Snapshot {
   // Per-bucket connection-state histograms from pg_stat_activity. See
   // ActivityBucket — T1, counts/labels only.
   repeated ActivityBucket activity_buckets = 4;
+
+  // Normalized auto_explain plans extracted from the Postgres log. See
+  // QueryPlan in plan.proto — T1, no literals.
+  repeated QueryPlan query_plans = 5;
 }
 
 // QueryStat is one row of per-fingerprint query statistics, derived

@@ -2,7 +2,7 @@
 
 > **Purpose:** Single living status file for the overarching product goal, so any session (or machine) can pick the work back up. Update this file whenever a goal sub-item advances. Companion to the dated session handoffs in `docs/superpowers/`.
 >
-> **Last updated:** 2026-06-06 · **Repo HEAD:** `main` @ `c1cf8a5` · all session PRs (#1–#12, #14) merged.
+> **Last updated:** 2026-06-06 · **Repo HEAD:** `main` @ `95234fe` · all session PRs (#1–#12, #14, #15) merged. `ly-xqf.14` PR pending (branch `auto-explain-extract-7f3a`).
 
 > **Merge state (2026-06-06):** PRs #7–#12 merged to `main`; #13 closed (duplicate of #3). A **parallel session** also landed #3 tamper-evident audit log (`ly-8b0.3`), #4 CI generator pinning (commit `40756db`, no tracking bead — referenced as `ly-eg3`), #5 capability-policy storage (`ly-xnk.2`), #6 audit-log viewer (`ly-8b0.7`) + **read/write DSN split** (commit `33b4da5`, referenced as `ly-lt9` — no such bead; the work is tracked by `ly-ry1`, now closed). `main` is green: `go test ./...` passes incl. e2e, secure, store.
 >
@@ -68,7 +68,7 @@ Tracked as milestone epics in beads. Run `bd ready` for unblocked work; `bd quer
 |-----------|------|-------|-------|
 | M1 | `ly-58w` | Vertical slice (MVP) | ✅ closed |
 | M2 | `ly-xqf` | Collector depth (pg_stat_activity, schema/index/table stats, plans, locks, waits) | open, several `ready-impl` |
-| M3 | `ly-u4t` | Collector-side analysis (EXPLAIN insights) | blocked on M2 `ly-xqf.14` auto_explain plan extraction (`ready-impl`, plan written) |
+| M3 | `ly-u4t` | Collector-side analysis (EXPLAIN insights) | **unblocked** — `ly-xqf.14` auto_explain plan extraction implemented (PR pending); 13 insight beads now read `query_plans` |
 | M4 | `ly-cxe` | Log Insights (parsing ✅ `ly-cxe.1`; sources, PII filters, event catalog) | parsing closed; rest open |
 | M5 | `ly-8b0` | Auth & governance (OIDC, SCIM, audit log, enrollment) | audit log ✅ (`ly-8b0.3`) + viewer ✅ (`ly-8b0.7`); OIDC/SCIM/enrollment open |
 | M6 | `ly-7ck` | HA & ops (Helm hardening, retention, cluster aggregation, public API) | open |
@@ -76,13 +76,15 @@ Tracked as milestone epics in beads. Run `bd ready` for unblocked work; `bd quer
 
 **Recently shipped:** `ly-xqf.1` pg_stat_activity reader + connection-state history — **done (PR #9)**: collector samples → 10s/60s aggregation → T1 `ActivityBucket` → ingestion persists → partitioned `activity_buckets`. Unblocks `ly-xqf.3` (wait events — labels already collected).
 
+**Recently shipped:** `ly-xqf.14` auto_explain plan extraction — **implemented (PR pending)**: `planextract` parses JSON auto_explain bodies → normalized T1 `QueryPlan`/`PlanNode` (fail-closed condition normalizer, no literal can survive — new contract test); partitioned `query_plans` table + COPY writer (`TopPlansByQuery` is the M3 read entry point); `collector.ExtractPlans` + ingestion persistence. **Unblocks all 13 M3/M6 insight beads** (`ly-u4t.1–.11`, `ly-7ck.13/.15`). Collector `main.go` not wired (no log source yet — attaches with `ly-cxe.2`).
+
 **Highest-leverage next moves** (long-reach unblocks):
 
-1. `ly-xqf.14` auto_explain plan extraction — **plan written + `ready-impl` (PR #10)**; cascades into all 8 M3 EXPLAIN insights (blocks 13 beads). Implement next.
+1. `ly-u4t.*` M3 EXPLAIN insights — now unblocked; each reads `query_plans.plan_tree` (JSONB) + scalars via `TopPlansByQuery`. No new schema needed.
 2. `ly-xqf.3` wait-event histograms — read path over the `activity_buckets` data already collected by `ly-xqf.1` (no new schema/wire).
 3. `ly-xnk.4` capability matrix API (GET + POST toggle) — newly unblocked by `ly-xnk.2` (policy storage done); completes the per-DB operator-policy surface, then `ly-xnk.3` retrofits readers behind the gate.
 
-Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.5` (open); done & merged: `ly-xqf.1`, `ly-8b0.3`, `ly-cxe.1`, `ly-xnk.1`, `ly-xnk.2`.
+Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.5` (open); done & merged: `ly-xqf.1`, `ly-8b0.3`, `ly-cxe.1`, `ly-xnk.1`, `ly-xnk.2`. Implemented (PR pending): `ly-xqf.14`.
 
 **Parity definition of done:** every MUST/SHOULD feature in `docs/specs/2026-05-29-lynceus-features.md` closed, with its privacy classification + RDS-safety honored.
 
@@ -152,7 +154,9 @@ Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.5` (open); done &
 - **2026-06-06** — Merged all session PRs to `main` (#7–#12); closed #13 as duplicate of the parallel session's #3. Rebased #9 (activity) and #12 (TLS) over the parallel work (read/write split, `ly-8b0.3` audit). `main` green end-to-end. **`ly-ry1` is satisfied by the merged read/write split** (api uses read pool via `WithReadPool`; ingestion writes to primary).
 - **2026-06-06 (reconcile)** — Cross-checked GOAL-STATUS vs git log + `bd`. Parallel session's merged code (PRs #1–#6) had left its beads open; closed `ly-cxe.1`, `ly-xnk.1`, `ly-xnk.2`, `ly-8b0.7` to match `main`. Confirmed `ly-eg3`/`ly-lt9` are commit-only IDs with no bead in this Dolt DB. Corrected audit-log attribution (PR #3, not #13). Counts: **88 open / 20 closed / 42 ready**. `ly-xnk.4` now unblocked.
 
-> **Next-session start here:** `main` is the source of truth (no open PRs). Highest-leverage next: implement `ly-xqf.14` (plan in `docs/superpowers/plans/2026-06-05-*`, `ready-impl`, unblocks 13 M3 beads). Then `ly-xnk.4` (caps matrix API, newly unblocked), `ly-bsf`/`ly-awh` (perf), `ly-ckd` (collector wss), M5 OIDC/SCIM. Run `bd ready` for the full unblocked set.
+- **2026-06-06 (ly-xqf.14)** — Implemented auto_explain plan extraction end-to-end, TDD (5 commits, branch `auto-explain-extract-7f3a`, PR pending review): T1 `QueryPlan`/`PlanNode` proto + privacy contract test; fail-closed `planextract.NormalizeCondition` + `Extract` (JSON-only, fixtures from real PG16 EXPLAIN JSON); `query_plans` partitioned table + COPY writer + `TopPlansByQuery`; `collector.ExtractPlans` + ingestion persistence. Collector `main.go` deliberately not wired (no log source yet — attaches with `ly-cxe.2`). Full suite green: **147 tests / 15 pkgs**. Unblocks 13 M3/M6 insight beads.
+
+> **Next-session start here:** PR for `ly-xqf.14` is open and awaiting review (branch `auto-explain-extract-7f3a`). Once merged, the M3 EXPLAIN insights (`ly-u4t.*`) are unblocked — each reads `query_plans` via `TopPlansByQuery`. Other unblocked: `ly-xnk.4` (caps matrix API), `ly-xqf.3` (wait events), `ly-bsf`/`ly-awh` (perf), `ly-ckd` (collector wss), M5 OIDC/SCIM. Run `bd ready` for the full set.
 
 ## How to pick this up next session
 
