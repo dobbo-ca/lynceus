@@ -145,6 +145,25 @@ func TestExtract_nestedLoopAnalyze(t *testing.T) {
 	assertNoLiteral(t, qp)
 }
 
+func TestExtract_rowsRemovedByFilter(t *testing.T) {
+	qp, err := planextract.Extract(loadFixture(t, "nestloop_analyze.json"), "fp-nl", time.Unix(1700000000, 0))
+	if err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	var seq *lynceusv1.PlanNode
+	walk(qp.GetRoot(), func(n *lynceusv1.PlanNode) {
+		if n.GetNodeType() == "Seq Scan" {
+			seq = n
+		}
+	})
+	if seq == nil {
+		t.Fatal("no Seq Scan node found in nestloop_analyze.json")
+	}
+	if got := seq.GetRowsRemovedByFilter(); got != 233 {
+		t.Errorf("rows_removed_by_filter = %d, want 233", got)
+	}
+}
+
 func TestExtract_unsupportedFormat(t *testing.T) {
 	// A text-format auto_explain body (not JSON) must be rejected, not guessed.
 	textBody := []byte("Aggregate  (cost=102.83..102.84 rows=1 width=8)\n  ->  Seq Scan on orders")

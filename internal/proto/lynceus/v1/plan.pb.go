@@ -149,7 +149,11 @@ type PlanNode struct {
 	// Filter / Index Cond / Hash Cond / Join Filter / Recheck Cond, AFTER
 	// normalization (literals -> $n). Empty if the source condition could not
 	// be proven literal-free — fail closed, never ship a raw predicate.
-	NormalizedCondition string      `protobuf:"bytes,15,opt,name=normalized_condition,json=normalizedCondition,proto3" json:"normalized_condition,omitempty"`
+	NormalizedCondition string `protobuf:"bytes,15,opt,name=normalized_condition,json=normalizedCondition,proto3" json:"normalized_condition,omitempty"`
+	// Rows the node read then discarded via its Filter, per loop (Postgres
+	// "Rows Removed by Filter"). A COUNT, never a literal — used by the Slow
+	// Scan insight to measure scan selectivity. 0 if absent / no ANALYZE.
+	RowsRemovedByFilter int64       `protobuf:"varint,17,opt,name=rows_removed_by_filter,json=rowsRemovedByFilter,proto3" json:"rows_removed_by_filter,omitempty"`
 	Plans               []*PlanNode `protobuf:"bytes,16,rep,name=plans,proto3" json:"plans,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
@@ -290,6 +294,13 @@ func (x *PlanNode) GetNormalizedCondition() string {
 	return ""
 }
 
+func (x *PlanNode) GetRowsRemovedByFilter() int64 {
+	if x != nil {
+		return x.RowsRemovedByFilter
+	}
+	return 0
+}
+
 func (x *PlanNode) GetPlans() []*PlanNode {
 	if x != nil {
 		return x.Plans
@@ -310,7 +321,7 @@ const file_proto_lynceus_v1_plan_proto_rawDesc = "" +
 	"\n" +
 	"total_cost\x18\x04 \x01(\x01R\ttotalCost\x12/\n" +
 	"\x14actual_total_time_ms\x18\x05 \x01(\x01R\x11actualTotalTimeMs\x12(\n" +
-	"\x04root\x18\x06 \x01(\v2\x14.lynceus.v1.PlanNodeR\x04root\"\xcc\x04\n" +
+	"\x04root\x18\x06 \x01(\v2\x14.lynceus.v1.PlanNodeR\x04root\"\x81\x05\n" +
 	"\bPlanNode\x12\x1b\n" +
 	"\tnode_type\x18\x01 \x01(\tR\bnodeType\x12#\n" +
 	"\rrelation_name\x18\x02 \x01(\tR\frelationName\x12\x1d\n" +
@@ -331,7 +342,8 @@ const file_proto_lynceus_v1_plan_proto_rawDesc = "" +
 	"\vactual_rows\x18\r \x01(\x03R\n" +
 	"actualRows\x12!\n" +
 	"\factual_loops\x18\x0e \x01(\x03R\vactualLoops\x121\n" +
-	"\x14normalized_condition\x18\x0f \x01(\tR\x13normalizedCondition\x12*\n" +
+	"\x14normalized_condition\x18\x0f \x01(\tR\x13normalizedCondition\x123\n" +
+	"\x16rows_removed_by_filter\x18\x11 \x01(\x03R\x13rowsRemovedByFilter\x12*\n" +
 	"\x05plans\x18\x10 \x03(\v2\x14.lynceus.v1.PlanNodeR\x05plansBAZ?github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1b\x06proto3"
 
 var (

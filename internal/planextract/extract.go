@@ -47,6 +47,8 @@ type rawNode struct {
 	ActualRows        int64   `json:"Actual Rows"`
 	ActualLoops       int64   `json:"Actual Loops"`
 
+	RowsRemovedByFilter int64 `json:"Rows Removed by Filter"`
+
 	Filter      string `json:"Filter"`
 	IndexCond   string `json:"Index Cond"`
 	HashCond    string `json:"Hash Cond"`
@@ -102,6 +104,7 @@ func convert(n *rawNode) *lynceusv1.PlanNode {
 		ActualTotalTimeMs:   n.ActualTotalTime,
 		ActualRows:          n.ActualRows,
 		ActualLoops:         n.ActualLoops,
+		RowsRemovedByFilter: n.RowsRemovedByFilter,
 		NormalizedCondition: normalizeConds(n),
 	}
 	for i := range n.Plans {
