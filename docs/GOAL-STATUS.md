@@ -68,7 +68,7 @@ Tracked as milestone epics in beads. Run `bd ready` for unblocked work; `bd quer
 |-----------|------|-------|-------|
 | M1 | `ly-58w` | Vertical slice (MVP) | ✅ closed |
 | M2 | `ly-xqf` | Collector depth (pg_stat_activity, schema/index/table stats, plans, locks, waits) | open, several `ready-impl` |
-| M3 | `ly-u4t` | Collector-side analysis (EXPLAIN insights) | **unblocked** — `ly-xqf.14` auto_explain plan extraction implemented (PR pending); 13 insight beads now read `query_plans` |
+| M3 | `ly-u4t` | Collector-side analysis (EXPLAIN insights) | **in progress** — `ly-xqf.14` plan extraction merged (PR #16); `ly-u4t.7` Slow Scan ✅ + reusable `internal/insight` engine; 7 EXPLAIN insights remain (each adds one `Detector`) |
 | M4 | `ly-cxe` | Log Insights (parsing ✅ `ly-cxe.1`; sources, PII filters, event catalog) | parsing closed; rest open |
 | M5 | `ly-8b0` | Auth & governance (OIDC, SCIM, audit log, enrollment) | audit log ✅ (`ly-8b0.3`) + viewer ✅ (`ly-8b0.7`); OIDC/SCIM/enrollment open |
 | M6 | `ly-7ck` | HA & ops (Helm hardening, retention, cluster aggregation, public API) | open |
@@ -78,9 +78,11 @@ Tracked as milestone epics in beads. Run `bd ready` for unblocked work; `bd quer
 
 **Recently shipped:** `ly-xqf.14` auto_explain plan extraction — **implemented (PR pending)**: `planextract` parses JSON auto_explain bodies → normalized T1 `QueryPlan`/`PlanNode` (fail-closed condition normalizer, no literal can survive — new contract test); partitioned `query_plans` table + COPY writer (`TopPlansByQuery` is the M3 read entry point); `collector.ExtractPlans` + ingestion persistence. **Unblocks all 13 M3/M6 insight beads** (`ly-u4t.1–.11`, `ly-7ck.13/.15`). Collector `main.go` not wired (no log source yet — attaches with `ly-cxe.2`).
 
+**Recently shipped:** `ly-u4t.7` Slow Scan EXPLAIN insight — **done (branch `worktree-explain-insight-slowscan-9c2e`)**: new neutral `internal/insight` package (pure `Detector` interface, `DetectAll`/`DetectPlans`, literal-free tree walk) is the reusable engine the other 12 M3 insight beads plug into. `SlowScanDetector` flags a Seq Scan that reads ≥1000 rows and returns ≤10% of them (severity by selectivity). Required adding `rows_removed_by_filter` (a **count**, contract-allowlisted — no literal) to T1 `PlanNode` + the extractor. Suite: **158 tests / 16 pkgs**. HTTP surfacing of insights deferred to `ly-u4t.21`/`ly-xqf.10` (engine built so those are a thin caller).
+
 **Highest-leverage next moves** (long-reach unblocks):
 
-1. `ly-u4t.*` M3 EXPLAIN insights — now unblocked; each reads `query_plans.plan_tree` (JSONB) + scalars via `TopPlansByQuery`. No new schema needed.
+1. Remaining M3 EXPLAIN insights (`ly-u4t.1/.2/.3/.4/.5/.6/.8`) — each adds one `Detector` to `internal/insight` + fixtures, reusing the engine + `rows_removed_by_filter`/plan scalars. No new schema.
 2. `ly-xqf.3` wait-event histograms — read path over the `activity_buckets` data already collected by `ly-xqf.1` (no new schema/wire).
 3. `ly-xnk.4` capability matrix API (GET + POST toggle) — newly unblocked by `ly-xnk.2` (policy storage done); completes the per-DB operator-policy surface, then `ly-xnk.3` retrofits readers behind the gate.
 
