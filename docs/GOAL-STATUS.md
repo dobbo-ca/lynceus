@@ -2,11 +2,13 @@
 
 > **Purpose:** Single living status file for the overarching product goal, so any session (or machine) can pick the work back up. Update this file whenever a goal sub-item advances. Companion to the dated session handoffs in `docs/superpowers/`.
 >
-> **Last updated:** 2026-06-06 · **Repo HEAD:** `main` @ `95234fe` · all session PRs (#1–#12, #14, #15) merged. `ly-xqf.14` PR pending (branch `auto-explain-extract-7f3a`).
+> **Last updated:** 2026-06-07 · **Repo HEAD:** `main` @ `0ff4b5c` · PRs #1–#12, #14, #15, #16 (`ly-xqf.14` auto_explain extraction), #17 (`ly-u4t.7` Slow Scan insight) all merged.
 
 > **Merge state (2026-06-06):** PRs #7–#12 merged to `main`; #13 closed (duplicate of #3). A **parallel session** also landed #3 tamper-evident audit log (`ly-8b0.3`), #4 CI generator pinning (commit `40756db`, no tracking bead — referenced as `ly-eg3`), #5 capability-policy storage (`ly-xnk.2`), #6 audit-log viewer (`ly-8b0.7`) + **read/write DSN split** (commit `33b4da5`, referenced as `ly-lt9` — no such bead; the work is tracked by `ly-ry1`, now closed). `main` is green: `go test ./...` passes incl. e2e, secure, store.
 >
-> **Bead reconcile (2026-06-06):** parallel session merged the above code but left its beads open. Closed `ly-cxe.1`, `ly-xnk.1`, `ly-xnk.2`, `ly-8b0.7` to match `main`. `ly-eg3`/`ly-lt9` were never beads in this Dolt DB (commit-only IDs). Counts now: **88 open / 20 closed / 42 ready** (`bd stats`). Closing `ly-xnk.2` unblocked `ly-xnk.4` (capability matrix API).
+> **Bead reconcile (2026-06-06):** parallel session merged the above code but left its beads open. Closed `ly-cxe.1`, `ly-xnk.1`, `ly-xnk.2`, `ly-8b0.7` to match `main`. `ly-eg3`/`ly-lt9` were never beads in this Dolt DB (commit-only IDs). Counts then: **88 open / 20 closed / 42 ready** (`bd stats`). Closing `ly-xnk.2` unblocked `ly-xnk.4` (capability matrix API).
+>
+> **Merge state (2026-06-07):** `ly-xqf.14` (PR #16) + `ly-u4t.7` Slow Scan insight (PR #17) merged to `main` (squash, HEAD `0ff4b5c`). M3 EXPLAIN-insight engine (`internal/insight`) now exists. `main` green locally: `go test ./...` → **158 tests / 16 pkgs**. Counts now: **87 open / 22 closed / 54 ready** (`bd stats`). CI on `main` still red for the 4 pre-existing environmental reasons tracked by `ly-1zw` (gitleaks license, golangci-lint version, dependency-graph, testcontainers flake) — not code.
 
 ## The Goal (verbatim intent)
 
@@ -32,7 +34,7 @@ Build Lynceus — a privacy-first, Kubernetes-native, HA PostgreSQL monitoring p
 | # | Goal | Status | Evidence / Where |
 |---|------|--------|------------------|
 | 1 | MVP vertical slice | ✅ **DONE & VERIFIED** | `ly-58w` epic closed (9/9). `go test ./...` → 62 tests pass across 12 pkgs incl. `test/e2e/slice_test.go`. |
-| 2 | pganalyze parity | 🟡 **In progress** | M2–M6 epics; ~80 features in `docs/specs/2026-05-29-lynceus-features.md`. 88 open / 20 closed / 42 ready (`bd stats`). |
+| 2 | pganalyze parity | 🟡 **In progress** | M2–M6 epics; ~80 features in `docs/specs/2026-05-29-lynceus-features.md`. 87 open / 22 closed / 54 ready (`bd stats`). M3 EXPLAIN-insight engine live (`ly-u4t.7`). |
 | 3 | Performance review + CI tooling | 🟡 **In progress** | CI lint+bench merged (`.golangci.yml`, `lint.yml`); `ly-3na` CopyFrom writes merged; reader/writer split merged (`ly-ry1`). Remaining: `ly-bsf` partition cache, `ly-awh` collector fan-out. |
 | 4 | Security review + CI tooling (HITRUST) | 🟡 **In progress** | Scanning merged (`security.yml`, `dependency-review.yml`); `govulncheck` clean (`ly-17l`); TLS-in-transit guards merged (`ly-cli`, DB half); tamper-evident audit log merged (`ly-8b0.3`); [HITRUST map](security/hitrust-controls.md). Remaining: OIDC/SCIM (M5), Helm controls (`ly-7ck.1`), collector wss (`ly-ckd`). |
 
@@ -76,9 +78,9 @@ Tracked as milestone epics in beads. Run `bd ready` for unblocked work; `bd quer
 
 **Recently shipped:** `ly-xqf.1` pg_stat_activity reader + connection-state history — **done (PR #9)**: collector samples → 10s/60s aggregation → T1 `ActivityBucket` → ingestion persists → partitioned `activity_buckets`. Unblocks `ly-xqf.3` (wait events — labels already collected).
 
-**Recently shipped:** `ly-xqf.14` auto_explain plan extraction — **implemented (PR pending)**: `planextract` parses JSON auto_explain bodies → normalized T1 `QueryPlan`/`PlanNode` (fail-closed condition normalizer, no literal can survive — new contract test); partitioned `query_plans` table + COPY writer (`TopPlansByQuery` is the M3 read entry point); `collector.ExtractPlans` + ingestion persistence. **Unblocks all 13 M3/M6 insight beads** (`ly-u4t.1–.11`, `ly-7ck.13/.15`). Collector `main.go` not wired (no log source yet — attaches with `ly-cxe.2`).
+**Recently shipped:** `ly-xqf.14` auto_explain plan extraction — **done (PR #16)**: `planextract` parses JSON auto_explain bodies → normalized T1 `QueryPlan`/`PlanNode` (fail-closed condition normalizer, no literal can survive — contract test); partitioned `query_plans` table + COPY writer (`TopPlansByQuery` is the M3 read entry point); `collector.ExtractPlans` + ingestion persistence. **Unblocked all 13 M3/M6 insight beads** (`ly-u4t.1–.11`, `ly-7ck.13/.15`). Collector `main.go` not wired (no log source yet — attaches with `ly-cxe.2`).
 
-**Recently shipped:** `ly-u4t.7` Slow Scan EXPLAIN insight — **done (branch `worktree-explain-insight-slowscan-9c2e`)**: new neutral `internal/insight` package (pure `Detector` interface, `DetectAll`/`DetectPlans`, literal-free tree walk) is the reusable engine the other 12 M3 insight beads plug into. `SlowScanDetector` flags a Seq Scan that reads ≥1000 rows and returns ≤10% of them (severity by selectivity). Required adding `rows_removed_by_filter` (a **count**, contract-allowlisted — no literal) to T1 `PlanNode` + the extractor. Suite: **158 tests / 16 pkgs**. HTTP surfacing of insights deferred to `ly-u4t.21`/`ly-xqf.10` (engine built so those are a thin caller).
+**Recently shipped:** `ly-u4t.7` Slow Scan EXPLAIN insight — **done (PR #17)**: new neutral `internal/insight` package (pure `Detector` interface, `DetectAll`/`DetectPlans`, literal-free tree walk) is the reusable engine the other 12 M3 insight beads plug into. `SlowScanDetector` flags a Seq Scan that reads ≥1000 rows and returns ≤10% of them (severity by selectivity). Required adding `rows_removed_by_filter` (a **count**, contract-allowlisted — no literal) to T1 `PlanNode` + the extractor. Suite: **158 tests / 16 pkgs**. HTTP surfacing of insights deferred to `ly-u4t.21`/`ly-xqf.10` (engine built so those are a thin caller).
 
 **Highest-leverage next moves** (long-reach unblocks):
 
@@ -86,7 +88,7 @@ Tracked as milestone epics in beads. Run `bd ready` for unblocked work; `bd quer
 2. `ly-xqf.3` wait-event histograms — read path over the `activity_buckets` data already collected by `ly-xqf.1` (no new schema/wire).
 3. `ly-xnk.4` capability matrix API (GET + POST toggle) — newly unblocked by `ly-xnk.2` (policy storage done); completes the per-DB operator-policy surface, then `ly-xnk.3` retrofits readers behind the gate.
 
-Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.5` (open); done & merged: `ly-xqf.1`, `ly-8b0.3`, `ly-cxe.1`, `ly-xnk.1`, `ly-xnk.2`. Implemented (PR pending): `ly-xqf.14`.
+Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.5` (open). Done & merged: `ly-xqf.1`, `ly-xqf.14`, `ly-u4t.7`, `ly-8b0.3`, `ly-cxe.1`, `ly-xnk.1`, `ly-xnk.2`.
 
 **Parity definition of done:** every MUST/SHOULD feature in `docs/specs/2026-05-29-lynceus-features.md` closed, with its privacy classification + RDS-safety honored.
 
@@ -158,7 +160,9 @@ Planned (have TDD plans in `docs/superpowers/plans/`): `ly-xqf.5` (open); done &
 
 - **2026-06-06 (ly-xqf.14)** — Implemented auto_explain plan extraction end-to-end, TDD (5 commits, branch `auto-explain-extract-7f3a`, PR pending review): T1 `QueryPlan`/`PlanNode` proto + privacy contract test; fail-closed `planextract.NormalizeCondition` + `Extract` (JSON-only, fixtures from real PG16 EXPLAIN JSON); `query_plans` partitioned table + COPY writer + `TopPlansByQuery`; `collector.ExtractPlans` + ingestion persistence. Collector `main.go` deliberately not wired (no log source yet — attaches with `ly-cxe.2`). Full suite green: **147 tests / 15 pkgs**. Unblocks 13 M3/M6 insight beads.
 
-> **Next-session start here:** PR for `ly-xqf.14` is open and awaiting review (branch `auto-explain-extract-7f3a`). Once merged, the M3 EXPLAIN insights (`ly-u4t.*`) are unblocked — each reads `query_plans` via `TopPlansByQuery`. Other unblocked: `ly-xnk.4` (caps matrix API), `ly-xqf.3` (wait events), `ly-bsf`/`ly-awh` (perf), `ly-ckd` (collector wss), M5 OIDC/SCIM. Run `bd ready` for the full set.
+- **2026-06-07 (ly-u4t.7)** — Merged `ly-xqf.14` (PR #16) + Slow Scan EXPLAIN insight (PR #17, squash, HEAD `0ff4b5c`), TDD. Built the reusable `internal/insight` engine (pure `Detector` interface, `DetectAll`/`DetectPlans`, literal-free tree walk) — the other 12 M3 insight beads plug in here. `SlowScanDetector` flags Seq Scans reading ≥1000 rows / returning ≤10% (severity by selectivity, loop-aware). Added `rows_removed_by_filter` (a count, contract-allowlisted) to T1 `PlanNode` + extractor. Suite: **158 tests / 16 pkgs**. Surfacing over HTTP deferred to `ly-u4t.21`/`ly-xqf.10`.
+
+> **Next-session start here:** M3 EXPLAIN-insight engine is live (`internal/insight`). Highest-leverage continuation: the next EXPLAIN insight — `ly-u4t.3` (Inefficient Index) or `ly-u4t.1` (Disk Sort) — each adds **one `Detector` + fixtures** to `internal/insight`, reusing the engine + plan scalars (`rows_removed_by_filter`, costs, rows). No new schema. Then wire HTTP surfacing (`TopPlansByQuery` → `insight.DetectPlans`) under `ly-u4t.21`/`ly-xqf.10`. Other unblocked: `ly-xnk.4` (caps matrix API), `ly-xqf.3` (wait events), `ly-bsf`/`ly-awh` (perf), `ly-ckd` (collector wss), M5 OIDC/SCIM, `ly-1zw` (restore green CI — needs repo-admin for gitleaks license + dependency-graph). Run `bd ready` for the full set.
 
 ## How to pick this up next session
 
@@ -174,8 +178,8 @@ bd query 'label = "ready-impl"'  # planned features
 # 3. Verify MVP still green
 go test ./... -timeout 15m
 
-# 4. Pick highest-leverage: ly-xqf.14 (auto_explain, ready-impl) or ly-xnk.4 (caps matrix API)
-bd update <id> --status in_progress
+# 4. Pick highest-leverage: ly-u4t.3 / ly-u4t.1 (next EXPLAIN insight, reuses internal/insight) or ly-xnk.4 (caps matrix API)
+bd update <id> --claim
 ```
 
 **Update protocol:** when you close a goal-relevant bead or land perf/security work, edit the "Status at a glance" table + the relevant section here in the same change. Keep this file truthful — it is the contract for resuming.
