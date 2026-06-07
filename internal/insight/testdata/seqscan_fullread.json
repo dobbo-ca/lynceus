@@ -1,0 +1,21 @@
+[
+  {
+    "Query Text": "SELECT * FROM events;",
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "events",
+      "Alias": "events",
+      "Startup Cost": 0.00,
+      "Total Cost": 1693.00,
+      "Plan Rows": 50000,
+      "Plan Width": 64,
+      "Actual Startup Time": 0.008,
+      "Actual Total Time": 12.10,
+      "Actual Rows": 50000,
+      "Actual Loops": 1,
+      "Rows Removed by Filter": 0
+    },
+    "Planning Time": 0.06,
+    "Execution Time": 14.00
+  }
+]

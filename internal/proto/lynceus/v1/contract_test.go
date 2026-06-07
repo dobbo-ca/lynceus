@@ -192,6 +192,7 @@ func TestQueryPlanHasNoLiteralFields(t *testing.T) {
 		"startup_cost": {}, "total_cost": {}, "plan_rows": {}, "plan_width": {},
 		"actual_startup_time_ms": {}, "actual_total_time_ms": {},
 		"actual_rows": {}, "actual_loops": {},
+		"rows_removed_by_filter": {},
 		"normalized_condition": {},
 		"plans":                {}, // recursive children
 	}

@@ -1,0 +1,16 @@
+[
+  {
+    "Query Text": "SELECT * FROM events WHERE kind = 'error';",
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "events",
+      "Alias": "events",
+      "Startup Cost": 0.00,
+      "Total Cost": 1943.00,
+      "Plan Rows": 12,
+      "Plan Width": 64,
+      "Filter": "(kind = 'error'::text)"
+    },
+    "Planning Time": 0.10
+  }
+]

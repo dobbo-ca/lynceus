@@ -60,5 +60,10 @@ message PlanNode {
   // be proven literal-free — fail closed, never ship a raw predicate.
   string normalized_condition = 15;
 
+  // Rows the node read then discarded via its Filter, per loop (Postgres
+  // "Rows Removed by Filter"). A COUNT, never a literal — used by the Slow
+  // Scan insight to measure scan selectivity. 0 if absent / no ANALYZE.
+  int64 rows_removed_by_filter = 17;
+
   repeated PlanNode plans = 16;
 }

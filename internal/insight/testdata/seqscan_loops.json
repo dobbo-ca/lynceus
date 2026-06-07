@@ -1,0 +1,51 @@
+[
+  {
+    "Query Text": "SELECT * FROM a JOIN b ON b.k = a.k WHERE b.flag = 't';",
+    "Plan": {
+      "Node Type": "Nested Loop",
+      "Join Type": "Inner",
+      "Startup Cost": 0.15,
+      "Total Cost": 5000.00,
+      "Plan Rows": 100,
+      "Plan Width": 16,
+      "Actual Startup Time": 0.02,
+      "Actual Total Time": 40.00,
+      "Actual Rows": 100,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Parent Relationship": "Outer",
+          "Relation Name": "a",
+          "Alias": "a",
+          "Startup Cost": 0.00,
+          "Total Cost": 10.00,
+          "Plan Rows": 100,
+          "Plan Width": 8,
+          "Actual Startup Time": 0.005,
+          "Actual Total Time": 0.05,
+          "Actual Rows": 100,
+          "Actual Loops": 1
+        },
+        {
+          "Node Type": "Seq Scan",
+          "Parent Relationship": "Inner",
+          "Relation Name": "b",
+          "Alias": "b",
+          "Startup Cost": 0.00,
+          "Total Cost": 49.00,
+          "Plan Rows": 1,
+          "Plan Width": 8,
+          "Actual Startup Time": 0.001,
+          "Actual Total Time": 0.003,
+          "Actual Rows": 1,
+          "Actual Loops": 100,
+          "Filter": "(flag = 't'::boolean)",
+          "Rows Removed by Filter": 50
+        }
+      ]
+    },
+    "Planning Time": 0.30,
+    "Execution Time": 41.00
+  }
+]
