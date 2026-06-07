@@ -48,8 +48,11 @@ type Snapshot struct {
 	// Per-bucket connection-state histograms from pg_stat_activity. See
 	// ActivityBucket — T1, counts/labels only.
 	ActivityBuckets []*ActivityBucket `protobuf:"bytes,4,rep,name=activity_buckets,json=activityBuckets,proto3" json:"activity_buckets,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Normalized auto_explain plans extracted from the Postgres log. See
+	// QueryPlan in plan.proto — T1, no literals.
+	QueryPlans    []*QueryPlan `protobuf:"bytes,5,rep,name=query_plans,json=queryPlans,proto3" json:"query_plans,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Snapshot) Reset() {
@@ -106,6 +109,13 @@ func (x *Snapshot) GetQueryStats() []*QueryStat {
 func (x *Snapshot) GetActivityBuckets() []*ActivityBucket {
 	if x != nil {
 		return x.ActivityBuckets
+	}
+	return nil
+}
+
+func (x *Snapshot) GetQueryPlans() []*QueryPlan {
+	if x != nil {
+		return x.QueryPlans
 	}
 	return nil
 }
@@ -360,13 +370,15 @@ var File_proto_lynceus_v1_snapshot_proto protoreflect.FileDescriptor
 const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\n" +
 	"\x1fproto/lynceus/v1/snapshot.proto\x12\n" +
-	"lynceus.v1\"\xd2\x01\n" +
+	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\"\x8a\x02\n" +
 	"\bSnapshot\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12*\n" +
 	"\x11collected_at_unix\x18\x02 \x01(\x03R\x0fcollectedAtUnix\x126\n" +
 	"\vquery_stats\x18\x03 \x03(\v2\x15.lynceus.v1.QueryStatR\n" +
 	"queryStats\x12E\n" +
-	"\x10activity_buckets\x18\x04 \x03(\v2\x1a.lynceus.v1.ActivityBucketR\x0factivityBuckets\"\x9a\x02\n" +
+	"\x10activity_buckets\x18\x04 \x03(\v2\x1a.lynceus.v1.ActivityBucketR\x0factivityBuckets\x126\n" +
+	"\vquery_plans\x18\x05 \x03(\v2\x15.lynceus.v1.QueryPlanR\n" +
+	"queryPlans\"\x9a\x02\n" +
 	"\tQueryStat\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12)\n" +
 	"\x10normalized_query\x18\x02 \x01(\tR\x0fnormalizedQuery\x12\x14\n" +
@@ -408,15 +420,17 @@ var file_proto_lynceus_v1_snapshot_proto_goTypes = []any{
 	(*Snapshot)(nil),       // 0: lynceus.v1.Snapshot
 	(*QueryStat)(nil),      // 1: lynceus.v1.QueryStat
 	(*ActivityBucket)(nil), // 2: lynceus.v1.ActivityBucket
+	(*QueryPlan)(nil),      // 3: lynceus.v1.QueryPlan
 }
 var file_proto_lynceus_v1_snapshot_proto_depIdxs = []int32{
 	1, // 0: lynceus.v1.Snapshot.query_stats:type_name -> lynceus.v1.QueryStat
 	2, // 1: lynceus.v1.Snapshot.activity_buckets:type_name -> lynceus.v1.ActivityBucket
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	3, // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_proto_lynceus_v1_snapshot_proto_init() }
@@ -424,6 +438,7 @@ func file_proto_lynceus_v1_snapshot_proto_init() {
 	if File_proto_lynceus_v1_snapshot_proto != nil {
 		return
 	}
+	file_proto_lynceus_v1_plan_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

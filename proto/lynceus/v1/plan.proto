@@ -1,0 +1,64 @@
+// Lynceus T1 wire contract — extracted EXPLAIN plans.
+//
+// auto_explain writes a chosen statement's plan into the Postgres log. The
+// collector parses that plan (JSON format) and emits the normalized records
+// below. The SOURCE plan body is full of literals (Filter, Index Cond,
+// Output, Query Text) and stays in the collector-local T2 LogPayload — it is
+// never shipped here.
+//
+// INVARIANT: no field on QueryPlan or PlanNode may carry a query literal.
+// Condition strings are normalized (literals -> $n) at the collector, and
+// omitted entirely if normalization cannot prove they are literal-free.
+// A contract test in internal/proto/lynceus/v1/contract_test.go enforces
+// the field allowlist; adding a literal-bearing field fails the build.
+syntax = "proto3";
+
+package lynceus.v1;
+
+option go_package = "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1";
+
+// QueryPlan is one extracted auto_explain plan, normalized at the collector.
+// Grain: per-execution-sample (captured when auto_explain fires for a
+// statement), keyed to the statement by its normalized fingerprint.
+message QueryPlan {
+  // Fingerprint of the normalized statement this plan is for. Computed
+  // collector-side from the statement text; the text itself never leaves.
+  string fingerprint          = 1;
+  int64  captured_at_unix     = 2;
+  int32  format_version       = 3; // plan extractor schema version (starts at 1)
+  double total_cost           = 4; // root node Total Cost
+  double actual_total_time_ms = 5; // root node Actual Total Time (0 if not ANALYZE)
+  PlanNode root               = 6;
+}
+
+// PlanNode is one node in the plan tree. Recursive via `plans`.
+//
+// INVARIANT: every string field is either a structural identifier (node
+// type, relation/index name, alias, join type, scan direction) or a
+// condition that has already been normalized literal-free. Raw Output and
+// Query Text are dropped during extraction and have no field here.
+message PlanNode {
+  string node_type      = 1; // "Seq Scan", "Index Scan", "Hash Join", ...
+  string relation_name  = 2; // table, if any
+  string index_name     = 3; // index, if any
+  string alias          = 4; // range-table alias (identifier, not a literal)
+  string join_type      = 5; // "Inner" | "Left" | ...; "" if not a join
+  string scan_direction = 6; // "Forward" | "Backward" | ""
+
+  double startup_cost = 7;
+  double total_cost   = 8;
+  int64  plan_rows    = 9;
+  int32  plan_width   = 10;
+
+  double actual_startup_time_ms = 11; // 0 unless ANALYZE
+  double actual_total_time_ms   = 12;
+  int64  actual_rows            = 13;
+  int64  actual_loops           = 14;
+
+  // Filter / Index Cond / Hash Cond / Join Filter / Recheck Cond, AFTER
+  // normalization (literals -> $n). Empty if the source condition could not
+  // be proven literal-free — fail closed, never ship a raw predicate.
+  string normalized_condition = 15;
+
+  repeated PlanNode plans = 16;
+}
