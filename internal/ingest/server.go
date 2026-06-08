@@ -139,6 +139,12 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Shipped LogEvents (snap.LogEvents) are intentionally a NO-OP here:
+	// there is no log_events stats table or writer yet (tracked as a
+	// dedicated store bead per docs/specs/2026-06-08-layer0-foundation.md
+	// §4.1.6). They are NOT an error and must NOT be parked to the DLQ —
+	// a future bead adds snapshotToLogEvents + s.stats.WriteLogEvents here,
+	// mirroring the query_plans block above.
 	_ = conn.Close(websocket.StatusNormalClosure, "")
 }
 
