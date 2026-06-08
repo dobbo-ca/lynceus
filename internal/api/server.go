@@ -40,6 +40,8 @@ func (s *Server) Handler() http.Handler { return s.withAuth(s.mux) }
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /", s.handleDashboard)
 	s.mux.HandleFunc("GET /partial/queries", s.handleQueriesPartial)
+	s.mux.HandleFunc("GET /insights", s.handleInsightsPage)
+	s.mux.HandleFunc("GET /partial/insights", s.handleInsightsPartial)
 	s.mux.HandleFunc("GET /audit", s.handleAuditPage)
 	s.mux.HandleFunc("GET /partial/audit", s.handleAuditPartial)
 	s.mux.HandleFunc("GET /api/queries/top", s.handleTopQueries)
