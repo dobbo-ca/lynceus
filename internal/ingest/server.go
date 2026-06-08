@@ -132,6 +132,13 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if ts := snapshotToTableStats(&snap); len(ts) > 0 {
+		if err := s.stats.WriteTableStats(ctx, ts); err != nil {
+			s.parkDLQ(ctx, snap.ServerId, "write table_stats: "+err.Error(), data)
+			_ = conn.Close(websocket.StatusInternalError, "")
+			return
+		}
+	}
 	_ = conn.Close(websocket.StatusNormalClosure, "")
 }
 
@@ -210,6 +217,56 @@ func snapshotToSchemaObjects(snap *lynceusv1.Snapshot) []store.SchemaObjectRow {
 			SizeBytes:   o.SizeBytes,
 			IsPartition: o.IsPartition,
 			ParentFQN:   o.ParentFqn,
+		})
+	}
+	return out
+}
+
+func snapshotToTableStats(snap *lynceusv1.Snapshot) []store.TableStatRow {
+	collectedAt := time.Unix(snap.CollectedAtUnix, 0).UTC()
+	if collectedAt.IsZero() || snap.CollectedAtUnix == 0 {
+		collectedAt = time.Now().UTC()
+	}
+	unixToTime := func(u int64) time.Time {
+		if u == 0 {
+			return time.Time{}
+		}
+		return time.Unix(u, 0).UTC()
+	}
+	out := make([]store.TableStatRow, 0, len(snap.TableStats))
+	for _, t := range snap.TableStats {
+		out = append(out, store.TableStatRow{
+			ServerID:    snap.ServerId,
+			CollectedAt: collectedAt,
+			SchemaName:  t.Schema,
+			ObjectName:  t.Name,
+			FQN:         t.Fqn,
+
+			TotalBytes:   t.TotalBytes,
+			HeapBytes:    t.HeapBytes,
+			ToastBytes:   t.ToastBytes,
+			IndexesBytes: t.IndexesBytes,
+
+			RowEstimate:      t.RowEstimate,
+			LiveTuples:       t.LiveTuples,
+			DeadTuples:       t.DeadTuples,
+			NModSinceAnalyze: t.NModSinceAnalyze,
+
+			SeqScan:    t.SeqScan,
+			IdxScan:    t.IdxScan,
+			NTupIns:    t.NTupIns,
+			NTupUpd:    t.NTupUpd,
+			NTupDel:    t.NTupDel,
+			NTupHotUpd: t.NTupHotUpd,
+
+			LastVacuum:      unixToTime(t.LastVacuumUnix),
+			LastAutovacuum:  unixToTime(t.LastAutovacuumUnix),
+			LastAnalyze:     unixToTime(t.LastAnalyzeUnix),
+			LastAutoanalyze: unixToTime(t.LastAutoanalyzeUnix),
+			VacuumCount:     t.VacuumCount,
+			AutovacuumCount: t.AutovacuumCount,
+
+			DataTier: 1,
 		})
 	}
 	return out

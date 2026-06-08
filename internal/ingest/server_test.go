@@ -158,6 +158,42 @@ func TestServer_persistsSchemaObjectsWithServerSideFirstSeen(t *testing.T) {
 	}
 }
 
+func TestIngest_writesTableStats(t *testing.T) {
+	pool, srv := setup(t, ingest.Config{
+		DevToken:  "dev",
+		RateLimit: 10, RateBurst: 10,
+	})
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	snap := &lynceusv1.Snapshot{
+		ServerId:        "srv-ts",
+		CollectedAtUnix: now.Unix(),
+		TableStats: []*lynceusv1.TableStat{{
+			Schema: "reporting", Name: "events", Fqn: "reporting.events",
+			TotalBytes: 300, HeapBytes: 100, ToastBytes: 120, IndexesBytes: 80,
+			RowEstimate: 1000, LiveTuples: 900, DeadTuples: 50,
+			VacuumCount: 2, AutovacuumCount: 3,
+		}},
+	}
+	ship := collector.NewShipper(wsURL(srv.URL), "dev")
+	if err := ship.Send(ctx, snap); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	stats := store.NewStats(pool)
+	out, err := stats.LatestTableStats(ctx, "srv-ts", now.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("latest: %v", err)
+	}
+	if len(out) != 1 || out[0].FQN != "reporting.events" {
+		t.Fatalf("table_stats row not persisted: %+v", out)
+	}
+	if out[0].ToastBytes != 120 || out[0].TotalBytes != 300 {
+		t.Errorf("sizes not persisted: %+v", out[0])
+	}
+}
+
 func TestServer_parksOverLimitSnapshotInDLQ(t *testing.T) {
 	// Per-server rate.Limit of 1/s with burst 1: the first snapshot
 	// consumes the burst, the second arrives "too soon" and must be
