@@ -12,6 +12,7 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/collector"
+	"github.com/dobbo-ca/lynceus/internal/logparse"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 )
 
@@ -39,6 +40,23 @@ func main() {
 	activityReader := collector.NewActivityReader(pool, gate, db)
 	aggregator := collector.NewActivityAggregator(cfg.serverID, cfg.activityFlush)
 	shipper := collector.NewShipper(cfg.ingestURL, cfg.token)
+
+	// Optional log-tail pipeline. Constructed only when a log path is set;
+	// when unset, logPipe stays nil and the log ticker is never armed, leaving
+	// the collector byte-for-byte identical to its log-free behavior.
+	var logPipe *collector.LogPipeline
+	if cfg.logSourcePath != "" {
+		format := logparse.FormatStderr
+		if cfg.logSourceFormat == "csv" {
+			format = logparse.FormatCSV
+		}
+		tail := collector.NewFileTail(cfg.logSourcePath)
+		defer tail.Close()
+		logPipe = collector.NewLogPipeline(tail, cfg.serverID, logparse.Options{
+			Format:       format,
+			StderrPrefix: cfg.logStderrPrefix,
+		}, cfg.detectLocally)
+	}
 
 	// refreshPolicy fetches effective capability policy from the api server
 	// and atomically swaps it into the gate. The collector has no config-DB
@@ -145,6 +163,30 @@ func main() {
 		log.Printf("shipped %d activity_buckets", len(protoBuckets))
 	}
 
+	// Drain the log tail → ship classified T1 log events + extracted plans.
+	runLogTail := func() {
+		res, err := logPipe.Drain()
+		if err != nil {
+			log.Printf("drain log tail: %v", err)
+			return
+		}
+		if len(res.LogEvents) == 0 && len(res.QueryPlans) == 0 {
+			return
+		}
+		snap := &lynceusv1.Snapshot{
+			ServerId:        cfg.serverID,
+			CollectedAtUnix: time.Now().Unix(),
+			LogEvents:       res.LogEvents,
+			QueryPlans:      res.QueryPlans,
+		}
+		if err := shipper.Send(ctx, snap); err != nil {
+			log.Printf("ship log: %v", err)
+			return
+		}
+		log.Printf("shipped %d log_events, %d query_plans (%d local insights)",
+			len(res.LogEvents), len(res.QueryPlans), len(res.Insights))
+	}
+
 	// Kick off one of each immediately. Refresh policy first so the very
 	// first full snapshot already respects capability policy.
 	refreshPolicy()
@@ -158,6 +200,15 @@ func main() {
 	flushTicker := time.NewTicker(cfg.activityFlush)
 	defer flushTicker.Stop()
 
+	// A nil channel blocks forever in select, so when no log source is
+	// configured this arm is inert and the loop behaves exactly as before.
+	var logTickerC <-chan time.Time
+	if logPipe != nil {
+		logTicker := time.NewTicker(cfg.logTailInterval)
+		defer logTicker.Stop()
+		logTickerC = logTicker.C
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -169,6 +220,8 @@ func main() {
 			sampleActivity()
 		case <-flushTicker.C:
 			flushActivity()
+		case <-logTickerC:
+			runLogTail()
 		}
 	}
 }
@@ -184,6 +237,12 @@ type config struct {
 	interval            time.Duration // full snapshot cadence
 	activityInterval    time.Duration // pg_stat_activity sample cadence (~10s)
 	activityFlush       time.Duration // bucket flush cadence (60s)
+
+	logSourcePath   string        // LYNCEUS_LOG_SOURCE_PATH; "" disables log ingestion
+	logSourceFormat string        // LYNCEUS_LOG_FORMAT: "csv" | "stderr" (default stderr)
+	logStderrPrefix string        // LYNCEUS_LOG_STDERR_PREFIX; default "%m [%p] "
+	logTailInterval time.Duration // LYNCEUS_LOG_TAIL_INTERVAL; default 2s
+	detectLocally   bool          // LYNCEUS_INSIGHT_LOCAL == "1"
 }
 
 func loadConfig() config {
@@ -198,6 +257,11 @@ func loadConfig() config {
 		interval:            10 * time.Minute,
 		activityInterval:    10 * time.Second,
 		activityFlush:       60 * time.Second,
+		logSourcePath:       os.Getenv("LYNCEUS_LOG_SOURCE_PATH"),
+		logSourceFormat:     os.Getenv("LYNCEUS_LOG_FORMAT"),
+		logStderrPrefix:     os.Getenv("LYNCEUS_LOG_STDERR_PREFIX"),
+		logTailInterval:     2 * time.Second,
+		detectLocally:       os.Getenv("LYNCEUS_INSIGHT_LOCAL") == "1",
 	}
 	if v := os.Getenv("LYNCEUS_COLLECTOR_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
@@ -212,6 +276,11 @@ func loadConfig() config {
 	if v := os.Getenv("LYNCEUS_ACTIVITY_FLUSH"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			c.activityFlush = d
+		}
+	}
+	if v := os.Getenv("LYNCEUS_LOG_TAIL_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			c.logTailInterval = d
 		}
 	}
 	if c.serverID == "" || c.pgDSN == "" || c.ingestURL == "" {
