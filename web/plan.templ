@@ -1,0 +1,84 @@
+package web
+
+import "fmt"
+
+// PlanPage is the full plan-visualization page for one (server, fingerprint).
+templ PlanPage(vm PlanVM) {
+	@Layout("Lynceus — query plan", "most recent normalized plan") {
+		<p>
+			Server <code>{ vm.ServerID }</code> · fingerprint <code>{ vm.Fingerprint }</code>
+		</p>
+		@PlanView(vm)
+	}
+}
+
+// PlanView is also served as a stand-alone HTMX fragment. The wrapping div
+// carries the id used as the outerHTML swap target.
+templ PlanView(vm PlanVM) {
+	<div id="plan-view">
+		if vm.Empty {
+			<p class="empty">No plan stored for this server and fingerprint.</p>
+		} else {
+			<h2>Plan tree</h2>
+			<ul class="plan-tree">
+				@PlanTreeNode(vm.Root)
+			</ul>
+			<h2>Nodes</h2>
+			<table>
+				<thead>
+					<tr>
+						<th>Node type</th>
+						<th>Relation</th>
+						<th>Index</th>
+						<th>Condition</th>
+						<th class="num">Plan rows</th>
+						<th class="num">Actual rows</th>
+						<th class="num">Loops</th>
+						<th class="num">Total cost</th>
+						<th class="num">Rows removed</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, n := range vm.Flat {
+						<tr>
+							<td><code>{ n.NodeType }</code></td>
+							<td>{ n.Relation }</td>
+							<td>{ n.Index }</td>
+							<td><code>{ n.Condition }</code></td>
+							<td class="num">{ fmt.Sprintf("%d", n.PlanRows) }</td>
+							<td class="num">{ fmt.Sprintf("%d", n.ActualRows) }</td>
+							<td class="num">{ fmt.Sprintf("%d", n.ActualLoops) }</td>
+							<td class="num">{ FmtCost(n.TotalCost) }</td>
+							<td class="num">{ fmt.Sprintf("%d", n.RowsRemovedByFilter) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}
+
+// PlanTreeNode renders one node and recurses into its children. The
+// self-reference makes the tree arbitrarily deep.
+templ PlanTreeNode(n *PlanNodeVM) {
+	<li>
+		<span class="node-type">{ n.NodeType }</span>
+		if n.Relation != "" {
+			<span class="node-meta">on <code>{ n.Relation }</code></span>
+		}
+		if n.Index != "" {
+			<span class="node-meta">using <code>{ n.Index }</code></span>
+		}
+		if n.JoinType != "" {
+			<span class="node-meta">{ n.JoinType } join</span>
+		}
+		<span class="node-meta">cost { FmtCost(n.TotalCost) } · rows { fmt.Sprintf("%d", n.PlanRows) }</span>
+		if len(n.Children) > 0 {
+			<ul class="plan-tree">
+				for _, c := range n.Children {
+					@PlanTreeNode(c)
+				}
+			</ul>
+		}
+	</li>
+}

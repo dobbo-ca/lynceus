@@ -6,11 +6,14 @@
 
 **Architecture:** A new `internal/collector` reader (`inventory.go`) issues one read-only catalog query per object kind, applies the configured schema regex filter **at the collector boundary** (before constructing any protobuf), and returns a slice of T1 `SchemaObject` messages. First-seen timestamps live in the **stats DB** (so they survive collector restarts) in a new `schema_objects` table keyed on `(server_id, kind, fqn)`. A new T1 proto message `SchemaObject` is added to `proto/lynceus/v1/snapshot.proto` and carried on the existing `Snapshot`. A contract test enforces that the new message has only structural-metadata + size fields — no field capable of carrying table DATA.
 
+> **Sibling reader (`ly-xqf.6`) and Snapshot field-number reservation.** `ly-xqf.6` (table size / growth + TOAST) adds a SIBLING `table_stats` table — a **weekly range-partitioned, append-only growth time series** — that **reuses the SAME `SchemaFilter` instance** as this reader (one filter is built once in `cmd/collector/main.go` and passed to both `NewInventory` and `NewTableStatsReader`, so the privacy boundary is identical for both). The two storage models are intentionally distinct and coexist: this plan's `schema_objects` stays a **current-state upsert keyed `(server_id, kind, fqn)` with a stable first-seen** (`first_seen_at` never overwritten on conflict), while `ly-xqf.6`'s `table_stats` is the **append-only per-snapshot growth series** (so growth is derivable). Mixing them would lose either first-seen stability or growth history. On the wire, `Snapshot` field numbers are reserved across the three independent Layer-0 beads to avoid collisions: **6 = `schema_objects` (this bead, ly-xqf.5), 7 = `table_stats` (ly-xqf.6), 8 = `log_events` (ly-cxe.2)**. This plan claims **field 6** for `schema_objects`; it must never reuse 7 or 8. (See spec §4.2 / §4.1 field-number reservation.)
+
 **Tech Stack:** Go 1.23+, `jackc/pgx/v5`, Protocol Buffers, `google.golang.org/protobuf/reflect/protoreflect`, `regexp` (Go RE2 — not Postgres-side regex), testcontainers-go (`postgres:16`) for integration tests, existing embedded migration runner in `internal/store`.
 
 **Spec references:**
 - `docs/specs/2026-05-29-lynceus-design.md` §2 (Privacy & Data-Classification Model — T1 has no field capable of carrying a literal value).
 - `docs/specs/2026-05-29-lynceus-features.md` §9 — *"Schema/object inventory (tables, indexes, views, functions; size treemap; first-seen) — MUST, local. Schema names may be sensitive → `ignore_schema_regexp` filter."*
+- `docs/specs/2026-06-08-layer0-foundation.md` §4.2 — reconciliation: keep this plan verbatim except migration renumbering (`0005_schema_objects.sql`) and the `table_stats` sibling / Snapshot field-number reservation notes.
 - `docs/superpowers/plans/2026-05-29-lynceus-mvp-vertical-slice.md` — plan style reference.
 
 **Scope:**
@@ -18,6 +21,7 @@
 - IS: collector-boundary regex filter (`include_schema_regexp` allowlist + `ignore_schema_regexp` denylist) — applied **before** any proto is constructed.
 - ISN'T: column-level stats (`null_frac`, `n_distinct`, avg width) — `ly-xqf.8`.
 - ISN'T: partition breakdown (per-partition sizes) — `ly-xqf.14`. Integration point: `pg_class.relispartition` is exposed on `SchemaObject` so a future plan can group children under parents without re-querying.
+- ISN'T: per-table size/growth time series + TOAST/heap/index split + vacuum/dead-tuple metrics — `ly-xqf.6` (its own append-only weekly-partitioned `table_stats` table; reuses this plan's `SchemaFilter`).
 - ISN'T: HOT update tracking — `ly-xqf.13`.
 - ISN'T: buffer-cache stats — `ly-xqf.9`.
 - ISN'T: any UI — downstream.
@@ -30,7 +34,7 @@
 lynceus/
   proto/
     lynceus/v1/
-      snapshot.proto                                # MODIFY: add SchemaObject + ObjectKind + Snapshot.schema_objects
+      snapshot.proto                                # MODIFY: add SchemaObject + ObjectKind + Snapshot.schema_objects (field 6)
   internal/
     proto/lynceus/v1/
       schema_object_contract_test.go                # CREATE: T1 contract test for SchemaObject (no DATA-bearing field)
@@ -38,16 +42,16 @@ lynceus/
     collector/
       inventory.go                                  # CREATE: catalog reader + regex filter (boundary enforcement)
       inventory_test.go                             # CREATE: integration test (real Postgres, regex filter exclusion)
-      inventory_filter.go                           # CREATE: SchemaFilter (include+ignore regex, IsAllowed)
+      inventory_filter.go                           # CREATE: SchemaFilter (include+ignore regex, IsAllowed) — REUSED by ly-xqf.6 TableStatsReader
       inventory_filter_test.go                      # CREATE: unit tests for SchemaFilter
     store/
       migrations/stats/
-        0003_schema_objects.sql                     # CREATE: schema_objects table with PK (server_id, kind, fqn)
+        0005_schema_objects.sql                     # CREATE: schema_objects table with PK (server_id, kind, fqn) — 0003/0004 already taken
       schema_objects.go                             # CREATE: UpsertSchemaObjects, FirstSeenAt lookup
       schema_objects_test.go                        # CREATE: integration test for first-seen idempotency
 ```
 
-`internal/collector/inventory.go` is the only place that constructs `lynceusv1.SchemaObject` values. The filter is invoked **inside** the reader, before construction — there is no path from a Postgres row to a proto value that bypasses the filter. This is the privacy boundary.
+`internal/collector/inventory.go` is the only place that constructs `lynceusv1.SchemaObject` values. The filter is invoked **inside** the reader, before construction — there is no path from a Postgres row to a proto value that bypasses the filter. This is the privacy boundary. (`ly-xqf.6`'s `TableStatsReader` reuses the exact same `SchemaFilter` instance, so a filtered schema yields zero rows on both readers.)
 
 ---
 
@@ -217,14 +221,27 @@ message SchemaObject {
 }
 ```
 
-Update the existing `Snapshot` message — add the `schema_objects` field (use field number 4 — next free after the existing fields 1–3):
+Update the existing `Snapshot` message — add the `schema_objects` field. **Use field number 6: it is the Layer-0 reservation for `schema_objects` (7 = `table_stats` / ly-xqf.6, 8 = `log_events` / ly-cxe.2 are reserved for sibling beads and MUST NOT be reused here).** Fields 1–5 are already taken (`server_id`, `collected_at_unix`, `query_stats`, `activity_buckets`, `query_plans`):
 
 ```proto
 message Snapshot {
   string server_id = 1;
   int64 collected_at_unix = 2;
   repeated QueryStat query_stats = 3;
-  repeated SchemaObject schema_objects = 4;
+
+  // Per-bucket connection-state histograms from pg_stat_activity. See
+  // ActivityBucket — T1, counts/labels only.
+  repeated ActivityBucket activity_buckets = 4;
+
+  // Normalized auto_explain plans extracted from the Postgres log. See
+  // QueryPlan in plan.proto — T1, no literals.
+  repeated QueryPlan query_plans = 5;
+
+  // Structural schema/object inventory (schemas, tables, indexes, views,
+  // functions, sequences) with sizes + stable first-seen. See SchemaObject
+  // — T1, structural metadata only. Field 6 is the Layer-0 reservation;
+  // 7=table_stats (ly-xqf.6), 8=log_events (ly-cxe.2) are reserved siblings.
+  repeated SchemaObject schema_objects = 6;
 }
 ```
 
@@ -242,7 +259,7 @@ Expected: writes updated files under `internal/proto/lynceus/v1/`; `go build ./.
 go test ./internal/proto/lynceus/v1/...
 ```
 
-Expected: PASS — both new tests and the pre-existing `TestQueryStatHasOnlyNormalizedFields` / `TestNormalizedQueryFieldShape` continue to pass.
+Expected: PASS — both new tests and the pre-existing `TestQueryStatHasOnlyNormalizedFields` / `TestNormalizedQueryFieldShape` / `TestActivityBucketHasOnlyAggregateFields` / `TestQueryPlanHasNoLiteralFields` continue to pass.
 
 - [ ] **Step 6: Commit.**
 
@@ -250,7 +267,7 @@ Expected: PASS — both new tests and the pre-existing `TestQueryStatHasOnlyNorm
 git add proto/lynceus/v1/snapshot.proto \
         internal/proto/lynceus/v1/snapshot.pb.go \
         internal/proto/lynceus/v1/schema_object_contract_test.go
-git commit -m "feat(proto): add T1 SchemaObject + ObjectKind with structural-only contract test"
+git commit -m "feat(proto): add T1 SchemaObject + ObjectKind with structural-only contract test (ly-xqf.5)"
 ```
 
 ---
@@ -258,11 +275,13 @@ git commit -m "feat(proto): add T1 SchemaObject + ObjectKind with structural-onl
 ## Task 2: Stats-DB migration — `schema_objects` table with first-seen PK
 
 **Files:**
-- Create: `internal/store/migrations/stats/0003_schema_objects.sql`
+- Create: `internal/store/migrations/stats/0005_schema_objects.sql`
+
+> **Migration numbering note.** `0003`/`0004` are already taken on disk by `0003_activity_buckets.sql` and `0004_query_plans.sql`. The runner applies migrations in **lexical** order (`internal/store/migrate.go:48`, `sort.Strings(files)`), so this inventory migration MUST be **`0005_schema_objects.sql`**. (`ly-xqf.6` will follow with `0006_table_stats.sql` for its sibling growth-series table.)
 
 - [ ] **Step 1: Write the migration.** First-seen timestamps live here — surviving collector restarts and giving downstream consumers a stable "schema changed" signal. The primary key is `(server_id, kind, fqn)`. Vanilla Postgres only — no extensions.
 
-Create `internal/store/migrations/stats/0003_schema_objects.sql`:
+Create `internal/store/migrations/stats/0005_schema_objects.sql`:
 
 ```sql
 -- Schema-object inventory with stable first-seen timestamps.
@@ -272,6 +291,10 @@ Create `internal/store/migrations/stats/0003_schema_objects.sql`:
 -- refreshed on every collector snapshot. The table lives in the stats
 -- DB so first-seen survives collector restarts and is queryable
 -- downstream alongside the rest of the inventory.
+--
+-- This is the CURRENT-STATE upsert table. The sibling ly-xqf.6
+-- table_stats table (0006_table_stats.sql) is the APPEND-ONLY weekly-
+-- partitioned growth time series; the two coexist deliberately.
 --
 -- Vanilla PostgreSQL — no extensions. Runs on RDS / Aurora / Cloud SQL.
 
@@ -297,7 +320,7 @@ CREATE INDEX schema_objects_parent      ON schema_objects (server_id, parent_fqn
     WHERE parent_fqn <> '';
 ```
 
-- [ ] **Step 2: Verify the migration applies cleanly via the existing migration runner.** The existing `internal/store/migrate.go` already embeds `migrations/stats/*.sql` and applies them in lexical order — no code change needed.
+- [ ] **Step 2: Verify the migration applies cleanly via the existing migration runner.** The existing `internal/store/migrate.go` already embeds `migrations/stats/*.sql` and applies them in lexical order (`migrate.go:48`) — no code change needed. `0005` sorts after `0004_query_plans.sql`, so ordering is correct.
 
 ```
 go build ./internal/store/...
@@ -308,8 +331,8 @@ Expected: PASS (build only — runtime application is verified by Task 3's integ
 - [ ] **Step 3: Commit.**
 
 ```
-git add internal/store/migrations/stats/0003_schema_objects.sql
-git commit -m "feat(store): add schema_objects table with (server_id, kind, fqn) PK and first-seen"
+git add internal/store/migrations/stats/0005_schema_objects.sql
+git commit -m "feat(store): add schema_objects table (0005) with (server_id, kind, fqn) PK and first-seen (ly-xqf.5)"
 ```
 
 ---
@@ -606,7 +629,7 @@ Expected: PASS.
 
 ```
 git add internal/store/schema_objects.go internal/store/schema_objects_test.go
-git commit -m "feat(store): UpsertSchemaObjects preserves first_seen_at across re-upserts"
+git commit -m "feat(store): UpsertSchemaObjects preserves first_seen_at across re-upserts (ly-xqf.5)"
 ```
 
 ---
@@ -617,7 +640,7 @@ git commit -m "feat(store): UpsertSchemaObjects preserves first_seen_at across r
 - Create: `internal/collector/inventory_filter.go`
 - Create: `internal/collector/inventory_filter_test.go`
 
-The filter is the privacy mechanism for schema NAMES. It runs **before** any proto value is constructed. The reader in Task 5 will refuse to emit a `SchemaObject` for any schema the filter rejects.
+The filter is the privacy mechanism for schema NAMES. It runs **before** any proto value is constructed. The reader in Task 5 will refuse to emit a `SchemaObject` for any schema the filter rejects. (`ly-xqf.6`'s `TableStatsReader` consumes the SAME `*SchemaFilter` instance built once in `cmd/collector/main.go`, so the two readers share an identical boundary — keep this type's API stable for that reason.)
 
 - [ ] **Step 1: Write the failing unit tests.**
 
@@ -738,6 +761,9 @@ import (
 // any SchemaObject proto value is constructed — there is no path from
 // catalog row to wire that bypasses it.
 //
+// The SAME instance is shared by the ly-xqf.6 TableStatsReader so both
+// catalog readers enforce an identical boundary; keep the API stable.
+//
 // Semantics:
 //   * include == nil → allow any schema (default).
 //   * include != nil → schema must MATCH to be considered.
@@ -817,7 +843,7 @@ Expected: PASS.
 
 ```
 git add internal/collector/inventory_filter.go internal/collector/inventory_filter_test.go
-git commit -m "feat(collector): SchemaFilter — collector-boundary regex include/exclude for schema names"
+git commit -m "feat(collector): SchemaFilter — collector-boundary regex include/exclude for schema names (ly-xqf.5)"
 ```
 
 ---
@@ -1315,7 +1341,7 @@ Expected: PASS for all packages.
 
 ```
 git add internal/collector/inventory.go internal/collector/inventory_test.go
-git commit -m "feat(collector): schema/object inventory reader with size + first-seen + boundary filter"
+git commit -m "feat(collector): schema/object inventory reader with size + first-seen + boundary filter (ly-xqf.5)"
 ```
 
 ---
@@ -1327,7 +1353,9 @@ git commit -m "feat(collector): schema/object inventory reader with size + first
 
 The reader and the persistence are now in place; this task connects them so an end-to-end run produces a `Snapshot` carrying both `query_stats` and `schema_objects`, and upserts the inventory into the stats DB (which is also where first-seen is sourced from on the next cycle).
 
-- [ ] **Step 1: Read the current `cmd/collector/main.go`** to identify the existing snapshot construction site.
+> **Shared-filter note (ly-xqf.6).** The single `SchemaFilter` built here from `LYNCEUS_INCLUDE_SCHEMA_REGEXP` / `LYNCEUS_IGNORE_SCHEMA_REGEXP` is the same instance `ly-xqf.6` will pass to `NewTableStatsReader`. Build it once, fail-fast on a bad regex, and reuse it — do not construct a second filter for the table-stats reader.
+
+- [ ] **Step 1: Read the current `cmd/collector/main.go`** to identify the existing snapshot construction site (the `runFull` cadence around `main.go:36-52` where query stats already ship).
 
 ```
 cat cmd/collector/main.go
@@ -1335,7 +1363,7 @@ cat cmd/collector/main.go
 
 - [ ] **Step 2: Modify `cmd/collector/main.go` to:**
   1. Read `LYNCEUS_INCLUDE_SCHEMA_REGEXP` and `LYNCEUS_IGNORE_SCHEMA_REGEXP` from the environment.
-  2. Build a `SchemaFilter` from those values (fail-fast if either fails to compile — bad regex must NOT silently disable filtering).
+  2. Build a single `SchemaFilter` from those values (fail-fast if either fails to compile — bad regex must NOT silently disable filtering). This same instance is the one `ly-xqf.6` reuses for `NewTableStatsReader`.
   3. Construct a `store.SchemaObjects` against the stats DB pool (the binary already holds the pgx pool for shipping; if it doesn't, add one — see existing pattern in `cmd/ingestion/main.go`).
   4. Wrap that with a small adapter implementing `collector.FirstSeenLookup`:
 
@@ -1349,7 +1377,7 @@ func (a firstSeenAdapter) FirstSeenAt(
 }
 ```
 
-  5. Construct an `Inventory` and call its `Read` on the same cadence the existing reader runs on; attach the result to the outgoing `Snapshot.SchemaObjects`.
+  5. Construct an `Inventory` and call its `Read` on the same `runFull` cadence the existing reader runs on; attach the result to the outgoing `Snapshot.SchemaObjects`.
   6. After a snapshot is constructed (and before/after `Send` — best effort, log on error), upsert the inventory into the stats DB so first-seen is persisted:
 
 ```go
@@ -1391,7 +1419,7 @@ Expected: PASS.
 
 ```
 git add cmd/collector/main.go
-git commit -m "feat(collector): wire schema inventory + first-seen persistence into snapshot loop"
+git commit -m "feat(collector): wire schema inventory + first-seen persistence into snapshot loop (ly-xqf.5)"
 ```
 
 ---
@@ -1407,14 +1435,17 @@ git commit -m "feat(collector): wire schema inventory + first-seen persistence i
 | Stable first-seen per object | Task 2 (`schema_objects` table PK on `(server_id, kind, fqn)`, `first_seen_at` never overwritten on conflict), Task 3 (`UpsertSchemaObjects` test proves it), Task 5 (`build` stamps `first_seen_at_unix` from lookup) |
 | Privacy carve-out: `ignore_schema_regexp`-style filter at the collector | Task 4 (`SchemaFilter` with include + ignore, ignore-wins semantics, system schemas always blocked), Task 5 (filter applied inside every loop before `out` is appended; partition `parent_fqn` blanked if parent's schema is filtered) |
 | T1 proto contract — no DATA-bearing fields on `SchemaObject` | Task 1 (contract test with allowlist + kind/type assertions; allowlist explicitly excludes columns, defaults, ACLs, constraints, comments) |
+| Snapshot field-number reservation (`schema_objects=6`) | Task 1 (claims field 6 per the Layer-0 reservation; 7=`table_stats`/ly-xqf.6, 8=`log_events`/ly-cxe.2 reserved and not reused) |
 | Real Postgres in tests | Task 3 (`testcontainers postgres:16`), Task 5 (`testcontainers postgres:16` with multi-schema seed + ANALYZE) |
 | Regexp filter exclusion proved in tests | Task 4 (unit tests for filter semantics), Task 5 (integration test seeds `patient_phi` schema with table + index + row, asserts NO object surfaces) |
-| Migration goes in `internal/store/migrations/stats/` (next number) | Task 2 (`0003_schema_objects.sql`) |
+| Migration goes in `internal/store/migrations/stats/` (next free number) | Task 2 (`0005_schema_objects.sql` — `0003`/`0004` taken on disk; runner sorts lexically, `migrate.go:48`) |
 | Vanilla Postgres, no extensions | Task 2 (no `CREATE EXTENSION`, only standard partial index and standard column types — runs on RDS / Aurora / Cloud SQL) |
 
 ### Integration points called out (not implemented here)
 
-- **M3 Index Advisor (`ly-xqf` indexes branch)** — joins on `(server_id, kind=INDEX, fqn)` to attribute usage; can read `first_seen_at` to recommend "unused since first seen N days ago".
+- **`ly-xqf.6` Table size/growth + TOAST** — adds a SIBLING `0006_table_stats.sql` weekly range-partitioned, append-only growth time series; **reuses this plan's `SchemaFilter` instance** (one filter built in `cmd/collector/main.go`, passed to both `NewInventory` and `NewTableStatsReader`). `schema_objects` (upsert, first-seen) and `table_stats` (append-only growth) coexist deliberately. Claims `Snapshot` field 7.
+- **`ly-cxe.2` Log pipeline** — claims `Snapshot` field 8 (`log_events`); independent bead, lands in any order relative to this one.
+- **M3 Index Advisor (`ly-u4t.12`)** — joins on `(server_id, kind=INDEX, fqn)` to attribute usage; can read `first_seen_at` to recommend "unused since first seen N days ago".
 - **`ly-xqf.14` Partition breakdown** — already gets `is_partition` + `parent_fqn` on the wire; can group children under parents without a second catalog walk.
 - **`ly-xqf.13` HOT update tracking** — joins on `(server_id, kind=TABLE, fqn)`.
 - **`ly-xqf.8` Column statistics** — separate T1 message type (column-level stats only, no MCV/histogram bounds); will reference `schema_objects.fqn` as its foreign key.
@@ -1433,3 +1464,7 @@ git commit -m "feat(collector): wire schema inventory + first-seen persistence i
 - `FirstSeenLookup` interface takes `lynceusv1.ObjectKind` (Task 5); production adapter (Task 6) converts to `int16` before hitting `store.SchemaObjects.FirstSeenAt`. The adapter exists precisely so the reader never depends on the store package.
 - `SchemaObjectRow.Kind` is `int16` in Task 3; the collector adapter in Task 6 sets it via `int16(o.Kind)` from the proto enum — consistent across all call sites.
 - FQN format is `"schema.name"` everywhere (Task 5 `build` constructs it; Task 1 contract test allows `parent_fqn` field of the same shape; Task 2 migration treats it as opaque `TEXT`). For `kind=SCHEMA`, the trailing-dot form `"schema."` is documented in both the migration comment and the contract test allowlist comment.
+
+### Migration numbering audit
+
+- On-disk stats migrations at plan time: `0001_init.sql`, `0002_dlq.sql`, `0003_activity_buckets.sql`, `0004_query_plans.sql`. The next free lexical number is **`0005`** → `0005_schema_objects.sql` (Task 2). The runner sorts with `sort.Strings(files)` (`internal/store/migrate.go:48`), so `0005` applies after `0004_query_plans.sql` — correct order, no collision. `ly-xqf.6`'s sibling table follows as `0006_table_stats.sql` (out of scope here; noted so the two plans don't collide on a number).

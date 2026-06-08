@@ -7,6 +7,7 @@ package store_test
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -394,6 +395,116 @@ func TestWriteActivityBuckets_createsPartitionAndRoundtrips(t *testing.T) {
 		if got[k] != v {
 			t.Errorf("state %q sum = %d, want %d", k, got[k], v)
 		}
+	}
+}
+
+func TestApplyStatsMigrations_createsSchemaObjects(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	// Table exists.
+	var exists bool
+	_ = pool.QueryRow(ctx,
+		`SELECT EXISTS(
+		   SELECT 1 FROM information_schema.tables
+		   WHERE table_name = 'schema_objects'
+		 )`,
+	).Scan(&exists)
+	if !exists {
+		t.Fatal("schema_objects table missing")
+	}
+
+	// PK columns (server_id, kind, fqn) are present.
+	for _, col := range []string{"server_id", "kind", "fqn"} {
+		var ok bool
+		_ = pool.QueryRow(ctx,
+			`SELECT EXISTS(
+			   SELECT 1 FROM information_schema.columns
+			   WHERE table_name = 'schema_objects' AND column_name = $1
+			 )`, col,
+		).Scan(&ok)
+		if !ok {
+			t.Errorf("schema_objects.%s missing", col)
+		}
+	}
+
+	// Column names match proto field names: schema, name (not schema_name/object_name).
+	for _, col := range []string{"schema", "name"} {
+		var ok bool
+		_ = pool.QueryRow(ctx,
+			`SELECT EXISTS(
+			   SELECT 1 FROM information_schema.columns
+			   WHERE table_name = 'schema_objects' AND column_name = $1
+			 )`, col,
+		).Scan(&ok)
+		if !ok {
+			t.Errorf("schema_objects.%s missing (must match proto SchemaObject field name)", col)
+		}
+	}
+	for _, badCol := range []string{"schema_name", "object_name"} {
+		var bad bool
+		_ = pool.QueryRow(ctx,
+			`SELECT EXISTS(
+			   SELECT 1 FROM information_schema.columns
+			   WHERE table_name = 'schema_objects' AND column_name = $1
+			 )`, badCol,
+		).Scan(&bad)
+		if bad {
+			t.Errorf("schema_objects.%s must not exist (renamed to match proto)", badCol)
+		}
+	}
+
+	// first_seen_at is not overwritten on upsert (ON CONFLICT preserves it).
+	// Insert a row, then upsert again with a different last_seen_at and verify
+	// first_seen_at did not change.
+	_, err := pool.Exec(ctx,
+		`INSERT INTO schema_objects
+		   (server_id, kind, fqn, schema, name, size_bytes_latest, first_seen_at, last_seen_at)
+		 VALUES
+		   ('srv-test', 2, 'public.widgets', 'public', 'widgets', 1024,
+		    '2026-01-01 00:00:00Z', '2026-01-01 00:00:00Z')
+		 ON CONFLICT (server_id, kind, fqn) DO UPDATE
+		   SET size_bytes_latest = EXCLUDED.size_bytes_latest,
+		       last_seen_at      = EXCLUDED.last_seen_at`,
+	)
+	if err != nil {
+		t.Fatalf("initial insert: %v", err)
+	}
+	_, err = pool.Exec(ctx,
+		`INSERT INTO schema_objects
+		   (server_id, kind, fqn, schema, name, size_bytes_latest, first_seen_at, last_seen_at)
+		 VALUES
+		   ('srv-test', 2, 'public.widgets', 'public', 'widgets', 2048,
+		    '2026-06-01 00:00:00Z', '2026-06-01 00:00:00Z')
+		 ON CONFLICT (server_id, kind, fqn) DO UPDATE
+		   SET size_bytes_latest = EXCLUDED.size_bytes_latest,
+		       last_seen_at      = EXCLUDED.last_seen_at`,
+	)
+	if err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	var firstSeen string
+	var sizeLatest int64
+	if err := pool.QueryRow(ctx,
+		`SELECT first_seen_at::text, size_bytes_latest FROM schema_objects
+		  WHERE server_id = 'srv-test' AND kind = 2 AND fqn = 'public.widgets'`,
+	).Scan(&firstSeen, &sizeLatest); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if !strings.HasPrefix(firstSeen, "2026-01-01") {
+		t.Errorf("first_seen_at = %q, want 2026-01-01 (must not be overwritten by upsert)", firstSeen)
+	}
+	if sizeLatest != 2048 {
+		t.Errorf("size_bytes_latest = %d, want 2048 (must be updated by upsert)", sizeLatest)
+	}
+
+	// Idempotency: re-running migrations is a no-op.
+	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+		t.Fatalf("re-apply: %v", err)
 	}
 }
 

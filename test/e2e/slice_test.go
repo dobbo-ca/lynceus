@@ -24,6 +24,7 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/dobbo-ca/lynceus/internal/api"
+	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/collector"
 	"github.com/dobbo-ca/lynceus/internal/ingest"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
@@ -123,7 +124,9 @@ func TestVerticalSlice_normalizedQueryRoundtripsAndCanaryNeverLeaks(t *testing.T
 	t.Cleanup(apiSrv.Close)
 
 	// --- collector pass ---
-	reader := collector.NewReader(target)
+	// A fresh gate is fail-open (empty => every capability enabled), so the
+	// reader behaves as before the ly-xnk.3 capability gate landed.
+	reader := collector.NewReader(target, caps.NewGate(), "e2e")
 	rows, err := reader.Read(ctx)
 	if err != nil {
 		t.Fatalf("reader: %v", err)

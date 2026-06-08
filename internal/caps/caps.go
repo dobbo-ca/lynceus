@@ -32,6 +32,12 @@ const (
 	LogDestination         Capability = "log_destination"
 	ServerVersion          Capability = "server_version"
 	RolePermissions        Capability = "role_permissions"
+	// SchemaInventory gates the schema/object inventory reader (ly-xqf.5).
+	// Catalog reads are always available, but the operator may disable
+	// shipping inventory via capability policy.
+	SchemaInventory Capability = "schema_inventory"
+	// TableSize gates the per-table size/growth/TOAST reader (ly-xqf.6).
+	TableSize Capability = "table_size"
 )
 
 // Declared returns every capability the package knows how to probe.
@@ -48,6 +54,8 @@ func Declared() []Capability {
 		LogDestination,
 		ServerVersion,
 		RolePermissions,
+		SchemaInventory,
+		TableSize,
 	}
 }
 

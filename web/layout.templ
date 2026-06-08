@@ -40,12 +40,17 @@ templ Layout(title, subtitle string) {
 				form.filters label { display: flex; flex-direction: column; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #666; gap: 0.2rem; }
 				form.filters input, form.filters select { padding: 0.35rem 0.5rem; font-size: 0.9rem; }
 				form.filters button { padding: 0.4rem 0.9rem; font-size: 0.9rem; cursor: pointer; }
+					ul.plan-tree { list-style: none; padding-left: 1.25rem; margin: 0.25rem 0; border-left: 1px solid #e0e0e0; }
+					ul.plan-tree > li { margin: 0.15rem 0; }
+					.node-type { font-weight: 600; }
+					.node-meta { color: #666; font-size: 0.85rem; margin-left: 0.4rem; }
 			</style>
 		</head>
 		<body>
 			<h1>Lynceus</h1>
 			<nav>
 				<a href="/">Top queries</a>
+				<a href="/insights">Insights</a>
 				<a href="/audit">Audit log</a>
 			</nav>
 			<p class="subtitle">{ subtitle }</p>

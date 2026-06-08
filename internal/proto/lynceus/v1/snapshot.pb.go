@@ -38,6 +38,69 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ObjectKind enumerates the schema-catalog object types Lynceus inventories.
+// New kinds may be added; the wire enum is open by virtue of proto3 semantics.
+type ObjectKind int32
+
+const (
+	ObjectKind_OBJECT_KIND_UNSPECIFIED ObjectKind = 0
+	ObjectKind_OBJECT_KIND_SCHEMA      ObjectKind = 1
+	ObjectKind_OBJECT_KIND_TABLE       ObjectKind = 2 // includes partitioned tables and materialized views
+	ObjectKind_OBJECT_KIND_INDEX       ObjectKind = 3
+	ObjectKind_OBJECT_KIND_VIEW        ObjectKind = 4
+	ObjectKind_OBJECT_KIND_FUNCTION    ObjectKind = 5
+	ObjectKind_OBJECT_KIND_SEQUENCE    ObjectKind = 6
+)
+
+// Enum value maps for ObjectKind.
+var (
+	ObjectKind_name = map[int32]string{
+		0: "OBJECT_KIND_UNSPECIFIED",
+		1: "OBJECT_KIND_SCHEMA",
+		2: "OBJECT_KIND_TABLE",
+		3: "OBJECT_KIND_INDEX",
+		4: "OBJECT_KIND_VIEW",
+		5: "OBJECT_KIND_FUNCTION",
+		6: "OBJECT_KIND_SEQUENCE",
+	}
+	ObjectKind_value = map[string]int32{
+		"OBJECT_KIND_UNSPECIFIED": 0,
+		"OBJECT_KIND_SCHEMA":      1,
+		"OBJECT_KIND_TABLE":       2,
+		"OBJECT_KIND_INDEX":       3,
+		"OBJECT_KIND_VIEW":        4,
+		"OBJECT_KIND_FUNCTION":    5,
+		"OBJECT_KIND_SEQUENCE":    6,
+	}
+)
+
+func (x ObjectKind) Enum() *ObjectKind {
+	p := new(ObjectKind)
+	*p = x
+	return p
+}
+
+func (x ObjectKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ObjectKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_lynceus_v1_snapshot_proto_enumTypes[0].Descriptor()
+}
+
+func (ObjectKind) Type() protoreflect.EnumType {
+	return &file_proto_lynceus_v1_snapshot_proto_enumTypes[0]
+}
+
+func (x ObjectKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ObjectKind.Descriptor instead.
+func (ObjectKind) EnumDescriptor() ([]byte, []int) {
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{0}
+}
+
 // Snapshot is the unit of telemetry transmitted by a collector for a
 // single monitored Postgres server at a single point in time.
 type Snapshot struct {
@@ -50,7 +113,24 @@ type Snapshot struct {
 	ActivityBuckets []*ActivityBucket `protobuf:"bytes,4,rep,name=activity_buckets,json=activityBuckets,proto3" json:"activity_buckets,omitempty"`
 	// Normalized auto_explain plans extracted from the Postgres log. See
 	// QueryPlan in plan.proto — T1, no literals.
-	QueryPlans    []*QueryPlan `protobuf:"bytes,5,rep,name=query_plans,json=queryPlans,proto3" json:"query_plans,omitempty"`
+	QueryPlans []*QueryPlan `protobuf:"bytes,5,rep,name=query_plans,json=queryPlans,proto3" json:"query_plans,omitempty"`
+	// Structural schema/object inventory (schemas, tables, indexes, views,
+	// functions, sequences) with sizes + stable first-seen. See SchemaObject
+	// — T1, structural metadata only. Field 6 is the Layer-0 reservation;
+	// 7=table_stats (ly-xqf.6), 8=log_events (ly-cxe.2) are reserved siblings.
+	SchemaObjects []*SchemaObject `protobuf:"bytes,6,rep,name=schema_objects,json=schemaObjects,proto3" json:"schema_objects,omitempty"`
+	// Per-table size/growth + TOAST breakdown from pg_class +
+	// pg_stat_user_tables. See TableStat — T1, sizes/counts/timestamps
+	// only, no column values. Field 6 (schema_objects) and 8 (log_events)
+	// are reserved by sibling Layer 0 beads.
+	TableStats []*TableStat `protobuf:"bytes,7,rep,name=table_stats,json=tableStats,proto3" json:"table_stats,omitempty"`
+	// Classified Postgres log events (ly-cxe.2). Each element is a
+	// lynceus.v1.LogEvent — T1, fixed-vocabulary enums / catalog identifiers /
+	// hashed client addr / numeric counters only. Raw message/detail/hint/
+	// statement live in the collector-local T2 LogPayload and never travel here.
+	// Field number 8 is reserved by the Layer 0 Snapshot field map
+	// (6=schema_objects, 7=table_stats, 8=log_events).
+	LogEvents     []*LogEvent `protobuf:"bytes,8,rep,name=log_events,json=logEvents,proto3" json:"log_events,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -116,6 +196,27 @@ func (x *Snapshot) GetActivityBuckets() []*ActivityBucket {
 func (x *Snapshot) GetQueryPlans() []*QueryPlan {
 	if x != nil {
 		return x.QueryPlans
+	}
+	return nil
+}
+
+func (x *Snapshot) GetSchemaObjects() []*SchemaObject {
+	if x != nil {
+		return x.SchemaObjects
+	}
+	return nil
+}
+
+func (x *Snapshot) GetTableStats() []*TableStat {
+	if x != nil {
+		return x.TableStats
+	}
+	return nil
+}
+
+func (x *Snapshot) GetLogEvents() []*LogEvent {
+	if x != nil {
+		return x.LogEvents
 	}
 	return nil
 }
@@ -365,12 +466,351 @@ func (x *ActivityBucket) GetCountMax() int64 {
 	return 0
 }
 
+// SchemaObject is one row of the monitored database's structural
+// inventory. It carries STRUCTURAL metadata only — schema and relation
+// names, an enum kind, a byte size, partition flags, and a first-seen
+// timestamp. It NEVER carries column values, default expressions,
+// constraint values, comments, or ACLs. Those are DATA-class and
+// require a separate T2 message gated behind RBAC + audit.
+//
+// Schema NAMES themselves can be sensitive. The privacy mechanism for
+// names is the collector's ignore_schema_regexp / include_schema_regexp
+// filter applied BEFORE this message is constructed — not the proto.
+type SchemaObject struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Kind            ObjectKind             `protobuf:"varint,1,opt,name=kind,proto3,enum=lynceus.v1.ObjectKind" json:"kind,omitempty"`
+	Schema          string                 `protobuf:"bytes,2,opt,name=schema,proto3" json:"schema,omitempty"`                                               // namespace name
+	Name            string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`                                                   // object name within the schema (empty for kind=SCHEMA)
+	Fqn             string                 `protobuf:"bytes,4,opt,name=fqn,proto3" json:"fqn,omitempty"`                                                     // "schema.name" — stable identifier, also empty-name-safe ("schema.")
+	SizeBytes       int64                  `protobuf:"varint,5,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`                       // pg_total_relation_size for tables; pg_relation_size for indexes; 0 otherwise
+	IsPartition     bool                   `protobuf:"varint,6,opt,name=is_partition,json=isPartition,proto3" json:"is_partition,omitempty"`                 // pg_class.relispartition — child of a partitioned parent
+	ParentFqn       string                 `protobuf:"bytes,7,opt,name=parent_fqn,json=parentFqn,proto3" json:"parent_fqn,omitempty"`                        // partition parent fqn, "" if none
+	FirstSeenAtUnix int64                  `protobuf:"varint,8,opt,name=first_seen_at_unix,json=firstSeenAtUnix,proto3" json:"first_seen_at_unix,omitempty"` // stable first-seen for (server, kind, fqn) — looked up from stats DB
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *SchemaObject) Reset() {
+	*x = SchemaObject{}
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SchemaObject) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SchemaObject) ProtoMessage() {}
+
+func (x *SchemaObject) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SchemaObject.ProtoReflect.Descriptor instead.
+func (*SchemaObject) Descriptor() ([]byte, []int) {
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SchemaObject) GetKind() ObjectKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ObjectKind_OBJECT_KIND_UNSPECIFIED
+}
+
+func (x *SchemaObject) GetSchema() string {
+	if x != nil {
+		return x.Schema
+	}
+	return ""
+}
+
+func (x *SchemaObject) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SchemaObject) GetFqn() string {
+	if x != nil {
+		return x.Fqn
+	}
+	return ""
+}
+
+func (x *SchemaObject) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *SchemaObject) GetIsPartition() bool {
+	if x != nil {
+		return x.IsPartition
+	}
+	return false
+}
+
+func (x *SchemaObject) GetParentFqn() string {
+	if x != nil {
+		return x.ParentFqn
+	}
+	return ""
+}
+
+func (x *SchemaObject) GetFirstSeenAtUnix() int64 {
+	if x != nil {
+		return x.FirstSeenAtUnix
+	}
+	return 0
+}
+
+// TableStat is one per-table size/growth + TOAST/heap/index breakdown plus
+// dead-tuple and vacuum/analyze metrics, sampled from pg_class +
+// pg_stat_user_tables on the slow (~10m) full cadence.
+//
+// INVARIANT: every field is a catalog identifier (schema/name/fqn), a byte
+// size counter, an aggregate row/tuple count, a vacuum/analyze counter, or a
+// unix timestamp. It carries NO column value, default expression, constraint
+// body, comment, ACL, proc source, MCV value, histogram bound, predicate, or
+// relfrozenxid. Same privacy class as ActivityBucket (counts + labels).
+type TableStat struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Schema              string                 `protobuf:"bytes,1,opt,name=schema,proto3" json:"schema,omitempty"`                                                          // namespace IDENTIFIER (filtered at the collector boundary)
+	Name                string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                                              // table IDENTIFIER
+	Fqn                 string                 `protobuf:"bytes,3,opt,name=fqn,proto3" json:"fqn,omitempty"`                                                                // "schema.name" IDENTIFIER — join key to SchemaObject
+	TotalBytes          int64                  `protobuf:"varint,4,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`                               // pg_total_relation_size(oid)            [SIZE]
+	HeapBytes           int64                  `protobuf:"varint,5,opt,name=heap_bytes,json=heapBytes,proto3" json:"heap_bytes,omitempty"`                                  // pg_table_size(oid) - toast_bytes       [SIZE]
+	ToastBytes          int64                  `protobuf:"varint,6,opt,name=toast_bytes,json=toastBytes,proto3" json:"toast_bytes,omitempty"`                               // pg_total_relation_size(reltoastrelid)  [SIZE, 0 if no TOAST]
+	IndexesBytes        int64                  `protobuf:"varint,7,opt,name=indexes_bytes,json=indexesBytes,proto3" json:"indexes_bytes,omitempty"`                         // pg_indexes_size(oid)                   [SIZE]
+	RowEstimate         int64                  `protobuf:"varint,8,opt,name=row_estimate,json=rowEstimate,proto3" json:"row_estimate,omitempty"`                            // GREATEST(pg_class.reltuples,0)   [COUNT]
+	LiveTuples          int64                  `protobuf:"varint,9,opt,name=live_tuples,json=liveTuples,proto3" json:"live_tuples,omitempty"`                               // pg_stat_user_tables.n_live_tup   [COUNT]
+	DeadTuples          int64                  `protobuf:"varint,10,opt,name=dead_tuples,json=deadTuples,proto3" json:"dead_tuples,omitempty"`                              // n_dead_tup (bloat signal)        [COUNT]
+	NModSinceAnalyze    int64                  `protobuf:"varint,11,opt,name=n_mod_since_analyze,json=nModSinceAnalyze,proto3" json:"n_mod_since_analyze,omitempty"`        // [COUNT]
+	SeqScan             int64                  `protobuf:"varint,12,opt,name=seq_scan,json=seqScan,proto3" json:"seq_scan,omitempty"`                                       // [COUNTER]
+	IdxScan             int64                  `protobuf:"varint,13,opt,name=idx_scan,json=idxScan,proto3" json:"idx_scan,omitempty"`                                       // [COUNTER]
+	NTupIns             int64                  `protobuf:"varint,14,opt,name=n_tup_ins,json=nTupIns,proto3" json:"n_tup_ins,omitempty"`                                     // [COUNTER]
+	NTupUpd             int64                  `protobuf:"varint,15,opt,name=n_tup_upd,json=nTupUpd,proto3" json:"n_tup_upd,omitempty"`                                     // [COUNTER]
+	NTupDel             int64                  `protobuf:"varint,16,opt,name=n_tup_del,json=nTupDel,proto3" json:"n_tup_del,omitempty"`                                     // [COUNTER]
+	NTupHotUpd          int64                  `protobuf:"varint,17,opt,name=n_tup_hot_upd,json=nTupHotUpd,proto3" json:"n_tup_hot_upd,omitempty"`                          // [COUNTER]
+	LastVacuumUnix      int64                  `protobuf:"varint,18,opt,name=last_vacuum_unix,json=lastVacuumUnix,proto3" json:"last_vacuum_unix,omitempty"`                // [TIMESTAMP, 0 if never]
+	LastAutovacuumUnix  int64                  `protobuf:"varint,19,opt,name=last_autovacuum_unix,json=lastAutovacuumUnix,proto3" json:"last_autovacuum_unix,omitempty"`    // [TIMESTAMP, 0 if never]
+	LastAnalyzeUnix     int64                  `protobuf:"varint,20,opt,name=last_analyze_unix,json=lastAnalyzeUnix,proto3" json:"last_analyze_unix,omitempty"`             // [TIMESTAMP, 0 if never]
+	LastAutoanalyzeUnix int64                  `protobuf:"varint,21,opt,name=last_autoanalyze_unix,json=lastAutoanalyzeUnix,proto3" json:"last_autoanalyze_unix,omitempty"` // [TIMESTAMP, 0 if never]
+	VacuumCount         int64                  `protobuf:"varint,22,opt,name=vacuum_count,json=vacuumCount,proto3" json:"vacuum_count,omitempty"`                           // [COUNTER]
+	AutovacuumCount     int64                  `protobuf:"varint,23,opt,name=autovacuum_count,json=autovacuumCount,proto3" json:"autovacuum_count,omitempty"`               // [COUNTER]
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *TableStat) Reset() {
+	*x = TableStat{}
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TableStat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TableStat) ProtoMessage() {}
+
+func (x *TableStat) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TableStat.ProtoReflect.Descriptor instead.
+func (*TableStat) Descriptor() ([]byte, []int) {
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *TableStat) GetSchema() string {
+	if x != nil {
+		return x.Schema
+	}
+	return ""
+}
+
+func (x *TableStat) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *TableStat) GetFqn() string {
+	if x != nil {
+		return x.Fqn
+	}
+	return ""
+}
+
+func (x *TableStat) GetTotalBytes() int64 {
+	if x != nil {
+		return x.TotalBytes
+	}
+	return 0
+}
+
+func (x *TableStat) GetHeapBytes() int64 {
+	if x != nil {
+		return x.HeapBytes
+	}
+	return 0
+}
+
+func (x *TableStat) GetToastBytes() int64 {
+	if x != nil {
+		return x.ToastBytes
+	}
+	return 0
+}
+
+func (x *TableStat) GetIndexesBytes() int64 {
+	if x != nil {
+		return x.IndexesBytes
+	}
+	return 0
+}
+
+func (x *TableStat) GetRowEstimate() int64 {
+	if x != nil {
+		return x.RowEstimate
+	}
+	return 0
+}
+
+func (x *TableStat) GetLiveTuples() int64 {
+	if x != nil {
+		return x.LiveTuples
+	}
+	return 0
+}
+
+func (x *TableStat) GetDeadTuples() int64 {
+	if x != nil {
+		return x.DeadTuples
+	}
+	return 0
+}
+
+func (x *TableStat) GetNModSinceAnalyze() int64 {
+	if x != nil {
+		return x.NModSinceAnalyze
+	}
+	return 0
+}
+
+func (x *TableStat) GetSeqScan() int64 {
+	if x != nil {
+		return x.SeqScan
+	}
+	return 0
+}
+
+func (x *TableStat) GetIdxScan() int64 {
+	if x != nil {
+		return x.IdxScan
+	}
+	return 0
+}
+
+func (x *TableStat) GetNTupIns() int64 {
+	if x != nil {
+		return x.NTupIns
+	}
+	return 0
+}
+
+func (x *TableStat) GetNTupUpd() int64 {
+	if x != nil {
+		return x.NTupUpd
+	}
+	return 0
+}
+
+func (x *TableStat) GetNTupDel() int64 {
+	if x != nil {
+		return x.NTupDel
+	}
+	return 0
+}
+
+func (x *TableStat) GetNTupHotUpd() int64 {
+	if x != nil {
+		return x.NTupHotUpd
+	}
+	return 0
+}
+
+func (x *TableStat) GetLastVacuumUnix() int64 {
+	if x != nil {
+		return x.LastVacuumUnix
+	}
+	return 0
+}
+
+func (x *TableStat) GetLastAutovacuumUnix() int64 {
+	if x != nil {
+		return x.LastAutovacuumUnix
+	}
+	return 0
+}
+
+func (x *TableStat) GetLastAnalyzeUnix() int64 {
+	if x != nil {
+		return x.LastAnalyzeUnix
+	}
+	return 0
+}
+
+func (x *TableStat) GetLastAutoanalyzeUnix() int64 {
+	if x != nil {
+		return x.LastAutoanalyzeUnix
+	}
+	return 0
+}
+
+func (x *TableStat) GetVacuumCount() int64 {
+	if x != nil {
+		return x.VacuumCount
+	}
+	return 0
+}
+
+func (x *TableStat) GetAutovacuumCount() int64 {
+	if x != nil {
+		return x.AutovacuumCount
+	}
+	return 0
+}
+
 var File_proto_lynceus_v1_snapshot_proto protoreflect.FileDescriptor
 
 const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\n" +
 	"\x1fproto/lynceus/v1/snapshot.proto\x12\n" +
-	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\"\x8a\x02\n" +
+	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\x1a proto/lynceus/v1/log_event.proto\"\xb8\x03\n" +
 	"\bSnapshot\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12*\n" +
 	"\x11collected_at_unix\x18\x02 \x01(\x03R\x0fcollectedAtUnix\x126\n" +
@@ -378,7 +818,12 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"queryStats\x12E\n" +
 	"\x10activity_buckets\x18\x04 \x03(\v2\x1a.lynceus.v1.ActivityBucketR\x0factivityBuckets\x126\n" +
 	"\vquery_plans\x18\x05 \x03(\v2\x15.lynceus.v1.QueryPlanR\n" +
-	"queryPlans\"\x9a\x02\n" +
+	"queryPlans\x12?\n" +
+	"\x0eschema_objects\x18\x06 \x03(\v2\x18.lynceus.v1.SchemaObjectR\rschemaObjects\x126\n" +
+	"\vtable_stats\x18\a \x03(\v2\x15.lynceus.v1.TableStatR\n" +
+	"tableStats\x123\n" +
+	"\n" +
+	"log_events\x18\b \x03(\v2\x14.lynceus.v1.LogEventR\tlogEvents\"\x9a\x02\n" +
 	"\tQueryStat\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12)\n" +
 	"\x10normalized_query\x18\x02 \x01(\tR\x0fnormalizedQuery\x12\x14\n" +
@@ -401,7 +846,58 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\fsample_count\x18\b \x01(\x05R\vsampleCount\x12\x1b\n" +
 	"\tcount_sum\x18\t \x01(\x03R\bcountSum\x12\x1b\n" +
 	"\tcount_max\x18\n" +
-	" \x01(\x03R\bcountMaxBAZ?github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1b\x06proto3"
+	" \x01(\x03R\bcountMax\"\x86\x02\n" +
+	"\fSchemaObject\x12*\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x16.lynceus.v1.ObjectKindR\x04kind\x12\x16\n" +
+	"\x06schema\x18\x02 \x01(\tR\x06schema\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x10\n" +
+	"\x03fqn\x18\x04 \x01(\tR\x03fqn\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x05 \x01(\x03R\tsizeBytes\x12!\n" +
+	"\fis_partition\x18\x06 \x01(\bR\visPartition\x12\x1d\n" +
+	"\n" +
+	"parent_fqn\x18\a \x01(\tR\tparentFqn\x12+\n" +
+	"\x12first_seen_at_unix\x18\b \x01(\x03R\x0ffirstSeenAtUnix\"\x9a\x06\n" +
+	"\tTableStat\x12\x16\n" +
+	"\x06schema\x18\x01 \x01(\tR\x06schema\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
+	"\x03fqn\x18\x03 \x01(\tR\x03fqn\x12\x1f\n" +
+	"\vtotal_bytes\x18\x04 \x01(\x03R\n" +
+	"totalBytes\x12\x1d\n" +
+	"\n" +
+	"heap_bytes\x18\x05 \x01(\x03R\theapBytes\x12\x1f\n" +
+	"\vtoast_bytes\x18\x06 \x01(\x03R\n" +
+	"toastBytes\x12#\n" +
+	"\rindexes_bytes\x18\a \x01(\x03R\findexesBytes\x12!\n" +
+	"\frow_estimate\x18\b \x01(\x03R\vrowEstimate\x12\x1f\n" +
+	"\vlive_tuples\x18\t \x01(\x03R\n" +
+	"liveTuples\x12\x1f\n" +
+	"\vdead_tuples\x18\n" +
+	" \x01(\x03R\n" +
+	"deadTuples\x12-\n" +
+	"\x13n_mod_since_analyze\x18\v \x01(\x03R\x10nModSinceAnalyze\x12\x19\n" +
+	"\bseq_scan\x18\f \x01(\x03R\aseqScan\x12\x19\n" +
+	"\bidx_scan\x18\r \x01(\x03R\aidxScan\x12\x1a\n" +
+	"\tn_tup_ins\x18\x0e \x01(\x03R\anTupIns\x12\x1a\n" +
+	"\tn_tup_upd\x18\x0f \x01(\x03R\anTupUpd\x12\x1a\n" +
+	"\tn_tup_del\x18\x10 \x01(\x03R\anTupDel\x12!\n" +
+	"\rn_tup_hot_upd\x18\x11 \x01(\x03R\n" +
+	"nTupHotUpd\x12(\n" +
+	"\x10last_vacuum_unix\x18\x12 \x01(\x03R\x0elastVacuumUnix\x120\n" +
+	"\x14last_autovacuum_unix\x18\x13 \x01(\x03R\x12lastAutovacuumUnix\x12*\n" +
+	"\x11last_analyze_unix\x18\x14 \x01(\x03R\x0flastAnalyzeUnix\x122\n" +
+	"\x15last_autoanalyze_unix\x18\x15 \x01(\x03R\x13lastAutoanalyzeUnix\x12!\n" +
+	"\fvacuum_count\x18\x16 \x01(\x03R\vvacuumCount\x12)\n" +
+	"\x10autovacuum_count\x18\x17 \x01(\x03R\x0fautovacuumCount*\xb9\x01\n" +
+	"\n" +
+	"ObjectKind\x12\x1b\n" +
+	"\x17OBJECT_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12OBJECT_KIND_SCHEMA\x10\x01\x12\x15\n" +
+	"\x11OBJECT_KIND_TABLE\x10\x02\x12\x15\n" +
+	"\x11OBJECT_KIND_INDEX\x10\x03\x12\x14\n" +
+	"\x10OBJECT_KIND_VIEW\x10\x04\x12\x18\n" +
+	"\x14OBJECT_KIND_FUNCTION\x10\x05\x12\x18\n" +
+	"\x14OBJECT_KIND_SEQUENCE\x10\x06BAZ?github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1b\x06proto3"
 
 var (
 	file_proto_lynceus_v1_snapshot_proto_rawDescOnce sync.Once
@@ -415,22 +911,31 @@ func file_proto_lynceus_v1_snapshot_proto_rawDescGZIP() []byte {
 	return file_proto_lynceus_v1_snapshot_proto_rawDescData
 }
 
-var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_proto_lynceus_v1_snapshot_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_proto_lynceus_v1_snapshot_proto_goTypes = []any{
-	(*Snapshot)(nil),       // 0: lynceus.v1.Snapshot
-	(*QueryStat)(nil),      // 1: lynceus.v1.QueryStat
-	(*ActivityBucket)(nil), // 2: lynceus.v1.ActivityBucket
-	(*QueryPlan)(nil),      // 3: lynceus.v1.QueryPlan
+	(ObjectKind)(0),        // 0: lynceus.v1.ObjectKind
+	(*Snapshot)(nil),       // 1: lynceus.v1.Snapshot
+	(*QueryStat)(nil),      // 2: lynceus.v1.QueryStat
+	(*ActivityBucket)(nil), // 3: lynceus.v1.ActivityBucket
+	(*SchemaObject)(nil),   // 4: lynceus.v1.SchemaObject
+	(*TableStat)(nil),      // 5: lynceus.v1.TableStat
+	(*QueryPlan)(nil),      // 6: lynceus.v1.QueryPlan
+	(*LogEvent)(nil),       // 7: lynceus.v1.LogEvent
 }
 var file_proto_lynceus_v1_snapshot_proto_depIdxs = []int32{
-	1, // 0: lynceus.v1.Snapshot.query_stats:type_name -> lynceus.v1.QueryStat
-	2, // 1: lynceus.v1.Snapshot.activity_buckets:type_name -> lynceus.v1.ActivityBucket
-	3, // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	2, // 0: lynceus.v1.Snapshot.query_stats:type_name -> lynceus.v1.QueryStat
+	3, // 1: lynceus.v1.Snapshot.activity_buckets:type_name -> lynceus.v1.ActivityBucket
+	6, // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
+	4, // 3: lynceus.v1.Snapshot.schema_objects:type_name -> lynceus.v1.SchemaObject
+	5, // 4: lynceus.v1.Snapshot.table_stats:type_name -> lynceus.v1.TableStat
+	7, // 5: lynceus.v1.Snapshot.log_events:type_name -> lynceus.v1.LogEvent
+	0, // 6: lynceus.v1.SchemaObject.kind:type_name -> lynceus.v1.ObjectKind
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_proto_lynceus_v1_snapshot_proto_init() }
@@ -439,18 +944,20 @@ func file_proto_lynceus_v1_snapshot_proto_init() {
 		return
 	}
 	file_proto_lynceus_v1_plan_proto_init()
+	file_proto_lynceus_v1_log_event_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_lynceus_v1_snapshot_proto_rawDesc), len(file_proto_lynceus_v1_snapshot_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   3,
+			NumEnums:      1,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_proto_lynceus_v1_snapshot_proto_goTypes,
 		DependencyIndexes: file_proto_lynceus_v1_snapshot_proto_depIdxs,
+		EnumInfos:         file_proto_lynceus_v1_snapshot_proto_enumTypes,
 		MessageInfos:      file_proto_lynceus_v1_snapshot_proto_msgTypes,
 	}.Build()
 	File_proto_lynceus_v1_snapshot_proto = out.File

@@ -38,16 +38,17 @@ type Config struct {
 
 // Server is the websocket receiver.
 type Server struct {
-	cfg   Config
-	stats *store.Stats
-	pool  *pgxpool.Pool
+	cfg           Config
+	stats         *store.Stats
+	schemaObjects *store.SchemaObjects
+	pool          *pgxpool.Pool
 
 	mu       sync.Mutex
 	limiters map[string]*rate.Limiter
 }
 
 // NewServer returns a Server. pool is the stats-DB pool (used for the
-// DLQ table); stats is the typed writer.
+// DLQ table and the schema_objects upsert); stats is the typed writer.
 func NewServer(cfg Config, stats *store.Stats, pool *pgxpool.Pool) *Server {
 	if cfg.ReadTimeout == 0 {
 		cfg.ReadTimeout = 30 * time.Second
@@ -55,7 +56,13 @@ func NewServer(cfg Config, stats *store.Stats, pool *pgxpool.Pool) *Server {
 	if cfg.RateBurst == 0 {
 		cfg.RateBurst = 1
 	}
-	return &Server{cfg: cfg, stats: stats, pool: pool, limiters: map[string]*rate.Limiter{}}
+	return &Server{
+		cfg:           cfg,
+		stats:         stats,
+		schemaObjects: store.NewSchemaObjects(pool),
+		pool:          pool,
+		limiters:      map[string]*rate.Limiter{},
+	}
 }
 
 // Handler returns the HTTP handler that upgrades incoming connections
@@ -118,6 +125,26 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if objs := snapshotToSchemaObjects(&snap); len(objs) > 0 {
+		if err := s.schemaObjects.UpsertSchemaObjects(ctx, objs); err != nil {
+			s.parkDLQ(ctx, snap.ServerId, "write schema_objects: "+err.Error(), data)
+			_ = conn.Close(websocket.StatusInternalError, "")
+			return
+		}
+	}
+	if ts := snapshotToTableStats(&snap); len(ts) > 0 {
+		if err := s.stats.WriteTableStats(ctx, ts); err != nil {
+			s.parkDLQ(ctx, snap.ServerId, "write table_stats: "+err.Error(), data)
+			_ = conn.Close(websocket.StatusInternalError, "")
+			return
+		}
+	}
+	// Shipped LogEvents (snap.LogEvents) are intentionally a NO-OP here:
+	// there is no log_events stats table or writer yet (tracked as a
+	// dedicated store bead per docs/specs/2026-06-08-layer0-foundation.md
+	// §4.1.6). They are NOT an error and must NOT be parked to the DLQ —
+	// a future bead adds snapshotToLogEvents + s.stats.WriteLogEvents here,
+	// mirroring the query_plans block above.
 	_ = conn.Close(websocket.StatusNormalClosure, "")
 }
 
@@ -175,6 +202,77 @@ func snapshotToQueryPlans(snap *lynceusv1.Snapshot) []store.QueryPlanRow {
 			CapturedAt: time.Unix(p.CapturedAtUnix, 0).UTC(),
 			Plan:       p,
 			DataTier:   1,
+		})
+	}
+	return out
+}
+
+// snapshotToSchemaObjects maps the T1 SchemaObject inventory onto the
+// store row type. first_seen_at is resolved server-side by the upsert
+// (ON CONFLICT preserves it), so the collector-supplied objects carry
+// no first-seen — see internal/store/schema_objects.go.
+func snapshotToSchemaObjects(snap *lynceusv1.Snapshot) []store.SchemaObjectRow {
+	out := make([]store.SchemaObjectRow, 0, len(snap.SchemaObjects))
+	for _, o := range snap.SchemaObjects {
+		out = append(out, store.SchemaObjectRow{
+			ServerID:    snap.ServerId,
+			Kind:        int16(o.Kind),
+			FQN:         o.Fqn,
+			SchemaName:  o.Schema,
+			ObjectName:  o.Name,
+			SizeBytes:   o.SizeBytes,
+			IsPartition: o.IsPartition,
+			ParentFQN:   o.ParentFqn,
+		})
+	}
+	return out
+}
+
+func snapshotToTableStats(snap *lynceusv1.Snapshot) []store.TableStatRow {
+	collectedAt := time.Unix(snap.CollectedAtUnix, 0).UTC()
+	if collectedAt.IsZero() || snap.CollectedAtUnix == 0 {
+		collectedAt = time.Now().UTC()
+	}
+	unixToTime := func(u int64) time.Time {
+		if u == 0 {
+			return time.Time{}
+		}
+		return time.Unix(u, 0).UTC()
+	}
+	out := make([]store.TableStatRow, 0, len(snap.TableStats))
+	for _, t := range snap.TableStats {
+		out = append(out, store.TableStatRow{
+			ServerID:    snap.ServerId,
+			CollectedAt: collectedAt,
+			SchemaName:  t.Schema,
+			ObjectName:  t.Name,
+			FQN:         t.Fqn,
+
+			TotalBytes:   t.TotalBytes,
+			HeapBytes:    t.HeapBytes,
+			ToastBytes:   t.ToastBytes,
+			IndexesBytes: t.IndexesBytes,
+
+			RowEstimate:      t.RowEstimate,
+			LiveTuples:       t.LiveTuples,
+			DeadTuples:       t.DeadTuples,
+			NModSinceAnalyze: t.NModSinceAnalyze,
+
+			SeqScan:    t.SeqScan,
+			IdxScan:    t.IdxScan,
+			NTupIns:    t.NTupIns,
+			NTupUpd:    t.NTupUpd,
+			NTupDel:    t.NTupDel,
+			NTupHotUpd: t.NTupHotUpd,
+
+			LastVacuum:      unixToTime(t.LastVacuumUnix),
+			LastAutovacuum:  unixToTime(t.LastAutovacuumUnix),
+			LastAnalyze:     unixToTime(t.LastAnalyzeUnix),
+			LastAutoanalyze: unixToTime(t.LastAutoanalyzeUnix),
+			VacuumCount:     t.VacuumCount,
+			AutovacuumCount: t.AutovacuumCount,
+
+			DataTier: 1,
 		})
 	}
 	return out

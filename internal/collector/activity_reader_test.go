@@ -18,6 +18,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
+	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/collector"
 )
 
@@ -102,7 +103,7 @@ func TestActivityReader_seesDistinctConnectionStates(t *testing.T) {
 	// Give Postgres a beat to publish the new backend states.
 	time.Sleep(500 * time.Millisecond)
 
-	r := collector.NewActivityReader(readerPool)
+	r := collector.NewActivityReader(readerPool, caps.NewGate(), "lynceus_target")
 	samples, err := r.Read(ctx)
 	if err != nil {
 		t.Fatalf("read: %v", err)

@@ -13,6 +13,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
+	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/collector"
 )
 
@@ -71,7 +72,7 @@ func TestReader_returnsNormalizedQueriesWithNoLiterals(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r := collector.NewReader(pool)
+	r := collector.NewReader(pool, caps.NewGate(), "lynceus_target")
 	stats, err := r.Read(ctx)
 	if err != nil {
 		t.Fatalf("read: %v", err)

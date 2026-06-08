@@ -2,7 +2,7 @@ name: Security
 
 # Security scanning for HITRUST-aligned controls: SAST (CodeQL, gosec),
 # SCA / vuln management (govulncheck, Trivy), secret detection (gitleaks).
-# See docs/GOAL-STATUS.md "Goal 4" for the control mapping.
+# See docs/GOALS.md "Goal 4" for the control mapping.
 
 on:
   push:

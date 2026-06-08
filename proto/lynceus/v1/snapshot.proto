@@ -21,6 +21,7 @@ package lynceus.v1;
 option go_package = "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1";
 
 import "proto/lynceus/v1/plan.proto";
+import "proto/lynceus/v1/log_event.proto";
 
 // Snapshot is the unit of telemetry transmitted by a collector for a
 // single monitored Postgres server at a single point in time.
@@ -36,6 +37,26 @@ message Snapshot {
   // Normalized auto_explain plans extracted from the Postgres log. See
   // QueryPlan in plan.proto — T1, no literals.
   repeated QueryPlan query_plans = 5;
+
+  // Structural schema/object inventory (schemas, tables, indexes, views,
+  // functions, sequences) with sizes + stable first-seen. See SchemaObject
+  // — T1, structural metadata only. Field 6 is the Layer-0 reservation;
+  // 7=table_stats (ly-xqf.6), 8=log_events (ly-cxe.2) are reserved siblings.
+  repeated SchemaObject schema_objects = 6;
+
+  // Per-table size/growth + TOAST breakdown from pg_class +
+  // pg_stat_user_tables. See TableStat — T1, sizes/counts/timestamps
+  // only, no column values. Field 6 (schema_objects) and 8 (log_events)
+  // are reserved by sibling Layer 0 beads.
+  repeated TableStat table_stats = 7;
+
+  // Classified Postgres log events (ly-cxe.2). Each element is a
+  // lynceus.v1.LogEvent — T1, fixed-vocabulary enums / catalog identifiers /
+  // hashed client addr / numeric counters only. Raw message/detail/hint/
+  // statement live in the collector-local T2 LogPayload and never travel here.
+  // Field number 8 is reserved by the Layer 0 Snapshot field map
+  // (6=schema_objects, 7=table_stats, 8=log_events).
+  repeated LogEvent log_events = 8;
 }
 
 // QueryStat is one row of per-fingerprint query statistics, derived
@@ -92,4 +113,76 @@ message ActivityBucket {
   int32  sample_count       = 8;  // how many ~10s samples fed this bucket
   int64  count_sum          = 9;  // sum of per-sample connection counts
   int64  count_max          = 10; // peak per-sample connection count
+}
+
+// ObjectKind enumerates the schema-catalog object types Lynceus inventories.
+// New kinds may be added; the wire enum is open by virtue of proto3 semantics.
+enum ObjectKind {
+  OBJECT_KIND_UNSPECIFIED = 0;
+  OBJECT_KIND_SCHEMA      = 1;
+  OBJECT_KIND_TABLE       = 2; // includes partitioned tables and materialized views
+  OBJECT_KIND_INDEX       = 3;
+  OBJECT_KIND_VIEW        = 4;
+  OBJECT_KIND_FUNCTION    = 5;
+  OBJECT_KIND_SEQUENCE    = 6;
+}
+
+// SchemaObject is one row of the monitored database's structural
+// inventory. It carries STRUCTURAL metadata only — schema and relation
+// names, an enum kind, a byte size, partition flags, and a first-seen
+// timestamp. It NEVER carries column values, default expressions,
+// constraint values, comments, or ACLs. Those are DATA-class and
+// require a separate T2 message gated behind RBAC + audit.
+//
+// Schema NAMES themselves can be sensitive. The privacy mechanism for
+// names is the collector's ignore_schema_regexp / include_schema_regexp
+// filter applied BEFORE this message is constructed — not the proto.
+message SchemaObject {
+  ObjectKind kind     = 1;
+  string schema       = 2; // namespace name
+  string name         = 3; // object name within the schema (empty for kind=SCHEMA)
+  string fqn          = 4; // "schema.name" — stable identifier, also empty-name-safe ("schema.")
+  int64  size_bytes   = 5; // pg_total_relation_size for tables; pg_relation_size for indexes; 0 otherwise
+  bool   is_partition = 6; // pg_class.relispartition — child of a partitioned parent
+  string parent_fqn   = 7; // partition parent fqn, "" if none
+  int64  first_seen_at_unix = 8; // stable first-seen for (server, kind, fqn) — looked up from stats DB
+}
+
+// TableStat is one per-table size/growth + TOAST/heap/index breakdown plus
+// dead-tuple and vacuum/analyze metrics, sampled from pg_class +
+// pg_stat_user_tables on the slow (~10m) full cadence.
+//
+// INVARIANT: every field is a catalog identifier (schema/name/fqn), a byte
+// size counter, an aggregate row/tuple count, a vacuum/analyze counter, or a
+// unix timestamp. It carries NO column value, default expression, constraint
+// body, comment, ACL, proc source, MCV value, histogram bound, predicate, or
+// relfrozenxid. Same privacy class as ActivityBucket (counts + labels).
+message TableStat {
+  string schema = 1;  // namespace IDENTIFIER (filtered at the collector boundary)
+  string name   = 2;  // table IDENTIFIER
+  string fqn    = 3;  // "schema.name" IDENTIFIER — join key to SchemaObject
+
+  int64 total_bytes   = 4;  // pg_total_relation_size(oid)            [SIZE]
+  int64 heap_bytes    = 5;  // pg_table_size(oid) - toast_bytes       [SIZE]
+  int64 toast_bytes   = 6;  // pg_total_relation_size(reltoastrelid)  [SIZE, 0 if no TOAST]
+  int64 indexes_bytes = 7;  // pg_indexes_size(oid)                   [SIZE]
+
+  int64 row_estimate        = 8;  // GREATEST(pg_class.reltuples,0)   [COUNT]
+  int64 live_tuples         = 9;  // pg_stat_user_tables.n_live_tup   [COUNT]
+  int64 dead_tuples         = 10; // n_dead_tup (bloat signal)        [COUNT]
+  int64 n_mod_since_analyze = 11; // [COUNT]
+
+  int64 seq_scan = 12; // [COUNTER]
+  int64 idx_scan = 13; // [COUNTER]
+  int64 n_tup_ins     = 14; // [COUNTER]
+  int64 n_tup_upd     = 15; // [COUNTER]
+  int64 n_tup_del     = 16; // [COUNTER]
+  int64 n_tup_hot_upd = 17; // [COUNTER]
+
+  int64 last_vacuum_unix      = 18; // [TIMESTAMP, 0 if never]
+  int64 last_autovacuum_unix  = 19; // [TIMESTAMP, 0 if never]
+  int64 last_analyze_unix     = 20; // [TIMESTAMP, 0 if never]
+  int64 last_autoanalyze_unix = 21; // [TIMESTAMP, 0 if never]
+  int64 vacuum_count          = 22; // [COUNTER]
+  int64 autovacuum_count      = 23; // [COUNTER]
 }

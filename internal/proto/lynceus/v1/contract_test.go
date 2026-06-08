@@ -232,3 +232,85 @@ func TestLogEventScalarFieldShapes(t *testing.T) {
 		}
 	}
 }
+
+// TestTableStatHasOnlyAggregateFields enforces the T1 privacy guarantee for
+// the per-table size/growth message. TableStat must carry only catalog
+// identifiers (schema/name/fqn), size byte-counters, aggregate row/tuple
+// counts, vacuum/analyze counters, and unix timestamps — never a column
+// value, default expression, constraint body, comment, ACL, MCV value, or
+// histogram bound. It is the same privacy class as ActivityBucket.
+func TestTableStatHasOnlyAggregateFields(t *testing.T) {
+	allowed := map[string]struct{}{
+		"schema": {}, "name": {}, "fqn": {},
+		"total_bytes": {}, "heap_bytes": {}, "toast_bytes": {}, "indexes_bytes": {},
+		"row_estimate": {}, "live_tuples": {}, "dead_tuples": {}, "n_mod_since_analyze": {},
+		"seq_scan": {}, "idx_scan": {},
+		"n_tup_ins": {}, "n_tup_upd": {}, "n_tup_del": {}, "n_tup_hot_upd": {},
+		"last_vacuum_unix": {}, "last_autovacuum_unix": {},
+		"last_analyze_unix": {}, "last_autoanalyze_unix": {},
+		"vacuum_count": {}, "autovacuum_count": {},
+	}
+	assertOnlyAllowed(t, (&lynceusv1.TableStat{}).ProtoReflect().Descriptor().Fields(), allowed, "TableStat")
+}
+
+// TestTableStatScalarFieldShapes guards against a refactor that swaps an
+// identifier string for bytes or a nested message able to embed unstructured
+// content. Only schema/name/fqn are strings; every other field is a numeric.
+func TestTableStatScalarFieldShapes(t *testing.T) {
+	fields := (&lynceusv1.TableStat{}).ProtoReflect().Descriptor().Fields()
+	for _, fn := range []string{"schema", "name", "fqn"} {
+		f := fields.ByName(protoreflect.Name(fn))
+		if f == nil {
+			t.Fatalf("field %q missing from TableStat", fn)
+		}
+		if got := f.Kind().String(); got != "string" {
+			t.Fatalf("TableStat.%s must be string kind, got %s", fn, got)
+		}
+	}
+}
+
+// TestSnapshotCarriesLogEvents enforces that the Snapshot envelope grows only
+// by adding allowlisted, literal-free repeated message fields. log_events (8)
+// carries lynceus.v1.LogEvent elements — themselves contract-tested above. The
+// allowlist makes it impossible to silently add a raw-text-bearing field
+// (e.g. log_payloads) to the wire envelope.
+func TestSnapshotCarriesLogEvents(t *testing.T) {
+	allowed := map[string]struct{}{
+		"server_id":         {},
+		"collected_at_unix": {},
+		"query_stats":       {},
+		"activity_buckets":  {},
+		"query_plans":       {},
+		"log_events":        {},
+		"schema_objects":    {},
+		"table_stats":       {},
+	}
+	assertOnlyAllowed(t, (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields(), allowed, "Snapshot")
+
+	f := (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields().ByName("log_events")
+	if f == nil {
+		t.Fatal("log_events field missing from Snapshot")
+	}
+	if !f.IsList() {
+		t.Fatal("log_events must be a repeated field")
+	}
+	if got := string(f.Message().Name()); got != "LogEvent" {
+		t.Fatalf("log_events element must be LogEvent, got %s", got)
+	}
+}
+
+// TestSnapshotCarriesTableStats verifies the table_stats field exists on the
+// Snapshot wrapper and is a repeated TableStat — so ly-xqf.6 can ship rows.
+func TestSnapshotCarriesTableStats(t *testing.T) {
+	fields := (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields()
+	f := fields.ByName("table_stats")
+	if f == nil {
+		t.Fatal("table_stats field missing from Snapshot")
+	}
+	if f.Number() != 7 {
+		t.Fatalf("table_stats field number = %d, want 7 (reserved)", f.Number())
+	}
+	if got := f.Message(); got == nil || got.Name() != "TableStat" {
+		t.Fatalf("table_stats must be repeated TableStat, got %v", got)
+	}
+}

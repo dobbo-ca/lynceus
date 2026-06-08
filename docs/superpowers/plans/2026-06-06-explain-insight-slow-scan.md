@@ -748,12 +748,12 @@ Expected: PASS — previous green baseline (147 tests) plus the new `internal/in
 Run: `go build ./...`
 Expected: success.
 
-- [ ] **Step 3: Update GOAL-STATUS**
+- [ ] **Step 3: Update GOALS**
 
-In `docs/GOAL-STATUS.md`, mark `ly-u4t.7` done in the M3 row / "Highest-leverage next moves" list, noting the new `internal/insight` engine other M3 insights reuse, and that `rows_removed_by_filter` was added to T1 `PlanNode`. Commit:
+In `docs/GOALS.md`, mark `ly-u4t.7` done in the M3 row / "Highest-leverage next moves" list, noting the new `internal/insight` engine other M3 insights reuse, and that `rows_removed_by_filter` was added to T1 `PlanNode`. Commit:
 
 ```bash
-git add docs/GOAL-STATUS.md
+git add docs/GOALS.md
 git commit -m "docs: record ly-u4t.7 Slow Scan insight + insight engine"
 ```
 

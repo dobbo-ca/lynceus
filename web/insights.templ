@@ -1,0 +1,66 @@
+package web
+
+import "fmt"
+
+// InsightRow is the view-model for one detected insight row. Every field is a
+// structural identifier or an aggregate count — the same literal-free shape as
+// insight.Insight (internal/insight/insight.go:31-41); the engine guarantees no
+// literal reaches Detail.
+type InsightRow struct {
+	Kind         string
+	Severity     string
+	Fingerprint  string
+	Relation     string
+	NodePath     string
+	RowsScanned  int64
+	RowsReturned int64
+	Detail       string
+	ServerID     string
+}
+
+// InsightsPage is the full insights dashboard.
+templ InsightsPage(rows []InsightRow) {
+	@Layout("Lynceus — insights", "query plan insights from the detection engine") {
+		@InsightsTable(rows)
+	}
+}
+
+// InsightsTable is also served as a stand-alone HTMX fragment so the table
+// auto-refreshes (hx-get + outerHTML swap re-installs the same hx-* attributes
+// on every poll), mirroring QueriesTable (queries.templ:15-16).
+templ InsightsTable(rows []InsightRow) {
+	<div id="insights-table" hx-get="/partial/insights" hx-trigger="every 10s" hx-swap="outerHTML">
+		if len(rows) == 0 {
+			<p class="empty">No insights detected yet — start a collector and check back.</p>
+		} else {
+			<table>
+				<thead>
+					<tr>
+						<th>Severity</th>
+						<th>Kind</th>
+						<th>Relation</th>
+						<th>Node path</th>
+						<th class="num">Rows scanned</th>
+						<th class="num">Rows returned</th>
+						<th>Detail</th>
+						<th>Fingerprint</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range rows {
+						<tr>
+							<td><code>{ r.Severity }</code></td>
+							<td><code>{ r.Kind }</code></td>
+							<td><code>{ r.Relation }</code></td>
+							<td><code>{ r.NodePath }</code></td>
+							<td class="num">{ fmt.Sprintf("%d", r.RowsScanned) }</td>
+							<td class="num">{ fmt.Sprintf("%d", r.RowsReturned) }</td>
+							<td>{ r.Detail }</td>
+							<td><code>{ r.Fingerprint }</code></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}
