@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/collector"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 )
@@ -27,10 +28,35 @@ func main() {
 	}
 	defer pool.Close()
 
-	reader := collector.NewReader(pool)
-	activityReader := collector.NewActivityReader(pool)
+	// Resolve the monitored connection's database once — it is the gate key.
+	var db string
+	if err := pool.QueryRow(ctx, `SELECT current_database()`).Scan(&db); err != nil {
+		log.Fatalf("resolve current_database: %v", err)
+	}
+
+	gate := caps.NewGate()
+	reader := collector.NewReader(pool, gate, db)
+	activityReader := collector.NewActivityReader(pool, gate, db)
 	aggregator := collector.NewActivityAggregator(cfg.serverID, cfg.activityFlush)
 	shipper := collector.NewShipper(cfg.ingestURL, cfg.token)
+
+	// refreshPolicy fetches effective capability policy from the api server
+	// and atomically swaps it into the gate. The collector has no config-DB
+	// handle (spec §4.4.0), so policy reaches it only via this HTTP fetch.
+	// A failure logs and leaves the previous snapshot in place — fail-open
+	// means an unreachable api keeps collecting, never goes silently dark.
+	refreshPolicy := func() {
+		if cfg.apiBaseURL == "" {
+			return // not configured: gate stays empty => all-enabled
+		}
+		snap, err := collector.FetchPolicySnapshot(ctx, cfg.apiBaseURL, cfg.serverID, db)
+		if err != nil {
+			log.Printf("refresh policy snapshot: %v", err)
+			return
+		}
+		gate.Replace(snap)
+		log.Printf("refreshed policy snapshot: %d entries", len(snap))
+	}
 
 	// Single schema-name boundary filter, shared by all catalog readers.
 	// Fail fast on a bad regex — a non-compiling pattern must NOT silently
@@ -119,7 +145,9 @@ func main() {
 		log.Printf("shipped %d activity_buckets", len(protoBuckets))
 	}
 
-	// Kick off one of each immediately.
+	// Kick off one of each immediately. Refresh policy first so the very
+	// first full snapshot already respects capability policy.
+	refreshPolicy()
 	runFull()
 	sampleActivity()
 
@@ -135,6 +163,7 @@ func main() {
 		case <-ctx.Done():
 			return
 		case <-fullTicker.C:
+			refreshPolicy()
 			runFull()
 		case <-sampleTicker.C:
 			sampleActivity()
@@ -149,8 +178,9 @@ type config struct {
 	pgDSN               string
 	ingestURL           string
 	token               string
-	includeSchemaRegexp string // LYNCEUS_INCLUDE_SCHEMA_REGEXP ("" = allow any)
-	ignoreSchemaRegexp  string // LYNCEUS_IGNORE_SCHEMA_REGEXP ("" = exclude none)
+	apiBaseURL          string        // LYNCEUS_API_BASE_URL; "" disables policy fetch (gate stays all-enabled)
+	includeSchemaRegexp string        // LYNCEUS_INCLUDE_SCHEMA_REGEXP ("" = allow any)
+	ignoreSchemaRegexp  string        // LYNCEUS_IGNORE_SCHEMA_REGEXP ("" = exclude none)
 	interval            time.Duration // full snapshot cadence
 	activityInterval    time.Duration // pg_stat_activity sample cadence (~10s)
 	activityFlush       time.Duration // bucket flush cadence (60s)
@@ -162,6 +192,7 @@ func loadConfig() config {
 		pgDSN:               os.Getenv("LYNCEUS_PG_DSN"),
 		ingestURL:           os.Getenv("LYNCEUS_INGESTION_URL"),
 		token:               os.Getenv("LYNCEUS_COLLECTOR_TOKEN"),
+		apiBaseURL:          os.Getenv("LYNCEUS_API_BASE_URL"),
 		includeSchemaRegexp: os.Getenv("LYNCEUS_INCLUDE_SCHEMA_REGEXP"),
 		ignoreSchemaRegexp:  os.Getenv("LYNCEUS_IGNORE_SCHEMA_REGEXP"),
 		interval:            10 * time.Minute,
