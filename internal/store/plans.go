@@ -136,3 +136,43 @@ func plansPartitionName(ts time.Time) string {
 	y, w := ts.UTC().ISOWeek()
 	return fmt.Sprintf("query_plans_%04d_%02d", y, w)
 }
+
+// PlanKey is one (server_id, fingerprint) pair that has at least one stored
+// plan in the queried window. Both fields are structural identifiers (the same
+// columns WriteQueryPlans persists, plans.go:25-28) — no literal.
+type PlanKey struct {
+	ServerID    string
+	Fingerprint string
+}
+
+// ListPlanKeys enumerates the distinct (server_id, fingerprint) keys that have
+// at least one plan captured in [since, until), most recent server/fingerprint
+// order, up to limit. data_tier = 1 only (T1). Runs on the read replica,
+// exactly like TopPlansByQuery (plans.go:72).
+func (s *Stats) ListPlanKeys(
+	ctx context.Context, since, until time.Time, limit int,
+) ([]PlanKey, error) {
+	rows, err := s.ro.Query(ctx,
+		`SELECT DISTINCT server_id, fingerprint
+		   FROM query_plans
+		  WHERE captured_at >= $1 AND captured_at < $2
+		    AND data_tier = 1
+		  ORDER BY server_id, fingerprint
+		  LIMIT $3`,
+		since, until, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []PlanKey
+	for rows.Next() {
+		var k PlanKey
+		if err := rows.Scan(&k.ServerID, &k.Fingerprint); err != nil {
+			return nil, err
+		}
+		out = append(out, k)
+	}
+	return out, rows.Err()
+}

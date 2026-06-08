@@ -108,3 +108,46 @@ func TestWriteQueryPlans_emptyNoop(t *testing.T) {
 		t.Fatalf("empty write should be a no-op, got %v", err)
 	}
 }
+
+func TestListPlanKeys_returnsDistinctKeys(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	s := store.NewStats(pool)
+
+	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC) // a Wednesday
+	planFor := func(fp string) *lynceusv1.QueryPlan {
+		return &lynceusv1.QueryPlan{
+			Fingerprint:    fp,
+			CapturedAtUnix: now.Unix(),
+			FormatVersion:  1,
+			Root:           &lynceusv1.PlanNode{NodeType: "Seq Scan", RelationName: "orders"},
+		}
+	}
+	// Two plans on key (srv-1, fp-a) + one plan on key (srv-1, fp-b).
+	rows := []store.QueryPlanRow{
+		{ServerID: "srv-1", Plan: planFor("fp-a"), CapturedAt: now},
+		{ServerID: "srv-1", Plan: planFor("fp-a"), CapturedAt: now.Add(time.Minute)},
+		{ServerID: "srv-1", Plan: planFor("fp-b"), CapturedAt: now},
+	}
+	if err := s.WriteQueryPlans(ctx, rows); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	keys, err := s.ListPlanKeys(ctx, now.Add(-time.Hour), now.Add(time.Hour), 100)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(keys) != 2 {
+		t.Fatalf("got %d distinct keys, want 2: %+v", len(keys), keys)
+	}
+	// ORDER BY server_id, fingerprint => fp-a then fp-b.
+	if keys[0].ServerID != "srv-1" || keys[0].Fingerprint != "fp-a" {
+		t.Errorf("keys[0] = %+v, want {srv-1 fp-a}", keys[0])
+	}
+	if keys[1].Fingerprint != "fp-b" {
+		t.Errorf("keys[1].Fingerprint = %q, want fp-b", keys[1].Fingerprint)
+	}
+}
