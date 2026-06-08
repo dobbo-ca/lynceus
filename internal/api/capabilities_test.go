@@ -223,3 +223,80 @@ func TestCapabilityToggle_withoutDevAuth_returns401(t *testing.T) {
 		t.Errorf("policy rows = %d, want 0 (toggle blocked by auth)", n)
 	}
 }
+
+func TestPolicySnapshot_returnsEnabledFlagsPerCapability(t *testing.T) {
+	pool, srv := setupAudit(t, api.Config{DevAuth: true})
+	ctx := context.Background()
+
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO servers (id, name) VALUES ('srv-1', 'srv one')`,
+	); err != nil {
+		t.Fatalf("seed server: %v", err)
+	}
+	cfg := store.NewConfig(pool)
+	// Server-wide default disabled for pg_stat_statements.
+	if _, err := cfg.SetCapabilityPolicy(ctx, store.SetCapabilityPolicyInput{
+		ServerID: "srv-1", Capability: "pg_stat_statements",
+		Enabled: false, SetBy: "alice",
+	}); err != nil {
+		t.Fatalf("set default: %v", err)
+	}
+	// Per-db override enabling schema_inventory on appdb.
+	if _, err := cfg.SetCapabilityPolicy(ctx, store.SetCapabilityPolicyInput{
+		ServerID: "srv-1", DatabaseName: "appdb", Capability: "schema_inventory",
+		Enabled: true, SetBy: "bob",
+	}); err != nil {
+		t.Fatalf("set override: %v", err)
+	}
+
+	resp, err := http.Get(srv.URL + "/api/servers/srv-1/policy-snapshot")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
+		t.Errorf("content-type = %q, want application/json", ct)
+	}
+
+	var got []struct {
+		Capability   string `json:"capability"`
+		DatabaseName string `json:"database_name"`
+		Enabled      bool   `json:"enabled"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("entries = %d, want 2 (%+v)", len(got), got)
+	}
+
+	type key struct {
+		cap, db string
+		on      bool
+	}
+	seen := map[key]bool{}
+	for _, e := range got {
+		seen[key{e.Capability, e.DatabaseName, e.Enabled}] = true
+	}
+	if !seen[key{"pg_stat_statements", "", false}] {
+		t.Errorf("missing server-wide pg_stat_statements=false; got %+v", got)
+	}
+	if !seen[key{"schema_inventory", "appdb", true}] {
+		t.Errorf("missing appdb schema_inventory=true; got %+v", got)
+	}
+}
+
+func TestPolicySnapshot_withoutDevAuth_returns401(t *testing.T) {
+	_, srv := setupAudit(t, api.Config{DevAuth: false})
+	resp, err := http.Get(srv.URL + "/api/servers/srv-1/policy-snapshot")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", resp.StatusCode)
+	}
+}

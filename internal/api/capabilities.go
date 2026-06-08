@@ -149,3 +149,37 @@ func isDeclaredCapability(capability string) bool {
 	}
 	return false
 }
+
+// policySnapshotEntry is one effective-policy fact shipped to the
+// collector: a closed-vocabulary capability string, the operator-supplied
+// database_name ("" = server-wide default), and a boolean. No
+// monitored-database-derived data — literal-free by construction.
+type policySnapshotEntry struct {
+	Capability   string `json:"capability"`
+	DatabaseName string `json:"database_name"`
+	Enabled      bool   `json:"enabled"`
+}
+
+// handlePolicySnapshot returns every stored capability_policy row for the
+// server as JSON. The collector GETs this on its full-snapshot ticker and
+// swaps it into its in-memory caps.Gate (the collector has no config-DB
+// handle — spec §4.4.0). Absent rows are NOT enumerated here; the gate
+// fails open on any key it doesn't find.
+func (s *Server) handlePolicySnapshot(w http.ResponseWriter, r *http.Request) {
+	serverID := r.PathValue("id")
+	rows, err := s.conf.ListCapabilityPolicies(r.Context(), serverID)
+	if err != nil {
+		http.Error(w, "list capability policies", http.StatusInternalServerError)
+		return
+	}
+	out := make([]policySnapshotEntry, 0, len(rows))
+	for _, p := range rows {
+		out = append(out, policySnapshotEntry{
+			Capability:   p.Capability,
+			DatabaseName: p.DatabaseName,
+			Enabled:      p.Enabled,
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(out)
+}

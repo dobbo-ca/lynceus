@@ -56,6 +56,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/queries/top", s.handleTopQueries)
 	s.mux.HandleFunc("GET /api/servers/{id}/capabilities", s.handleCapabilityMatrix)
 	s.mux.HandleFunc("POST /api/servers/{id}/capabilities/{cap}", s.handleCapabilityToggle)
+	s.mux.HandleFunc("GET /api/servers/{id}/policy-snapshot", s.handlePolicySnapshot)
 	s.mux.HandleFunc("GET /api/scim/v2/", s.notImplemented("SCIM"))
 	s.mux.HandleFunc("GET /api/oidc/", s.notImplemented("OIDC"))
 }
