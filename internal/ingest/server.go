@@ -38,16 +38,17 @@ type Config struct {
 
 // Server is the websocket receiver.
 type Server struct {
-	cfg   Config
-	stats *store.Stats
-	pool  *pgxpool.Pool
+	cfg           Config
+	stats         *store.Stats
+	schemaObjects *store.SchemaObjects
+	pool          *pgxpool.Pool
 
 	mu       sync.Mutex
 	limiters map[string]*rate.Limiter
 }
 
 // NewServer returns a Server. pool is the stats-DB pool (used for the
-// DLQ table); stats is the typed writer.
+// DLQ table and the schema_objects upsert); stats is the typed writer.
 func NewServer(cfg Config, stats *store.Stats, pool *pgxpool.Pool) *Server {
 	if cfg.ReadTimeout == 0 {
 		cfg.ReadTimeout = 30 * time.Second
@@ -55,7 +56,13 @@ func NewServer(cfg Config, stats *store.Stats, pool *pgxpool.Pool) *Server {
 	if cfg.RateBurst == 0 {
 		cfg.RateBurst = 1
 	}
-	return &Server{cfg: cfg, stats: stats, pool: pool, limiters: map[string]*rate.Limiter{}}
+	return &Server{
+		cfg:           cfg,
+		stats:         stats,
+		schemaObjects: store.NewSchemaObjects(pool),
+		pool:          pool,
+		limiters:      map[string]*rate.Limiter{},
+	}
 }
 
 // Handler returns the HTTP handler that upgrades incoming connections
@@ -118,6 +125,13 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if objs := snapshotToSchemaObjects(&snap); len(objs) > 0 {
+		if err := s.schemaObjects.UpsertSchemaObjects(ctx, objs); err != nil {
+			s.parkDLQ(ctx, snap.ServerId, "write schema_objects: "+err.Error(), data)
+			_ = conn.Close(websocket.StatusInternalError, "")
+			return
+		}
+	}
 	_ = conn.Close(websocket.StatusNormalClosure, "")
 }
 
@@ -175,6 +189,27 @@ func snapshotToQueryPlans(snap *lynceusv1.Snapshot) []store.QueryPlanRow {
 			CapturedAt: time.Unix(p.CapturedAtUnix, 0).UTC(),
 			Plan:       p,
 			DataTier:   1,
+		})
+	}
+	return out
+}
+
+// snapshotToSchemaObjects maps the T1 SchemaObject inventory onto the
+// store row type. first_seen_at is resolved server-side by the upsert
+// (ON CONFLICT preserves it), so the collector-supplied objects carry
+// no first-seen — see internal/store/schema_objects.go.
+func snapshotToSchemaObjects(snap *lynceusv1.Snapshot) []store.SchemaObjectRow {
+	out := make([]store.SchemaObjectRow, 0, len(snap.SchemaObjects))
+	for _, o := range snap.SchemaObjects {
+		out = append(out, store.SchemaObjectRow{
+			ServerID:    snap.ServerId,
+			Kind:        int16(o.Kind),
+			FQN:         o.Fqn,
+			SchemaName:  o.Schema,
+			ObjectName:  o.Name,
+			SizeBytes:   o.SizeBytes,
+			IsPartition: o.IsPartition,
+			ParentFQN:   o.ParentFqn,
 		})
 	}
 	return out

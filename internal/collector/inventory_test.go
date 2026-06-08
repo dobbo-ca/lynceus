@@ -12,7 +12,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
@@ -21,15 +20,6 @@ import (
 	"github.com/dobbo-ca/lynceus/internal/collector"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 )
-
-// stubFirstSeen is a no-op FirstSeenLookup — returns zero, so the
-// reader stamps now() onto outgoing objects. Real wiring uses
-// store.SchemaObjects (covered by Task 3's tests).
-type stubFirstSeen struct{}
-
-func (stubFirstSeen) FirstSeenAt(_ context.Context, _ string, _ lynceusv1.ObjectKind, _ string) (time.Time, error) {
-	return time.Time{}, nil
-}
 
 func TestInventory_ReturnsObjectsWithSizes(t *testing.T) {
 	ctx := context.Background()
@@ -84,9 +74,9 @@ func TestInventory_ReturnsObjectsWithSizes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inv := collector.NewInventory(pool, filter, stubFirstSeen{})
+	inv := collector.NewInventory(pool, filter)
 
-	objs, err := inv.Read(ctx, "srv-1")
+	objs, err := inv.Read(ctx)
 	if err != nil {
 		t.Fatalf("inventory: %v", err)
 	}
@@ -142,9 +132,12 @@ func TestInventory_ReturnsObjectsWithSizes(t *testing.T) {
 		if o.Name == "records" || o.Name == "records_name_idx" {
 			t.Errorf("LEAK: filtered object %q surfaced", o.Name)
 		}
-		// First-seen must be set (stub returns zero → reader fills with now()).
-		if o.FirstSeenAtUnix == 0 {
-			t.Errorf("first_seen_at_unix not set on %q", o.Fqn)
+		// The collector must NOT stamp first-seen: it never touches the
+		// stats DB. first_seen_at is resolved server-side by the
+		// ingestion upsert (ON CONFLICT preserves it). Outgoing objects
+		// carry 0 here.
+		if o.FirstSeenAtUnix != 0 {
+			t.Errorf("collector must not stamp first_seen_at_unix; got %d on %q", o.FirstSeenAtUnix, o.Fqn)
 		}
 	}
 }

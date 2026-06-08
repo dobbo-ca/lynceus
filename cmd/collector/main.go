@@ -32,23 +32,42 @@ func main() {
 	aggregator := collector.NewActivityAggregator(cfg.serverID, cfg.activityFlush)
 	shipper := collector.NewShipper(cfg.ingestURL, cfg.token)
 
-	// Existing path: full snapshot (query stats) every cfg.interval (~10m).
+	// Single schema-name boundary filter, shared by all catalog readers.
+	// Fail fast on a bad regex — a non-compiling pattern must NOT silently
+	// disable filtering (that would leak sensitive schema names).
+	filter, err := collector.NewSchemaFilter(cfg.includeSchemaRegexp, cfg.ignoreSchemaRegexp)
+	if err != nil {
+		log.Fatalf("schema filter: %v", err)
+	}
+	inventory := collector.NewInventory(pool, filter)
+
+	// Existing path: full snapshot (query stats + schema inventory) every
+	// cfg.interval (~10m). The collector is outbound-only: the inventory
+	// ships first-seen-less; the ingestion server resolves + persists
+	// first-seen against the stats DB.
 	runFull := func() {
 		stats, err := reader.Read(ctx)
 		if err != nil {
 			log.Printf("read query stats: %v", err)
 			return
 		}
+		objs, err := inventory.Read(ctx)
+		if err != nil {
+			// Non-fatal: ship the query stats we have.
+			log.Printf("read schema inventory: %v", err)
+			objs = nil
+		}
 		snap := &lynceusv1.Snapshot{
 			ServerId:        cfg.serverID,
 			CollectedAtUnix: time.Now().Unix(),
 			QueryStats:      stats,
+			SchemaObjects:   objs,
 		}
 		if err := shipper.Send(ctx, snap); err != nil {
 			log.Printf("ship full: %v", err)
 			return
 		}
-		log.Printf("shipped %d query_stats", len(stats))
+		log.Printf("shipped %d query_stats, %d schema_objects", len(stats), len(objs))
 	}
 
 	// Sample pg_stat_activity into the aggregator on the activity cadence.
@@ -120,24 +139,28 @@ func main() {
 }
 
 type config struct {
-	serverID         string
-	pgDSN            string
-	ingestURL        string
-	token            string
-	interval         time.Duration // full snapshot cadence
-	activityInterval time.Duration // pg_stat_activity sample cadence (~10s)
-	activityFlush    time.Duration // bucket flush cadence (60s)
+	serverID            string
+	pgDSN               string
+	ingestURL           string
+	token               string
+	includeSchemaRegexp string // LYNCEUS_INCLUDE_SCHEMA_REGEXP ("" = allow any)
+	ignoreSchemaRegexp  string // LYNCEUS_IGNORE_SCHEMA_REGEXP ("" = exclude none)
+	interval            time.Duration // full snapshot cadence
+	activityInterval    time.Duration // pg_stat_activity sample cadence (~10s)
+	activityFlush       time.Duration // bucket flush cadence (60s)
 }
 
 func loadConfig() config {
 	c := config{
-		serverID:         os.Getenv("LYNCEUS_SERVER_ID"),
-		pgDSN:            os.Getenv("LYNCEUS_PG_DSN"),
-		ingestURL:        os.Getenv("LYNCEUS_INGESTION_URL"),
-		token:            os.Getenv("LYNCEUS_COLLECTOR_TOKEN"),
-		interval:         10 * time.Minute,
-		activityInterval: 10 * time.Second,
-		activityFlush:    60 * time.Second,
+		serverID:            os.Getenv("LYNCEUS_SERVER_ID"),
+		pgDSN:               os.Getenv("LYNCEUS_PG_DSN"),
+		ingestURL:           os.Getenv("LYNCEUS_INGESTION_URL"),
+		token:               os.Getenv("LYNCEUS_COLLECTOR_TOKEN"),
+		includeSchemaRegexp: os.Getenv("LYNCEUS_INCLUDE_SCHEMA_REGEXP"),
+		ignoreSchemaRegexp:  os.Getenv("LYNCEUS_IGNORE_SCHEMA_REGEXP"),
+		interval:            10 * time.Minute,
+		activityInterval:    10 * time.Second,
+		activityFlush:       60 * time.Second,
 	}
 	if v := os.Getenv("LYNCEUS_COLLECTOR_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {

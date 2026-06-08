@@ -108,6 +108,56 @@ func TestServer_acceptsValidSnapshotAndPersistsToStatsDB(t *testing.T) {
 	}
 }
 
+func TestServer_persistsSchemaObjectsWithServerSideFirstSeen(t *testing.T) {
+	pool, srv := setup(t, ingest.Config{
+		DevToken:  "dev",
+		RateLimit: 10, RateBurst: 10,
+	})
+	ctx := context.Background()
+
+	// The collector ships the inventory first-seen-less (FirstSeenAtUnix
+	// left 0); the ingestion upsert must stamp first_seen_at server-side.
+	snap := &lynceusv1.Snapshot{
+		ServerId:        "srv-inv",
+		CollectedAtUnix: time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC).Unix(),
+		SchemaObjects: []*lynceusv1.SchemaObject{{
+			Kind:      lynceusv1.ObjectKind_OBJECT_KIND_TABLE,
+			Schema:    "public",
+			Name:      "orders",
+			Fqn:       "public.orders",
+			SizeBytes: 8192,
+		}},
+	}
+	ship := collector.NewShipper(wsURL(srv.URL), "dev")
+	if err := ship.Send(ctx, snap); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	var rows int
+	for i := 0; i < 50 && rows == 0; i++ {
+		_ = pool.QueryRow(ctx,
+			`SELECT count(*) FROM schema_objects WHERE server_id='srv-inv' AND fqn='public.orders'`,
+		).Scan(&rows)
+		if rows > 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if rows != 1 {
+		t.Fatalf("schema_objects row count = %d, want 1", rows)
+	}
+
+	var firstSeen time.Time
+	if err := pool.QueryRow(ctx,
+		`SELECT first_seen_at FROM schema_objects WHERE server_id='srv-inv' AND fqn='public.orders'`,
+	).Scan(&firstSeen); err != nil {
+		t.Fatalf("read first_seen_at: %v", err)
+	}
+	if firstSeen.IsZero() {
+		t.Error("first_seen_at must be stamped server-side by the upsert, not carried from the collector")
+	}
+}
+
 func TestServer_parksOverLimitSnapshotInDLQ(t *testing.T) {
 	// Per-server rate.Limit of 1/s with burst 1: the first snapshot
 	// consumes the burst, the second arrives "too soon" and must be

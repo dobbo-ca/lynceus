@@ -6,82 +6,74 @@
 // no objects of any kind. This is the privacy mechanism for schema
 // NAMES (the inventory is otherwise structural T1).
 //
-// First-seen timestamps are sourced from the stats DB via a small
-// interface so the reader is unit-testable without that dependency.
+// first_seen_at is NOT stamped here. The collector is outbound-only and
+// never connects to the stats DB, so outgoing SchemaObjects carry
+// first_seen_at_unix = 0. The ingestion server resolves and persists
+// first-seen server-side: the schema_objects upsert preserves it via
+// ON CONFLICT (see internal/store/schema_objects.go).
 package collector
 
 import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 )
 
-// FirstSeenLookup returns the persisted first_seen_at for a given
-// object, or the zero Time if it has never been recorded. The
-// production implementation is store.SchemaObjects.FirstSeenAt — wired
-// in cmd/collector/main.go with a small adapter that converts
-// lynceusv1.ObjectKind ↔ int16.
-type FirstSeenLookup interface {
-	FirstSeenAt(ctx context.Context, serverID string, kind lynceusv1.ObjectKind, fqn string) (time.Time, error)
-}
-
 // Inventory reads the structural catalog of a monitored Postgres
 // instance and returns it as a slice of T1 SchemaObject messages.
 type Inventory struct {
-	pool      *pgxpool.Pool
-	filter    *SchemaFilter
-	firstSeen FirstSeenLookup
+	pool   *pgxpool.Pool
+	filter *SchemaFilter
 }
 
 // NewInventory binds an Inventory reader. filter must be non-nil — a
 // permissive filter is created via NewSchemaFilter("", "").
-func NewInventory(pool *pgxpool.Pool, filter *SchemaFilter, firstSeen FirstSeenLookup) *Inventory {
-	return &Inventory{pool: pool, filter: filter, firstSeen: firstSeen}
+func NewInventory(pool *pgxpool.Pool, filter *SchemaFilter) *Inventory {
+	return &Inventory{pool: pool, filter: filter}
 }
 
 // Read returns every allowed schema, table, index, view, function,
 // and sequence on the monitored database. Rejected schemas produce
 // zero objects of any kind. Errors from any single sub-query abort
 // the whole read; partial results are not returned.
-func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
+func (i *Inventory) Read(ctx context.Context) ([]*lynceusv1.SchemaObject, error) {
 	var out []*lynceusv1.SchemaObject
 
-	schemas, err := i.readSchemas(ctx, serverID)
+	schemas, err := i.readSchemas(ctx)
 	if err != nil {
 		return nil, err
 	}
 	out = append(out, schemas...)
 
-	tables, err := i.readTables(ctx, serverID)
+	tables, err := i.readTables(ctx)
 	if err != nil {
 		return nil, err
 	}
 	out = append(out, tables...)
 
-	indexes, err := i.readIndexes(ctx, serverID)
+	indexes, err := i.readIndexes(ctx)
 	if err != nil {
 		return nil, err
 	}
 	out = append(out, indexes...)
 
-	views, err := i.readViews(ctx, serverID)
+	views, err := i.readViews(ctx)
 	if err != nil {
 		return nil, err
 	}
 	out = append(out, views...)
 
-	funcs, err := i.readFunctions(ctx, serverID)
+	funcs, err := i.readFunctions(ctx)
 	if err != nil {
 		return nil, err
 	}
 	out = append(out, funcs...)
 
-	seqs, err := i.readSequences(ctx, serverID)
+	seqs, err := i.readSequences(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +83,7 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 }
 
 // readSchemas queries pg_namespace and returns allowed schema objects.
-func (i *Inventory) readSchemas(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
+func (i *Inventory) readSchemas(ctx context.Context) ([]*lynceusv1.SchemaObject, error) {
 	rows, err := i.pool.Query(ctx,
 		`SELECT nspname FROM pg_namespace ORDER BY nspname`,
 	)
@@ -109,7 +101,7 @@ func (i *Inventory) readSchemas(ctx context.Context, serverID string) ([]*lynceu
 		if !i.filter.IsAllowed(schema) {
 			continue
 		}
-		out = append(out, i.build(ctx, serverID,
+		out = append(out, i.build(
 			lynceusv1.ObjectKind_OBJECT_KIND_SCHEMA, schema, "", 0, false, ""))
 	}
 	return out, rows.Err()
@@ -117,7 +109,7 @@ func (i *Inventory) readSchemas(ctx context.Context, serverID string) ([]*lynceu
 
 // readTables queries pg_class for tables (including partitioned tables,
 // materialized views, and foreign tables) with sizes and partition info.
-func (i *Inventory) readTables(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
+func (i *Inventory) readTables(ctx context.Context) ([]*lynceusv1.SchemaObject, error) {
 	rows, err := i.pool.Query(ctx,
 		`SELECT n.nspname, c.relname,
 		        COALESCE(pg_total_relation_size(c.oid), 0)::bigint AS sz,
@@ -158,14 +150,14 @@ func (i *Inventory) readTables(ctx context.Context, serverID string) ([]*lynceus
 				parentFQN = ""
 			}
 		}
-		out = append(out, i.build(ctx, serverID,
+		out = append(out, i.build(
 			lynceusv1.ObjectKind_OBJECT_KIND_TABLE, schema, name, sz, isPart, parentFQN))
 	}
 	return out, rows.Err()
 }
 
 // readIndexes queries pg_class for indexes with sizes.
-func (i *Inventory) readIndexes(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
+func (i *Inventory) readIndexes(ctx context.Context) ([]*lynceusv1.SchemaObject, error) {
 	rows, err := i.pool.Query(ctx,
 		`SELECT n.nspname, c.relname,
 		        COALESCE(pg_relation_size(c.oid), 0)::bigint AS sz
@@ -191,14 +183,14 @@ func (i *Inventory) readIndexes(ctx context.Context, serverID string) ([]*lynceu
 		if !i.filter.IsAllowed(schema) {
 			continue
 		}
-		out = append(out, i.build(ctx, serverID,
+		out = append(out, i.build(
 			lynceusv1.ObjectKind_OBJECT_KIND_INDEX, schema, name, sz, false, ""))
 	}
 	return out, rows.Err()
 }
 
 // readViews queries pg_class for views.
-func (i *Inventory) readViews(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
+func (i *Inventory) readViews(ctx context.Context) ([]*lynceusv1.SchemaObject, error) {
 	rows, err := i.pool.Query(ctx,
 		`SELECT n.nspname, c.relname
 		   FROM pg_class c
@@ -220,14 +212,14 @@ func (i *Inventory) readViews(ctx context.Context, serverID string) ([]*lynceusv
 		if !i.filter.IsAllowed(schema) {
 			continue
 		}
-		out = append(out, i.build(ctx, serverID,
+		out = append(out, i.build(
 			lynceusv1.ObjectKind_OBJECT_KIND_VIEW, schema, name, 0, false, ""))
 	}
 	return out, rows.Err()
 }
 
 // readFunctions queries pg_proc for functions.
-func (i *Inventory) readFunctions(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
+func (i *Inventory) readFunctions(ctx context.Context) ([]*lynceusv1.SchemaObject, error) {
 	rows, err := i.pool.Query(ctx,
 		`SELECT n.nspname, p.proname
 		   FROM pg_proc p
@@ -248,14 +240,14 @@ func (i *Inventory) readFunctions(ctx context.Context, serverID string) ([]*lync
 		if !i.filter.IsAllowed(schema) {
 			continue
 		}
-		out = append(out, i.build(ctx, serverID,
+		out = append(out, i.build(
 			lynceusv1.ObjectKind_OBJECT_KIND_FUNCTION, schema, name, 0, false, ""))
 	}
 	return out, rows.Err()
 }
 
 // readSequences queries pg_class for sequences.
-func (i *Inventory) readSequences(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
+func (i *Inventory) readSequences(ctx context.Context) ([]*lynceusv1.SchemaObject, error) {
 	rows, err := i.pool.Query(ctx,
 		`SELECT n.nspname, c.relname
 		   FROM pg_class c
@@ -277,18 +269,16 @@ func (i *Inventory) readSequences(ctx context.Context, serverID string) ([]*lync
 		if !i.filter.IsAllowed(schema) {
 			continue
 		}
-		out = append(out, i.build(ctx, serverID,
+		out = append(out, i.build(
 			lynceusv1.ObjectKind_OBJECT_KIND_SEQUENCE, schema, name, 0, false, ""))
 	}
 	return out, rows.Err()
 }
 
-// build constructs a SchemaObject, stamping first_seen_at from the
-// FirstSeenLookup (falling back to now() when the lookup has no
-// record — the upsert path will then persist that timestamp).
+// build constructs a SchemaObject. first_seen_at_unix is left 0: the
+// collector never connects to the stats DB, so first-seen is resolved
+// server-side by the ingestion upsert (ON CONFLICT preserves it).
 func (i *Inventory) build(
-	ctx context.Context,
-	serverID string,
 	kind lynceusv1.ObjectKind,
 	schema, name string,
 	sizeBytes int64,
@@ -296,27 +286,13 @@ func (i *Inventory) build(
 	parentFQN string,
 ) *lynceusv1.SchemaObject {
 	fqn := schema + "." + name // for kind=SCHEMA, name is "" → "schema."
-
-	firstSeen := time.Time{}
-	if i.firstSeen != nil {
-		// Best-effort: a lookup error must not block the inventory.
-		// The collector caller can re-stamp on the next snapshot.
-		if t, err := i.firstSeen.FirstSeenAt(ctx, serverID, kind, fqn); err == nil {
-			firstSeen = t
-		}
-	}
-	if firstSeen.IsZero() {
-		firstSeen = time.Now().UTC()
-	}
-
 	return &lynceusv1.SchemaObject{
-		Kind:            kind,
-		Schema:          schema,
-		Name:            name,
-		Fqn:             fqn,
-		SizeBytes:       sizeBytes,
-		IsPartition:     isPartition,
-		ParentFqn:       parentFQN,
-		FirstSeenAtUnix: firstSeen.Unix(),
+		Kind:        kind,
+		Schema:      schema,
+		Name:        name,
+		Fqn:         fqn,
+		SizeBytes:   sizeBytes,
+		IsPartition: isPartition,
+		ParentFqn:   parentFQN,
 	}
 }
