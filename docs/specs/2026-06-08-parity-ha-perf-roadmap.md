@@ -1,7 +1,7 @@
 # Lynceus — Parity + HA/Perf Program Roadmap
 
 > **Date:** 2026-06-08 · **Status:** approved shape, specs in progress
-> **Companion to:** `docs/GOAL-STATUS.md` (living status), `docs/specs/2026-05-29-lynceus-features.md` (feature catalog).
+> **Companion to:** `docs/GOALS.md` (living status), `docs/specs/2026-05-29-lynceus-features.md` (feature catalog).
 > **Purpose:** Decompose the "pganalyze parity + HA/performance/load-testing" effort into ordered, independently-specced sub-projects mapped onto the existing M2–M6 beads. This is the program-level design; each layer gets its own detailed spec → plan → implementation cycle.
 
 ## Intent
@@ -13,7 +13,7 @@ Two workstreams, run together but weighted toward parity:
 
 Sequencing chosen: **dependency-layered** — build the data foundation first, then the engines that consume it, then breadth. Minimizes rework; every layer is demoable.
 
-Cross-cutting constraints (unchanged, from `GOAL-STATUS.md`): privacy-by-design (only literal-free T1 leaves customer infra; proto contract test enforces it), read-only on the monitored DB, RDS-safe (vanilla Postgres, no extensions), Kubernetes-native (Docker for dev only).
+Cross-cutting constraints (unchanged, from `GOALS.md`): privacy-by-design (only literal-free T1 leaves customer infra; proto contract test enforces it), read-only on the monitored DB, RDS-safe (vanilla Postgres, no extensions), Kubernetes-native (Docker for dev only).
 
 ---
 
@@ -25,10 +25,10 @@ Turns built-but-dormant code into a running pipeline and lays the readers everyt
 
 | Bead | Component | Why it's foundational |
 |------|-----------|----------------------|
-| `ly-cxe.2` | File-tail log source + wire `planextract`/`logparse`/`insight` into `cmd/collector/main.go` | Collector main is deliberately unwired today (`GOAL-STATUS.md:81` — "no log source yet"). This turns on plan extraction + log events from a *running* collector. |
+| `ly-cxe.2` | File-tail log source + wire `planextract`/`logparse`/`insight` into `cmd/collector/main.go` | Collector main is deliberately unwired today (`GOALS.md:81` — "no log source yet"). This turns on plan extraction + log events from a *running* collector. |
 | `ly-xqf.5` | Schema / object inventory + size treemap (first-seen tracking) | New readers → T1 proto → store. **Prereq for Index Advisor + schema Checks.** |
 | `ly-xqf.6` | Table size & growth over time + TOAST breakdown | Same data foundation; feeds VACUUM/bloat advisor. |
-| `ly-u4t.21` | HTTP surfacing of computed insights (`store.TopPlansByQuery` → `insight.DetectPlans`) | Makes analysis *visible*, not just stored. "Thin caller" per GOAL-STATUS. |
+| `ly-u4t.21` | HTTP surfacing of computed insights (`store.TopPlansByQuery` → `insight.DetectPlans`) | Makes analysis *visible*, not just stored. "Thin caller" per GOALS. |
 | `ly-xqf.10` | Plan visualization — tree + node/grid view | Renders stored plans; pairs with surfacing. |
 | `ly-xnk.4` | Capability matrix API (GET + POST toggle) | Exposes per-DB operator policy (storage already done, `ly-xnk.2`). |
 | `ly-xnk.3` | Effective-policy gate at each reader (retrofit + bake into new readers) | New schema/table readers respect per-DB policy from day one. |

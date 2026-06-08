@@ -158,7 +158,7 @@ Done & merged on `main`: `ly-xqf.1`, `ly-xqf.14`, `ly-u4t.7`, `ly-8b0.3`, `ly-cx
 - **2026-06-05** — Verified MVP (Goal 1, 62 tests). Established this tracker + security/perf CI tooling (PR #7). Filed perf/security review epics (`ly-69x`, `ly-1g1`). Shipped `ly-3na` CopyFrom write path (PR #8) and `ly-xqf.1` pg_stat_activity connection-state history end-to-end (PR #9). Suite now 70 tests. Wrote HITRUST control-evidence doc (`ly-kwk` ✅) and recorded the `ly-ry1` reader/writer endpoint decision (satisfied at service boundary). Wrote auto_explain extraction plan (`ly-xqf.14` → `ready-impl`, PR #10) — unblocks 13 M3 beads when implemented. Remediated security findings: `ly-17l` Go toolchain bump → govulncheck clean (PR #11); `ly-cli` TLS-in-transit guards (PR #12, partial). Implemented tamper-evident audit log (`ly-8b0.3`, PR #13) — hash chain + VerifyChain + append-only triggers (HITRUST 09.aa). Open PRs: #7 (docs+CI+HITRUST), #8 (perf), #9 (feature), #10 (plan), #11 (toolchain), #12 (TLS), #13 (audit chain) — awaiting merge.
 
 - **2026-06-06** — Merged all session PRs to `main` (#7–#12); closed #13 as duplicate of the parallel session's #3. Rebased #9 (activity) and #12 (TLS) over the parallel work (read/write split, `ly-8b0.3` audit). `main` green end-to-end. **`ly-ry1` is satisfied by the merged read/write split** (api uses read pool via `WithReadPool`; ingestion writes to primary).
-- **2026-06-06 (reconcile)** — Cross-checked GOAL-STATUS vs git log + `bd`. Parallel session's merged code (PRs #1–#6) had left its beads open; closed `ly-cxe.1`, `ly-xnk.1`, `ly-xnk.2`, `ly-8b0.7` to match `main`. Confirmed `ly-eg3`/`ly-lt9` are commit-only IDs with no bead in this Dolt DB. Corrected audit-log attribution (PR #3, not #13). Counts: **88 open / 20 closed / 42 ready**. `ly-xnk.4` now unblocked.
+- **2026-06-06 (reconcile)** — Cross-checked GOALS vs git log + `bd`. Parallel session's merged code (PRs #1–#6) had left its beads open; closed `ly-cxe.1`, `ly-xnk.1`, `ly-xnk.2`, `ly-8b0.7` to match `main`. Confirmed `ly-eg3`/`ly-lt9` are commit-only IDs with no bead in this Dolt DB. Corrected audit-log attribution (PR #3, not #13). Counts: **88 open / 20 closed / 42 ready**. `ly-xnk.4` now unblocked.
 
 - **2026-06-06 (ly-xqf.14)** — Implemented auto_explain plan extraction end-to-end, TDD (5 commits, branch `auto-explain-extract-7f3a`, PR pending review): T1 `QueryPlan`/`PlanNode` proto + privacy contract test; fail-closed `planextract.NormalizeCondition` + `Extract` (JSON-only, fixtures from real PG16 EXPLAIN JSON); `query_plans` partitioned table + COPY writer + `TopPlansByQuery`; `collector.ExtractPlans` + ingestion persistence. Collector `main.go` deliberately not wired (no log source yet — attaches with `ly-cxe.2`). Full suite green: **147 tests / 15 pkgs**. Unblocks 13 M3/M6 insight beads.
 
@@ -175,7 +175,7 @@ Done & merged on `main`: `ly-xqf.1`, `ly-xqf.14`, `ly-u4t.7`, `ly-8b0.3`, `ly-cx
 git pull && bd bootstrap
 
 # 2. Read state
-cat docs/GOAL-STATUS.md          # this file
+cat docs/GOALS.md          # this file
 bd ready                         # unblocked work
 bd query 'label = "ready-impl"'  # planned features
 
