@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/dobbo-ca/lynceus/internal/caps"
 )
 
 // ActivityReader samples pg_stat_activity on a monitored Postgres and
@@ -24,16 +26,25 @@ import (
 // becoming a separate sparse column.
 type ActivityReader struct {
 	pool *pgxpool.Pool
+	gate *caps.Gate
+	db   string // current_database() of pool, used as the gate key
 }
 
-// NewActivityReader returns a reader bound to pool.
-func NewActivityReader(pool *pgxpool.Pool) *ActivityReader {
-	return &ActivityReader{pool: pool}
+// NewActivityReader returns a reader bound to pool. gate is consulted
+// before every Read; db is the connection's current_database().
+func NewActivityReader(pool *pgxpool.Pool, gate *caps.Gate, db string) *ActivityReader {
+	return &ActivityReader{pool: pool, gate: gate, db: db}
 }
 
 // Read returns one ActivitySample per (database, state, wait_event_type,
 // wait_event) tuple observed in pg_stat_activity at call time.
 func (r *ActivityReader) Read(ctx context.Context) ([]ActivitySample, error) {
+	// One connection cannot pre-filter other databases' pg_stat_activity
+	// rows, so the activity capability is gated once with the connection's
+	// own database — effectively server-scoped (spec §4.4.2 B4).
+	if !r.gate.Allowed(r.db, caps.PgStatActivityFullRead) {
+		return nil, nil // capability disabled: build & ship nothing
+	}
 	rows, err := r.pool.Query(ctx,
 		`SELECT COALESCE(datname, '')        AS database_name,
 		        COALESCE(state, '')          AS state,

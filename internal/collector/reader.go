@@ -14,23 +14,34 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
+	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/normalize"
+	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 )
 
 // Reader queries pg_stat_statements on a monitored Postgres instance
-// and returns T1 (normalized) query statistics.
+// and returns T1 (normalized) query statistics. Read is gated: when the
+// pg_stat_statements capability is disabled for the connection's
+// database, Read issues no query and returns no rows.
 type Reader struct {
 	pool *pgxpool.Pool
+	gate *caps.Gate
+	db   string // current_database() of pool, used as the gate key
 }
 
-// NewReader returns a Reader bound to pool.
-func NewReader(pool *pgxpool.Pool) *Reader { return &Reader{pool: pool} }
+// NewReader returns a Reader bound to pool. gate is consulted before
+// every Read; db is the connection's current_database() (the gate key).
+func NewReader(pool *pgxpool.Pool, gate *caps.Gate, db string) *Reader {
+	return &Reader{pool: pool, gate: gate, db: db}
+}
 
 // Read returns the current pg_stat_statements rows, normalized.
 // Rows whose query text cannot be parsed (TierBlocked) are dropped,
 // not returned. The returned QueryStat values are safe to transmit.
 func (r *Reader) Read(ctx context.Context) ([]*lynceusv1.QueryStat, error) {
+	if !r.gate.Allowed(r.db, caps.PgStatStatements) {
+		return nil, nil // capability disabled: build & ship nothing
+	}
 	rows, err := r.pool.Query(ctx,
 		`SELECT query, calls, total_exec_time, mean_exec_time,
 		        rows, shared_blks_hit, shared_blks_read
