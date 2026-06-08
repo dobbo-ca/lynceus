@@ -40,8 +40,9 @@ func main() {
 		log.Fatalf("schema filter: %v", err)
 	}
 	inventory := collector.NewInventory(pool, filter)
+	tableStatsReader := collector.NewTableStatsReader(pool, filter)
 
-	// Existing path: full snapshot (query stats + schema inventory) every
+	// Existing path: full snapshot (query stats + schema inventory + table stats) every
 	// cfg.interval (~10m). The collector is outbound-only: the inventory
 	// ships first-seen-less; the ingestion server resolves + persists
 	// first-seen against the stats DB.
@@ -57,17 +58,22 @@ func main() {
 			log.Printf("read schema inventory: %v", err)
 			objs = nil
 		}
+		tableStats, err := tableStatsReader.Read(ctx, cfg.serverID)
+		if err != nil {
+			log.Printf("collector: table stats read: %v", err)
+		}
 		snap := &lynceusv1.Snapshot{
 			ServerId:        cfg.serverID,
 			CollectedAtUnix: time.Now().Unix(),
 			QueryStats:      stats,
 			SchemaObjects:   objs,
+			TableStats:      tableStats,
 		}
 		if err := shipper.Send(ctx, snap); err != nil {
 			log.Printf("ship full: %v", err)
 			return
 		}
-		log.Printf("shipped %d query_stats, %d schema_objects", len(stats), len(objs))
+		log.Printf("shipped %d query_stats, %d schema_objects, %d table_stats", len(stats), len(objs), len(tableStats))
 	}
 
 	// Sample pg_stat_activity into the aggregator on the activity cadence.
