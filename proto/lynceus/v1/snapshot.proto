@@ -36,6 +36,12 @@ message Snapshot {
   // Normalized auto_explain plans extracted from the Postgres log. See
   // QueryPlan in plan.proto — T1, no literals.
   repeated QueryPlan query_plans = 5;
+
+  // Structural schema/object inventory (schemas, tables, indexes, views,
+  // functions, sequences) with sizes + stable first-seen. See SchemaObject
+  // — T1, structural metadata only. Field 6 is the Layer-0 reservation;
+  // 7=table_stats (ly-xqf.6), 8=log_events (ly-cxe.2) are reserved siblings.
+  repeated SchemaObject schema_objects = 6;
 }
 
 // QueryStat is one row of per-fingerprint query statistics, derived
@@ -92,4 +98,37 @@ message ActivityBucket {
   int32  sample_count       = 8;  // how many ~10s samples fed this bucket
   int64  count_sum          = 9;  // sum of per-sample connection counts
   int64  count_max          = 10; // peak per-sample connection count
+}
+
+// ObjectKind enumerates the schema-catalog object types Lynceus inventories.
+// New kinds may be added; the wire enum is open by virtue of proto3 semantics.
+enum ObjectKind {
+  OBJECT_KIND_UNSPECIFIED = 0;
+  OBJECT_KIND_SCHEMA      = 1;
+  OBJECT_KIND_TABLE       = 2; // includes partitioned tables and materialized views
+  OBJECT_KIND_INDEX       = 3;
+  OBJECT_KIND_VIEW        = 4;
+  OBJECT_KIND_FUNCTION    = 5;
+  OBJECT_KIND_SEQUENCE    = 6;
+}
+
+// SchemaObject is one row of the monitored database's structural
+// inventory. It carries STRUCTURAL metadata only — schema and relation
+// names, an enum kind, a byte size, partition flags, and a first-seen
+// timestamp. It NEVER carries column values, default expressions,
+// constraint values, comments, or ACLs. Those are DATA-class and
+// require a separate T2 message gated behind RBAC + audit.
+//
+// Schema NAMES themselves can be sensitive. The privacy mechanism for
+// names is the collector's ignore_schema_regexp / include_schema_regexp
+// filter applied BEFORE this message is constructed — not the proto.
+message SchemaObject {
+  ObjectKind kind     = 1;
+  string schema       = 2; // namespace name
+  string name         = 3; // object name within the schema (empty for kind=SCHEMA)
+  string fqn          = 4; // "schema.name" — stable identifier, also empty-name-safe ("schema.")
+  int64  size_bytes   = 5; // pg_total_relation_size for tables; pg_relation_size for indexes; 0 otherwise
+  bool   is_partition = 6; // pg_class.relispartition — child of a partitioned parent
+  string parent_fqn   = 7; // partition parent fqn, "" if none
+  int64  first_seen_at_unix = 8; // stable first-seen for (server, kind, fqn) — looked up from stats DB
 }

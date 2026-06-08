@@ -38,6 +38,69 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ObjectKind enumerates the schema-catalog object types Lynceus inventories.
+// New kinds may be added; the wire enum is open by virtue of proto3 semantics.
+type ObjectKind int32
+
+const (
+	ObjectKind_OBJECT_KIND_UNSPECIFIED ObjectKind = 0
+	ObjectKind_OBJECT_KIND_SCHEMA      ObjectKind = 1
+	ObjectKind_OBJECT_KIND_TABLE       ObjectKind = 2 // includes partitioned tables and materialized views
+	ObjectKind_OBJECT_KIND_INDEX       ObjectKind = 3
+	ObjectKind_OBJECT_KIND_VIEW        ObjectKind = 4
+	ObjectKind_OBJECT_KIND_FUNCTION    ObjectKind = 5
+	ObjectKind_OBJECT_KIND_SEQUENCE    ObjectKind = 6
+)
+
+// Enum value maps for ObjectKind.
+var (
+	ObjectKind_name = map[int32]string{
+		0: "OBJECT_KIND_UNSPECIFIED",
+		1: "OBJECT_KIND_SCHEMA",
+		2: "OBJECT_KIND_TABLE",
+		3: "OBJECT_KIND_INDEX",
+		4: "OBJECT_KIND_VIEW",
+		5: "OBJECT_KIND_FUNCTION",
+		6: "OBJECT_KIND_SEQUENCE",
+	}
+	ObjectKind_value = map[string]int32{
+		"OBJECT_KIND_UNSPECIFIED": 0,
+		"OBJECT_KIND_SCHEMA":      1,
+		"OBJECT_KIND_TABLE":       2,
+		"OBJECT_KIND_INDEX":       3,
+		"OBJECT_KIND_VIEW":        4,
+		"OBJECT_KIND_FUNCTION":    5,
+		"OBJECT_KIND_SEQUENCE":    6,
+	}
+)
+
+func (x ObjectKind) Enum() *ObjectKind {
+	p := new(ObjectKind)
+	*p = x
+	return p
+}
+
+func (x ObjectKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ObjectKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_lynceus_v1_snapshot_proto_enumTypes[0].Descriptor()
+}
+
+func (ObjectKind) Type() protoreflect.EnumType {
+	return &file_proto_lynceus_v1_snapshot_proto_enumTypes[0]
+}
+
+func (x ObjectKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ObjectKind.Descriptor instead.
+func (ObjectKind) EnumDescriptor() ([]byte, []int) {
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{0}
+}
+
 // Snapshot is the unit of telemetry transmitted by a collector for a
 // single monitored Postgres server at a single point in time.
 type Snapshot struct {
@@ -50,7 +113,12 @@ type Snapshot struct {
 	ActivityBuckets []*ActivityBucket `protobuf:"bytes,4,rep,name=activity_buckets,json=activityBuckets,proto3" json:"activity_buckets,omitempty"`
 	// Normalized auto_explain plans extracted from the Postgres log. See
 	// QueryPlan in plan.proto — T1, no literals.
-	QueryPlans    []*QueryPlan `protobuf:"bytes,5,rep,name=query_plans,json=queryPlans,proto3" json:"query_plans,omitempty"`
+	QueryPlans []*QueryPlan `protobuf:"bytes,5,rep,name=query_plans,json=queryPlans,proto3" json:"query_plans,omitempty"`
+	// Structural schema/object inventory (schemas, tables, indexes, views,
+	// functions, sequences) with sizes + stable first-seen. See SchemaObject
+	// — T1, structural metadata only. Field 6 is the Layer-0 reservation;
+	// 7=table_stats (ly-xqf.6), 8=log_events (ly-cxe.2) are reserved siblings.
+	SchemaObjects []*SchemaObject `protobuf:"bytes,6,rep,name=schema_objects,json=schemaObjects,proto3" json:"schema_objects,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -116,6 +184,13 @@ func (x *Snapshot) GetActivityBuckets() []*ActivityBucket {
 func (x *Snapshot) GetQueryPlans() []*QueryPlan {
 	if x != nil {
 		return x.QueryPlans
+	}
+	return nil
+}
+
+func (x *Snapshot) GetSchemaObjects() []*SchemaObject {
+	if x != nil {
+		return x.SchemaObjects
 	}
 	return nil
 }
@@ -365,12 +440,122 @@ func (x *ActivityBucket) GetCountMax() int64 {
 	return 0
 }
 
+// SchemaObject is one row of the monitored database's structural
+// inventory. It carries STRUCTURAL metadata only — schema and relation
+// names, an enum kind, a byte size, partition flags, and a first-seen
+// timestamp. It NEVER carries column values, default expressions,
+// constraint values, comments, or ACLs. Those are DATA-class and
+// require a separate T2 message gated behind RBAC + audit.
+//
+// Schema NAMES themselves can be sensitive. The privacy mechanism for
+// names is the collector's ignore_schema_regexp / include_schema_regexp
+// filter applied BEFORE this message is constructed — not the proto.
+type SchemaObject struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Kind            ObjectKind             `protobuf:"varint,1,opt,name=kind,proto3,enum=lynceus.v1.ObjectKind" json:"kind,omitempty"`
+	Schema          string                 `protobuf:"bytes,2,opt,name=schema,proto3" json:"schema,omitempty"`                                               // namespace name
+	Name            string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`                                                   // object name within the schema (empty for kind=SCHEMA)
+	Fqn             string                 `protobuf:"bytes,4,opt,name=fqn,proto3" json:"fqn,omitempty"`                                                     // "schema.name" — stable identifier, also empty-name-safe ("schema.")
+	SizeBytes       int64                  `protobuf:"varint,5,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`                       // pg_total_relation_size for tables; pg_relation_size for indexes; 0 otherwise
+	IsPartition     bool                   `protobuf:"varint,6,opt,name=is_partition,json=isPartition,proto3" json:"is_partition,omitempty"`                 // pg_class.relispartition — child of a partitioned parent
+	ParentFqn       string                 `protobuf:"bytes,7,opt,name=parent_fqn,json=parentFqn,proto3" json:"parent_fqn,omitempty"`                        // partition parent fqn, "" if none
+	FirstSeenAtUnix int64                  `protobuf:"varint,8,opt,name=first_seen_at_unix,json=firstSeenAtUnix,proto3" json:"first_seen_at_unix,omitempty"` // stable first-seen for (server, kind, fqn) — looked up from stats DB
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *SchemaObject) Reset() {
+	*x = SchemaObject{}
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SchemaObject) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SchemaObject) ProtoMessage() {}
+
+func (x *SchemaObject) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SchemaObject.ProtoReflect.Descriptor instead.
+func (*SchemaObject) Descriptor() ([]byte, []int) {
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SchemaObject) GetKind() ObjectKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ObjectKind_OBJECT_KIND_UNSPECIFIED
+}
+
+func (x *SchemaObject) GetSchema() string {
+	if x != nil {
+		return x.Schema
+	}
+	return ""
+}
+
+func (x *SchemaObject) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SchemaObject) GetFqn() string {
+	if x != nil {
+		return x.Fqn
+	}
+	return ""
+}
+
+func (x *SchemaObject) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *SchemaObject) GetIsPartition() bool {
+	if x != nil {
+		return x.IsPartition
+	}
+	return false
+}
+
+func (x *SchemaObject) GetParentFqn() string {
+	if x != nil {
+		return x.ParentFqn
+	}
+	return ""
+}
+
+func (x *SchemaObject) GetFirstSeenAtUnix() int64 {
+	if x != nil {
+		return x.FirstSeenAtUnix
+	}
+	return 0
+}
+
 var File_proto_lynceus_v1_snapshot_proto protoreflect.FileDescriptor
 
 const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\n" +
 	"\x1fproto/lynceus/v1/snapshot.proto\x12\n" +
-	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\"\x8a\x02\n" +
+	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\"\xcb\x02\n" +
 	"\bSnapshot\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12*\n" +
 	"\x11collected_at_unix\x18\x02 \x01(\x03R\x0fcollectedAtUnix\x126\n" +
@@ -378,7 +563,8 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"queryStats\x12E\n" +
 	"\x10activity_buckets\x18\x04 \x03(\v2\x1a.lynceus.v1.ActivityBucketR\x0factivityBuckets\x126\n" +
 	"\vquery_plans\x18\x05 \x03(\v2\x15.lynceus.v1.QueryPlanR\n" +
-	"queryPlans\"\x9a\x02\n" +
+	"queryPlans\x12?\n" +
+	"\x0eschema_objects\x18\x06 \x03(\v2\x18.lynceus.v1.SchemaObjectR\rschemaObjects\"\x9a\x02\n" +
 	"\tQueryStat\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12)\n" +
 	"\x10normalized_query\x18\x02 \x01(\tR\x0fnormalizedQuery\x12\x14\n" +
@@ -401,7 +587,27 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\fsample_count\x18\b \x01(\x05R\vsampleCount\x12\x1b\n" +
 	"\tcount_sum\x18\t \x01(\x03R\bcountSum\x12\x1b\n" +
 	"\tcount_max\x18\n" +
-	" \x01(\x03R\bcountMaxBAZ?github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1b\x06proto3"
+	" \x01(\x03R\bcountMax\"\x86\x02\n" +
+	"\fSchemaObject\x12*\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x16.lynceus.v1.ObjectKindR\x04kind\x12\x16\n" +
+	"\x06schema\x18\x02 \x01(\tR\x06schema\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x10\n" +
+	"\x03fqn\x18\x04 \x01(\tR\x03fqn\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x05 \x01(\x03R\tsizeBytes\x12!\n" +
+	"\fis_partition\x18\x06 \x01(\bR\visPartition\x12\x1d\n" +
+	"\n" +
+	"parent_fqn\x18\a \x01(\tR\tparentFqn\x12+\n" +
+	"\x12first_seen_at_unix\x18\b \x01(\x03R\x0ffirstSeenAtUnix*\xb9\x01\n" +
+	"\n" +
+	"ObjectKind\x12\x1b\n" +
+	"\x17OBJECT_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12OBJECT_KIND_SCHEMA\x10\x01\x12\x15\n" +
+	"\x11OBJECT_KIND_TABLE\x10\x02\x12\x15\n" +
+	"\x11OBJECT_KIND_INDEX\x10\x03\x12\x14\n" +
+	"\x10OBJECT_KIND_VIEW\x10\x04\x12\x18\n" +
+	"\x14OBJECT_KIND_FUNCTION\x10\x05\x12\x18\n" +
+	"\x14OBJECT_KIND_SEQUENCE\x10\x06BAZ?github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1b\x06proto3"
 
 var (
 	file_proto_lynceus_v1_snapshot_proto_rawDescOnce sync.Once
@@ -415,22 +621,27 @@ func file_proto_lynceus_v1_snapshot_proto_rawDescGZIP() []byte {
 	return file_proto_lynceus_v1_snapshot_proto_rawDescData
 }
 
-var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_proto_lynceus_v1_snapshot_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_proto_lynceus_v1_snapshot_proto_goTypes = []any{
-	(*Snapshot)(nil),       // 0: lynceus.v1.Snapshot
-	(*QueryStat)(nil),      // 1: lynceus.v1.QueryStat
-	(*ActivityBucket)(nil), // 2: lynceus.v1.ActivityBucket
-	(*QueryPlan)(nil),      // 3: lynceus.v1.QueryPlan
+	(ObjectKind)(0),        // 0: lynceus.v1.ObjectKind
+	(*Snapshot)(nil),       // 1: lynceus.v1.Snapshot
+	(*QueryStat)(nil),      // 2: lynceus.v1.QueryStat
+	(*ActivityBucket)(nil), // 3: lynceus.v1.ActivityBucket
+	(*SchemaObject)(nil),   // 4: lynceus.v1.SchemaObject
+	(*QueryPlan)(nil),      // 5: lynceus.v1.QueryPlan
 }
 var file_proto_lynceus_v1_snapshot_proto_depIdxs = []int32{
-	1, // 0: lynceus.v1.Snapshot.query_stats:type_name -> lynceus.v1.QueryStat
-	2, // 1: lynceus.v1.Snapshot.activity_buckets:type_name -> lynceus.v1.ActivityBucket
-	3, // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	2, // 0: lynceus.v1.Snapshot.query_stats:type_name -> lynceus.v1.QueryStat
+	3, // 1: lynceus.v1.Snapshot.activity_buckets:type_name -> lynceus.v1.ActivityBucket
+	5, // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
+	4, // 3: lynceus.v1.Snapshot.schema_objects:type_name -> lynceus.v1.SchemaObject
+	0, // 4: lynceus.v1.SchemaObject.kind:type_name -> lynceus.v1.ObjectKind
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_proto_lynceus_v1_snapshot_proto_init() }
@@ -444,13 +655,14 @@ func file_proto_lynceus_v1_snapshot_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_lynceus_v1_snapshot_proto_rawDesc), len(file_proto_lynceus_v1_snapshot_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   3,
+			NumEnums:      1,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_proto_lynceus_v1_snapshot_proto_goTypes,
 		DependencyIndexes: file_proto_lynceus_v1_snapshot_proto_depIdxs,
+		EnumInfos:         file_proto_lynceus_v1_snapshot_proto_enumTypes,
 		MessageInfos:      file_proto_lynceus_v1_snapshot_proto_msgTypes,
 	}.Build()
 	File_proto_lynceus_v1_snapshot_proto = out.File
