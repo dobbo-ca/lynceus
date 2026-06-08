@@ -13,6 +13,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -50,17 +51,59 @@ func NewInventory(pool *pgxpool.Pool, filter *SchemaFilter, firstSeen FirstSeenL
 func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
 	var out []*lynceusv1.SchemaObject
 
-	// 1. Schemas.
+	schemas, err := i.readSchemas(ctx, serverID)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, schemas...)
+
+	tables, err := i.readTables(ctx, serverID)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, tables...)
+
+	indexes, err := i.readIndexes(ctx, serverID)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, indexes...)
+
+	views, err := i.readViews(ctx, serverID)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, views...)
+
+	funcs, err := i.readFunctions(ctx, serverID)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, funcs...)
+
+	seqs, err := i.readSequences(ctx, serverID)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, seqs...)
+
+	return out, nil
+}
+
+// readSchemas queries pg_namespace and returns allowed schema objects.
+func (i *Inventory) readSchemas(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
 	rows, err := i.pool.Query(ctx,
 		`SELECT nspname FROM pg_namespace ORDER BY nspname`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query pg_namespace: %w", err)
 	}
+	defer rows.Close()
+
+	var out []*lynceusv1.SchemaObject
 	for rows.Next() {
 		var schema string
 		if err := rows.Scan(&schema); err != nil {
-			rows.Close()
 			return nil, err
 		}
 		if !i.filter.IsAllowed(schema) {
@@ -69,17 +112,13 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 		out = append(out, i.build(ctx, serverID,
 			lynceusv1.ObjectKind_OBJECT_KIND_SCHEMA, schema, "", 0, false, ""))
 	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, err
-	}
-	rows.Close()
+	return out, rows.Err()
+}
 
-	// 2. Tables (including partitioned tables and materialized views) +
-	//    sizes via pg_total_relation_size. relkind: r=table, p=partitioned,
-	//    m=materialized view, f=foreign. f is included as a "table-like"
-	//    inventory entry but size will be 0.
-	rows, err = i.pool.Query(ctx,
+// readTables queries pg_class for tables (including partitioned tables,
+// materialized views, and foreign tables) with sizes and partition info.
+func (i *Inventory) readTables(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
+	rows, err := i.pool.Query(ctx,
 		`SELECT n.nspname, c.relname,
 		        COALESCE(pg_total_relation_size(c.oid), 0)::bigint AS sz,
 		        c.relispartition,
@@ -95,6 +134,9 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 	if err != nil {
 		return nil, fmt.Errorf("query pg_class tables: %w", err)
 	}
+	defer rows.Close()
+
+	var out []*lynceusv1.SchemaObject
 	for rows.Next() {
 		var (
 			schema, name string
@@ -103,7 +145,6 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 			parentFQN    string
 		)
 		if err := rows.Scan(&schema, &name, &sz, &isPart, &parentFQN); err != nil {
-			rows.Close()
 			return nil, err
 		}
 		if !i.filter.IsAllowed(schema) {
@@ -112,13 +153,7 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 		// If the parent lives in a filtered schema, blank it out — we
 		// must not leak a filtered name through the parent_fqn field.
 		if parentFQN != "" {
-			parentSchema := parentFQN
-			for j := 0; j < len(parentFQN); j++ {
-				if parentFQN[j] == '.' {
-					parentSchema = parentFQN[:j]
-					break
-				}
-			}
+			parentSchema, _, _ := strings.Cut(parentFQN, ".")
 			if !i.filter.IsAllowed(parentSchema) {
 				parentFQN = ""
 			}
@@ -126,14 +161,12 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 		out = append(out, i.build(ctx, serverID,
 			lynceusv1.ObjectKind_OBJECT_KIND_TABLE, schema, name, sz, isPart, parentFQN))
 	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, err
-	}
-	rows.Close()
+	return out, rows.Err()
+}
 
-	// 3. Indexes (relkind='i') with pg_relation_size.
-	rows, err = i.pool.Query(ctx,
+// readIndexes queries pg_class for indexes with sizes.
+func (i *Inventory) readIndexes(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
+	rows, err := i.pool.Query(ctx,
 		`SELECT n.nspname, c.relname,
 		        COALESCE(pg_relation_size(c.oid), 0)::bigint AS sz
 		   FROM pg_class c
@@ -144,13 +177,15 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 	if err != nil {
 		return nil, fmt.Errorf("query pg_class indexes: %w", err)
 	}
+	defer rows.Close()
+
+	var out []*lynceusv1.SchemaObject
 	for rows.Next() {
 		var (
 			schema, name string
 			sz           int64
 		)
 		if err := rows.Scan(&schema, &name, &sz); err != nil {
-			rows.Close()
 			return nil, err
 		}
 		if !i.filter.IsAllowed(schema) {
@@ -159,14 +194,12 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 		out = append(out, i.build(ctx, serverID,
 			lynceusv1.ObjectKind_OBJECT_KIND_INDEX, schema, name, sz, false, ""))
 	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, err
-	}
-	rows.Close()
+	return out, rows.Err()
+}
 
-	// 4. Views (relkind='v'). Size meaningless → 0.
-	rows, err = i.pool.Query(ctx,
+// readViews queries pg_class for views.
+func (i *Inventory) readViews(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
+	rows, err := i.pool.Query(ctx,
 		`SELECT n.nspname, c.relname
 		   FROM pg_class c
 		   JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -176,10 +209,12 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 	if err != nil {
 		return nil, fmt.Errorf("query pg_class views: %w", err)
 	}
+	defer rows.Close()
+
+	var out []*lynceusv1.SchemaObject
 	for rows.Next() {
 		var schema, name string
 		if err := rows.Scan(&schema, &name); err != nil {
-			rows.Close()
 			return nil, err
 		}
 		if !i.filter.IsAllowed(schema) {
@@ -188,14 +223,12 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 		out = append(out, i.build(ctx, serverID,
 			lynceusv1.ObjectKind_OBJECT_KIND_VIEW, schema, name, 0, false, ""))
 	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, err
-	}
-	rows.Close()
+	return out, rows.Err()
+}
 
-	// 5. Functions (pg_proc).
-	rows, err = i.pool.Query(ctx,
+// readFunctions queries pg_proc for functions.
+func (i *Inventory) readFunctions(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
+	rows, err := i.pool.Query(ctx,
 		`SELECT n.nspname, p.proname
 		   FROM pg_proc p
 		   JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -204,10 +237,12 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 	if err != nil {
 		return nil, fmt.Errorf("query pg_proc: %w", err)
 	}
+	defer rows.Close()
+
+	var out []*lynceusv1.SchemaObject
 	for rows.Next() {
 		var schema, name string
 		if err := rows.Scan(&schema, &name); err != nil {
-			rows.Close()
 			return nil, err
 		}
 		if !i.filter.IsAllowed(schema) {
@@ -216,14 +251,12 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 		out = append(out, i.build(ctx, serverID,
 			lynceusv1.ObjectKind_OBJECT_KIND_FUNCTION, schema, name, 0, false, ""))
 	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, err
-	}
-	rows.Close()
+	return out, rows.Err()
+}
 
-	// 6. Sequences (relkind='S').
-	rows, err = i.pool.Query(ctx,
+// readSequences queries pg_class for sequences.
+func (i *Inventory) readSequences(ctx context.Context, serverID string) ([]*lynceusv1.SchemaObject, error) {
+	rows, err := i.pool.Query(ctx,
 		`SELECT n.nspname, c.relname
 		   FROM pg_class c
 		   JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -233,10 +266,12 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 	if err != nil {
 		return nil, fmt.Errorf("query pg_class sequences: %w", err)
 	}
+	defer rows.Close()
+
+	var out []*lynceusv1.SchemaObject
 	for rows.Next() {
 		var schema, name string
 		if err := rows.Scan(&schema, &name); err != nil {
-			rows.Close()
 			return nil, err
 		}
 		if !i.filter.IsAllowed(schema) {
@@ -245,13 +280,7 @@ func (i *Inventory) Read(ctx context.Context, serverID string) ([]*lynceusv1.Sch
 		out = append(out, i.build(ctx, serverID,
 			lynceusv1.ObjectKind_OBJECT_KIND_SEQUENCE, schema, name, 0, false, ""))
 	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, err
-	}
-	rows.Close()
-
-	return out, nil
+	return out, rows.Err()
 }
 
 // build constructs a SchemaObject, stamping first_seen_at from the
