@@ -17,6 +17,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
+	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/collector"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 )
@@ -74,7 +75,7 @@ func TestInventory_ReturnsObjectsWithSizes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inv := collector.NewInventory(pool, filter)
+	inv := collector.NewInventory(pool, filter, caps.NewGate(), "lynceus_target")
 
 	objs, err := inv.Read(ctx)
 	if err != nil {
@@ -139,5 +140,26 @@ func TestInventory_ReturnsObjectsWithSizes(t *testing.T) {
 		if o.FirstSeenAtUnix != 0 {
 			t.Errorf("collector must not stamp first_seen_at_unix; got %d on %q", o.FirstSeenAtUnix, o.Fqn)
 		}
+	}
+}
+
+// TestInventory_gatedOffReturnsNoRows proves the SchemaInventory capability
+// gate short-circuits Read BEFORE any query: a nil pool would panic if the
+// reader touched the DB, so a clean nil result means the gate suppressed it.
+func TestInventory_gatedOffReturnsNoRows(t *testing.T) {
+	g := caps.NewGate()
+	g.Replace(map[caps.GateKey]bool{{Db: "lynceus_target", Cap: caps.SchemaInventory}: false})
+	filter, err := collector.NewSchemaFilter("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inv := collector.NewInventory(nil, filter, g, "lynceus_target")
+
+	objs, err := inv.Read(context.Background())
+	if err != nil {
+		t.Fatalf("gated-off Read returned error: %v", err)
+	}
+	if objs != nil {
+		t.Errorf("gated-off Read returned %d objects, want nil (no query)", len(objs))
 	}
 }

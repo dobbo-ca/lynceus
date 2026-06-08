@@ -8,6 +8,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
+	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/collector"
 )
 
@@ -59,7 +60,7 @@ func TestTableStatsReader_SizesAndToast(t *testing.T) {
 	if err != nil {
 		t.Fatalf("filter: %v", err)
 	}
-	r := collector.NewTableStatsReader(pool, filter)
+	r := collector.NewTableStatsReader(pool, filter, caps.NewGate(), "lynceus_target")
 	stats, err := r.Read(ctx, "srv-1")
 	if err != nil {
 		t.Fatalf("read: %v", err)
@@ -108,5 +109,26 @@ func TestTableStatsReader_SizesAndToast(t *testing.T) {
 	// correct) rather than > 0.
 	if big.Dead < 0 {
 		t.Errorf("dead_tuples = %d, want >= 0", big.Dead)
+	}
+}
+
+// TestTableStatsReader_gatedOffReturnsNoRows proves the TableSize capability
+// gate short-circuits Read before any query: a nil pool would panic if the
+// reader touched the DB, so a clean nil result means the gate suppressed it.
+func TestTableStatsReader_gatedOffReturnsNoRows(t *testing.T) {
+	g := caps.NewGate()
+	g.Replace(map[caps.GateKey]bool{{Db: "lynceus_target", Cap: caps.TableSize}: false})
+	filter, err := collector.NewSchemaFilter("", "")
+	if err != nil {
+		t.Fatalf("filter: %v", err)
+	}
+	r := collector.NewTableStatsReader(nil, filter, g, "lynceus_target")
+
+	stats, err := r.Read(context.Background(), "srv-1")
+	if err != nil {
+		t.Fatalf("gated-off Read returned error: %v", err)
+	}
+	if stats != nil {
+		t.Errorf("gated-off Read returned %d rows, want nil (no query)", len(stats))
 	}
 }

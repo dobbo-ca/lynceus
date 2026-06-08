@@ -20,6 +20,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/dobbo-ca/lynceus/internal/caps"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 )
 
@@ -28,12 +29,15 @@ import (
 type Inventory struct {
 	pool   *pgxpool.Pool
 	filter *SchemaFilter
+	gate   *caps.Gate
+	db     string // current_database() of pool, the gate key
 }
 
 // NewInventory binds an Inventory reader. filter must be non-nil — a
-// permissive filter is created via NewSchemaFilter("", "").
-func NewInventory(pool *pgxpool.Pool, filter *SchemaFilter) *Inventory {
-	return &Inventory{pool: pool, filter: filter}
+// permissive filter is created via NewSchemaFilter("", ""). gate is
+// consulted before every Read; db is the connection's current_database().
+func NewInventory(pool *pgxpool.Pool, filter *SchemaFilter, gate *caps.Gate, db string) *Inventory {
+	return &Inventory{pool: pool, filter: filter, gate: gate, db: db}
 }
 
 // Read returns every allowed schema, table, index, view, function,
@@ -41,6 +45,9 @@ func NewInventory(pool *pgxpool.Pool, filter *SchemaFilter) *Inventory {
 // zero objects of any kind. Errors from any single sub-query abort
 // the whole read; partial results are not returned.
 func (i *Inventory) Read(ctx context.Context) ([]*lynceusv1.SchemaObject, error) {
+	if !i.gate.Allowed(i.db, caps.SchemaInventory) {
+		return nil, nil // capability disabled: build & ship nothing
+	}
 	var out []*lynceusv1.SchemaObject
 
 	schemas, err := i.readSchemas(ctx)

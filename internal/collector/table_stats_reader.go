@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/dobbo-ca/lynceus/internal/caps"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 )
 
@@ -27,17 +28,23 @@ import (
 type TableStatsReader struct {
 	pool   *pgxpool.Pool
 	filter *SchemaFilter
+	gate   *caps.Gate
+	db     string // current_database() of pool, the gate key
 }
 
-// NewTableStatsReader returns a reader bound to pool, gated by filter.
-func NewTableStatsReader(pool *pgxpool.Pool, filter *SchemaFilter) *TableStatsReader {
-	return &TableStatsReader{pool: pool, filter: filter}
+// NewTableStatsReader returns a reader bound to pool, gated by filter and the
+// capability gate. db is the connection's current_database().
+func NewTableStatsReader(pool *pgxpool.Pool, filter *SchemaFilter, gate *caps.Gate, db string) *TableStatsReader {
+	return &TableStatsReader{pool: pool, filter: filter, gate: gate, db: db}
 }
 
 // Read returns one TableStat per allowed ordinary/partitioned/matview table.
 // Rows whose schema is excluded by the SchemaFilter are skipped entirely.
 func (r *TableStatsReader) Read(ctx context.Context, serverID string) ([]*lynceusv1.TableStat, error) {
 	_ = serverID // reserved for future per-server scoping; identifiers are server-agnostic here
+	if !r.gate.Allowed(r.db, caps.TableSize) {
+		return nil, nil // capability disabled: build & ship nothing
+	}
 	rows, err := r.pool.Query(ctx,
 		`SELECT n.nspname, c.relname,
 		        pg_total_relation_size(c.oid)::bigint                              AS total_bytes,

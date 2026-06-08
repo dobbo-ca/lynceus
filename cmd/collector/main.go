@@ -65,8 +65,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("schema filter: %v", err)
 	}
-	inventory := collector.NewInventory(pool, filter)
-	tableStatsReader := collector.NewTableStatsReader(pool, filter)
+	inventory := collector.NewInventory(pool, filter, gate, db)
+	tableStatsReader := collector.NewTableStatsReader(pool, filter, gate, db)
 
 	// Existing path: full snapshot (query stats + schema inventory + table stats) every
 	// cfg.interval (~10m). The collector is outbound-only: the inventory
