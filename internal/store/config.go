@@ -31,6 +31,11 @@ func (c *Config) WithReadPool(ro *pgxpool.Pool) *Config {
 	return c
 }
 
+// Pool returns the primary pool. Used by callers that need to construct
+// a sibling store (e.g. DiscoveredCapabilities) over the same config DB
+// connection without threading a second pool through their constructor.
+func (c *Config) Pool() *pgxpool.Pool { return c.pool }
+
 // auditLockKey is the bigint advisory-lock key used to serialize all
 // audit appenders across the cluster. Treat it as a pinned constant —
 // changing it would let two concurrent appenders briefly race during
