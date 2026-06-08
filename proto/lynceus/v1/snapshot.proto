@@ -42,6 +42,12 @@ message Snapshot {
   // — T1, structural metadata only. Field 6 is the Layer-0 reservation;
   // 7=table_stats (ly-xqf.6), 8=log_events (ly-cxe.2) are reserved siblings.
   repeated SchemaObject schema_objects = 6;
+
+  // Per-table size/growth + TOAST breakdown from pg_class +
+  // pg_stat_user_tables. See TableStat — T1, sizes/counts/timestamps
+  // only, no column values. Field 6 (schema_objects) and 8 (log_events)
+  // are reserved by sibling Layer 0 beads.
+  repeated TableStat table_stats = 7;
 }
 
 // QueryStat is one row of per-fingerprint query statistics, derived
@@ -131,4 +137,43 @@ message SchemaObject {
   bool   is_partition = 6; // pg_class.relispartition — child of a partitioned parent
   string parent_fqn   = 7; // partition parent fqn, "" if none
   int64  first_seen_at_unix = 8; // stable first-seen for (server, kind, fqn) — looked up from stats DB
+}
+
+// TableStat is one per-table size/growth + TOAST/heap/index breakdown plus
+// dead-tuple and vacuum/analyze metrics, sampled from pg_class +
+// pg_stat_user_tables on the slow (~10m) full cadence.
+//
+// INVARIANT: every field is a catalog identifier (schema/name/fqn), a byte
+// size counter, an aggregate row/tuple count, a vacuum/analyze counter, or a
+// unix timestamp. It carries NO column value, default expression, constraint
+// body, comment, ACL, proc source, MCV value, histogram bound, predicate, or
+// relfrozenxid. Same privacy class as ActivityBucket (counts + labels).
+message TableStat {
+  string schema = 1;  // namespace IDENTIFIER (filtered at the collector boundary)
+  string name   = 2;  // table IDENTIFIER
+  string fqn    = 3;  // "schema.name" IDENTIFIER — join key to SchemaObject
+
+  int64 total_bytes   = 4;  // pg_total_relation_size(oid)            [SIZE]
+  int64 heap_bytes    = 5;  // pg_table_size(oid) - toast_bytes       [SIZE]
+  int64 toast_bytes   = 6;  // pg_total_relation_size(reltoastrelid)  [SIZE, 0 if no TOAST]
+  int64 indexes_bytes = 7;  // pg_indexes_size(oid)                   [SIZE]
+
+  int64 row_estimate        = 8;  // GREATEST(pg_class.reltuples,0)   [COUNT]
+  int64 live_tuples         = 9;  // pg_stat_user_tables.n_live_tup   [COUNT]
+  int64 dead_tuples         = 10; // n_dead_tup (bloat signal)        [COUNT]
+  int64 n_mod_since_analyze = 11; // [COUNT]
+
+  int64 seq_scan = 12; // [COUNTER]
+  int64 idx_scan = 13; // [COUNTER]
+  int64 n_tup_ins     = 14; // [COUNTER]
+  int64 n_tup_upd     = 15; // [COUNTER]
+  int64 n_tup_del     = 16; // [COUNTER]
+  int64 n_tup_hot_upd = 17; // [COUNTER]
+
+  int64 last_vacuum_unix      = 18; // [TIMESTAMP, 0 if never]
+  int64 last_autovacuum_unix  = 19; // [TIMESTAMP, 0 if never]
+  int64 last_analyze_unix     = 20; // [TIMESTAMP, 0 if never]
+  int64 last_autoanalyze_unix = 21; // [TIMESTAMP, 0 if never]
+  int64 vacuum_count          = 22; // [COUNTER]
+  int64 autovacuum_count      = 23; // [COUNTER]
 }
