@@ -21,6 +21,7 @@ package lynceus.v1;
 option go_package = "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1";
 
 import "proto/lynceus/v1/plan.proto";
+import "proto/lynceus/v1/log_event.proto";
 
 // Snapshot is the unit of telemetry transmitted by a collector for a
 // single monitored Postgres server at a single point in time.
@@ -48,6 +49,14 @@ message Snapshot {
   // only, no column values. Field 6 (schema_objects) and 8 (log_events)
   // are reserved by sibling Layer 0 beads.
   repeated TableStat table_stats = 7;
+
+  // Classified Postgres log events (ly-cxe.2). Each element is a
+  // lynceus.v1.LogEvent — T1, fixed-vocabulary enums / catalog identifiers /
+  // hashed client addr / numeric counters only. Raw message/detail/hint/
+  // statement live in the collector-local T2 LogPayload and never travel here.
+  // Field number 8 is reserved by the Layer 0 Snapshot field map
+  // (6=schema_objects, 7=table_stats, 8=log_events).
+  repeated LogEvent log_events = 8;
 }
 
 // QueryStat is one row of per-fingerprint query statistics, derived

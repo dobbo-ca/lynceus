@@ -269,6 +269,36 @@ func TestTableStatScalarFieldShapes(t *testing.T) {
 	}
 }
 
+// TestSnapshotCarriesLogEvents enforces that the Snapshot envelope grows only
+// by adding allowlisted, literal-free repeated message fields. log_events (8)
+// carries lynceus.v1.LogEvent elements — themselves contract-tested above. The
+// allowlist makes it impossible to silently add a raw-text-bearing field
+// (e.g. log_payloads) to the wire envelope.
+func TestSnapshotCarriesLogEvents(t *testing.T) {
+	allowed := map[string]struct{}{
+		"server_id":         {},
+		"collected_at_unix": {},
+		"query_stats":       {},
+		"activity_buckets":  {},
+		"query_plans":       {},
+		"log_events":        {},
+		"schema_objects":    {},
+		"table_stats":       {},
+	}
+	assertOnlyAllowed(t, (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields(), allowed, "Snapshot")
+
+	f := (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields().ByName("log_events")
+	if f == nil {
+		t.Fatal("log_events field missing from Snapshot")
+	}
+	if !f.IsList() {
+		t.Fatal("log_events must be a repeated field")
+	}
+	if got := string(f.Message().Name()); got != "LogEvent" {
+		t.Fatalf("log_events element must be LogEvent, got %s", got)
+	}
+}
+
 // TestSnapshotCarriesTableStats verifies the table_stats field exists on the
 // Snapshot wrapper and is a repeated TableStat — so ly-xqf.6 can ship rows.
 func TestSnapshotCarriesTableStats(t *testing.T) {

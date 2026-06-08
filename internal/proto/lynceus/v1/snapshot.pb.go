@@ -123,7 +123,14 @@ type Snapshot struct {
 	// pg_stat_user_tables. See TableStat — T1, sizes/counts/timestamps
 	// only, no column values. Field 6 (schema_objects) and 8 (log_events)
 	// are reserved by sibling Layer 0 beads.
-	TableStats    []*TableStat `protobuf:"bytes,7,rep,name=table_stats,json=tableStats,proto3" json:"table_stats,omitempty"`
+	TableStats []*TableStat `protobuf:"bytes,7,rep,name=table_stats,json=tableStats,proto3" json:"table_stats,omitempty"`
+	// Classified Postgres log events (ly-cxe.2). Each element is a
+	// lynceus.v1.LogEvent — T1, fixed-vocabulary enums / catalog identifiers /
+	// hashed client addr / numeric counters only. Raw message/detail/hint/
+	// statement live in the collector-local T2 LogPayload and never travel here.
+	// Field number 8 is reserved by the Layer 0 Snapshot field map
+	// (6=schema_objects, 7=table_stats, 8=log_events).
+	LogEvents     []*LogEvent `protobuf:"bytes,8,rep,name=log_events,json=logEvents,proto3" json:"log_events,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -203,6 +210,13 @@ func (x *Snapshot) GetSchemaObjects() []*SchemaObject {
 func (x *Snapshot) GetTableStats() []*TableStat {
 	if x != nil {
 		return x.TableStats
+	}
+	return nil
+}
+
+func (x *Snapshot) GetLogEvents() []*LogEvent {
+	if x != nil {
+		return x.LogEvents
 	}
 	return nil
 }
@@ -796,7 +810,7 @@ var File_proto_lynceus_v1_snapshot_proto protoreflect.FileDescriptor
 const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\n" +
 	"\x1fproto/lynceus/v1/snapshot.proto\x12\n" +
-	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\"\x83\x03\n" +
+	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\x1a proto/lynceus/v1/log_event.proto\"\xb8\x03\n" +
 	"\bSnapshot\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12*\n" +
 	"\x11collected_at_unix\x18\x02 \x01(\x03R\x0fcollectedAtUnix\x126\n" +
@@ -807,7 +821,9 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"queryPlans\x12?\n" +
 	"\x0eschema_objects\x18\x06 \x03(\v2\x18.lynceus.v1.SchemaObjectR\rschemaObjects\x126\n" +
 	"\vtable_stats\x18\a \x03(\v2\x15.lynceus.v1.TableStatR\n" +
-	"tableStats\"\x9a\x02\n" +
+	"tableStats\x123\n" +
+	"\n" +
+	"log_events\x18\b \x03(\v2\x14.lynceus.v1.LogEventR\tlogEvents\"\x9a\x02\n" +
 	"\tQueryStat\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12)\n" +
 	"\x10normalized_query\x18\x02 \x01(\tR\x0fnormalizedQuery\x12\x14\n" +
@@ -905,6 +921,7 @@ var file_proto_lynceus_v1_snapshot_proto_goTypes = []any{
 	(*SchemaObject)(nil),   // 4: lynceus.v1.SchemaObject
 	(*TableStat)(nil),      // 5: lynceus.v1.TableStat
 	(*QueryPlan)(nil),      // 6: lynceus.v1.QueryPlan
+	(*LogEvent)(nil),       // 7: lynceus.v1.LogEvent
 }
 var file_proto_lynceus_v1_snapshot_proto_depIdxs = []int32{
 	2, // 0: lynceus.v1.Snapshot.query_stats:type_name -> lynceus.v1.QueryStat
@@ -912,12 +929,13 @@ var file_proto_lynceus_v1_snapshot_proto_depIdxs = []int32{
 	6, // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
 	4, // 3: lynceus.v1.Snapshot.schema_objects:type_name -> lynceus.v1.SchemaObject
 	5, // 4: lynceus.v1.Snapshot.table_stats:type_name -> lynceus.v1.TableStat
-	0, // 5: lynceus.v1.SchemaObject.kind:type_name -> lynceus.v1.ObjectKind
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	7, // 5: lynceus.v1.Snapshot.log_events:type_name -> lynceus.v1.LogEvent
+	0, // 6: lynceus.v1.SchemaObject.kind:type_name -> lynceus.v1.ObjectKind
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_proto_lynceus_v1_snapshot_proto_init() }
@@ -926,6 +944,7 @@ func file_proto_lynceus_v1_snapshot_proto_init() {
 		return
 	}
 	file_proto_lynceus_v1_plan_proto_init()
+	file_proto_lynceus_v1_log_event_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
