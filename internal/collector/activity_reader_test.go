@@ -20,6 +20,7 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/collector"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 func TestActivityReader_seesDistinctConnectionStates(t *testing.T) {
@@ -30,7 +31,7 @@ func TestActivityReader_seesDistinctConnectionStates(t *testing.T) {
 		tcpostgres.WithDatabase("lynceus_target"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)

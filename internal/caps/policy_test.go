@@ -10,6 +10,7 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 // newConfigPool starts a postgres:16 container, applies config migrations,
@@ -22,7 +23,7 @@ func newConfigPool(t *testing.T) *pgxpool.Pool {
 		tcpostgres.WithDatabase("lynceus_test"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)

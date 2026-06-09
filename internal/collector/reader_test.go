@@ -15,6 +15,7 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/collector"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 func TestReader_returnsNormalizedQueriesWithNoLiterals(t *testing.T) {
@@ -26,7 +27,7 @@ func TestReader_returnsNormalizedQueriesWithNoLiterals(t *testing.T) {
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
 		testcontainers.WithCmd("postgres", "-c", "shared_preload_libraries=pg_stat_statements"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)

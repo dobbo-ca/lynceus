@@ -14,6 +14,7 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/api"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 // newPGPool starts a fresh postgres:16 container and returns a connected
@@ -27,7 +28,7 @@ func newPGPool(t *testing.T) *pgxpool.Pool {
 		tcpostgres.WithDatabase("lynceus_test"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)

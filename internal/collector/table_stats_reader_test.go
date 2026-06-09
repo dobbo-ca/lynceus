@@ -10,6 +10,7 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/collector"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 func TestTableStatsReader_SizesAndToast(t *testing.T) {
@@ -20,7 +21,7 @@ func TestTableStatsReader_SizesAndToast(t *testing.T) {
 		tcpostgres.WithDatabase("lynceus_target"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)
