@@ -316,6 +316,49 @@ func (s *Stats) TopActivityBucketsByState(
 	return out, rows.Err()
 }
 
+// WaitEventCount is one aggregated wait-event class over a time window: a
+// (type, event) label pair and the summed sample count. Empty type/event means
+// the backend was active on CPU (no wait). T1 — labels + a count only.
+type WaitEventCount struct {
+	WaitEventType string
+	WaitEvent     string
+	Total         int64
+	Buckets       int64 // how many buckets contributed (sampling depth)
+}
+
+// WaitEventHistogram aggregates activity_buckets for serverID in [since, until)
+// into per-(wait_event_type, wait_event) totals, busiest first. data_tier = 1
+// only (T1). Active-on-CPU samples (empty wait labels) are preserved as their
+// own row, not dropped.
+func (s *Stats) WaitEventHistogram(
+	ctx context.Context, serverID string, since, until time.Time,
+) ([]WaitEventCount, error) {
+	rows, err := s.ro.Query(ctx,
+		`SELECT wait_event_type, wait_event, SUM(count_sum)::bigint AS total, COUNT(*)::bigint AS buckets
+		   FROM activity_buckets
+		  WHERE server_id = $1
+		    AND bucket_start >= $2 AND bucket_start < $3
+		    AND data_tier = 1
+		  GROUP BY wait_event_type, wait_event
+		  ORDER BY total DESC, wait_event_type, wait_event`,
+		serverID, since, until,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []WaitEventCount
+	for rows.Next() {
+		var w WaitEventCount
+		if err := rows.Scan(&w.WaitEventType, &w.WaitEvent, &w.Total, &w.Buckets); err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
 // EnsureActivityWeeklyPartition creates the weekly partition for ts on
 // activity_buckets if it does not already exist. Idempotent.
 func (s *Stats) EnsureActivityWeeklyPartition(ctx context.Context, ts time.Time) error {
