@@ -130,7 +130,11 @@ type Snapshot struct {
 	// statement live in the collector-local T2 LogPayload and never travel here.
 	// Field number 8 is reserved by the Layer 0 Snapshot field map
 	// (6=schema_objects, 7=table_stats, 8=log_events).
-	LogEvents     []*LogEvent `protobuf:"bytes,8,rep,name=log_events,json=logEvents,proto3" json:"log_events,omitempty"`
+	LogEvents []*LogEvent `protobuf:"bytes,8,rep,name=log_events,json=logEvents,proto3" json:"log_events,omitempty"`
+	// Per-database + per-table transaction-id / MultiXact freeze AGES (counts
+	// only — never raw xids). Each element is a lynceus.v1.FreezeAge,
+	// contract-tested below. Feeds the wraparound check (ly-u4t.26).
+	FreezeAges    []*FreezeAge `protobuf:"bytes,9,rep,name=freeze_ages,json=freezeAges,proto3" json:"freeze_ages,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -217,6 +221,13 @@ func (x *Snapshot) GetTableStats() []*TableStat {
 func (x *Snapshot) GetLogEvents() []*LogEvent {
 	if x != nil {
 		return x.LogEvents
+	}
+	return nil
+}
+
+func (x *Snapshot) GetFreezeAges() []*FreezeAge {
+	if x != nil {
+		return x.FreezeAges
 	}
 	return nil
 }
@@ -805,12 +816,109 @@ func (x *TableStat) GetAutovacuumCount() int64 {
 	return 0
 }
 
+// FreezeAge carries transaction-id / MultiXact freeze AGES (counts), never
+// raw xids. Used by the wraparound check (ly-u4t.26). scope is "database"
+// or "table"; for "database" the identifier is the datname and the schema
+// field is "". All age fields are non-negative counts — T1 safe. Same
+// privacy class as TableStat (counts + identifiers only).
+type FreezeAge struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Scope                  string                 `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`                                                                      // "database" | "table"
+	Schema                 string                 `protobuf:"bytes,2,opt,name=schema,proto3" json:"schema,omitempty"`                                                                    // "" for database scope
+	Name                   string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`                                                                        // table name or database name
+	Fqn                    string                 `protobuf:"bytes,4,opt,name=fqn,proto3" json:"fqn,omitempty"`                                                                          // schema.name for tables; datname for db
+	XidAge                 int64                  `protobuf:"varint,5,opt,name=xid_age,json=xidAge,proto3" json:"xid_age,omitempty"`                                                     // age(relfrozenxid) | age(datfrozenxid)
+	MxidAge                int64                  `protobuf:"varint,6,opt,name=mxid_age,json=mxidAge,proto3" json:"mxid_age,omitempty"`                                                  // mxid_age(relminmxid) | mxid_age(datminmxid)
+	AutovacuumFreezeMaxAge int64                  `protobuf:"varint,7,opt,name=autovacuum_freeze_max_age,json=autovacuumFreezeMaxAge,proto3" json:"autovacuum_freeze_max_age,omitempty"` // server setting (count) for headroom
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *FreezeAge) Reset() {
+	*x = FreezeAge{}
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FreezeAge) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FreezeAge) ProtoMessage() {}
+
+func (x *FreezeAge) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FreezeAge.ProtoReflect.Descriptor instead.
+func (*FreezeAge) Descriptor() ([]byte, []int) {
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *FreezeAge) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *FreezeAge) GetSchema() string {
+	if x != nil {
+		return x.Schema
+	}
+	return ""
+}
+
+func (x *FreezeAge) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *FreezeAge) GetFqn() string {
+	if x != nil {
+		return x.Fqn
+	}
+	return ""
+}
+
+func (x *FreezeAge) GetXidAge() int64 {
+	if x != nil {
+		return x.XidAge
+	}
+	return 0
+}
+
+func (x *FreezeAge) GetMxidAge() int64 {
+	if x != nil {
+		return x.MxidAge
+	}
+	return 0
+}
+
+func (x *FreezeAge) GetAutovacuumFreezeMaxAge() int64 {
+	if x != nil {
+		return x.AutovacuumFreezeMaxAge
+	}
+	return 0
+}
+
 var File_proto_lynceus_v1_snapshot_proto protoreflect.FileDescriptor
 
 const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\n" +
 	"\x1fproto/lynceus/v1/snapshot.proto\x12\n" +
-	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\x1a proto/lynceus/v1/log_event.proto\"\xb8\x03\n" +
+	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\x1a proto/lynceus/v1/log_event.proto\"\xf0\x03\n" +
 	"\bSnapshot\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12*\n" +
 	"\x11collected_at_unix\x18\x02 \x01(\x03R\x0fcollectedAtUnix\x126\n" +
@@ -823,7 +931,9 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\vtable_stats\x18\a \x03(\v2\x15.lynceus.v1.TableStatR\n" +
 	"tableStats\x123\n" +
 	"\n" +
-	"log_events\x18\b \x03(\v2\x14.lynceus.v1.LogEventR\tlogEvents\"\x9a\x02\n" +
+	"log_events\x18\b \x03(\v2\x14.lynceus.v1.LogEventR\tlogEvents\x126\n" +
+	"\vfreeze_ages\x18\t \x03(\v2\x15.lynceus.v1.FreezeAgeR\n" +
+	"freezeAges\"\x9a\x02\n" +
 	"\tQueryStat\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12)\n" +
 	"\x10normalized_query\x18\x02 \x01(\tR\x0fnormalizedQuery\x12\x14\n" +
@@ -888,7 +998,15 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\x11last_analyze_unix\x18\x14 \x01(\x03R\x0flastAnalyzeUnix\x122\n" +
 	"\x15last_autoanalyze_unix\x18\x15 \x01(\x03R\x13lastAutoanalyzeUnix\x12!\n" +
 	"\fvacuum_count\x18\x16 \x01(\x03R\vvacuumCount\x12)\n" +
-	"\x10autovacuum_count\x18\x17 \x01(\x03R\x0fautovacuumCount*\xb9\x01\n" +
+	"\x10autovacuum_count\x18\x17 \x01(\x03R\x0fautovacuumCount\"\xce\x01\n" +
+	"\tFreezeAge\x12\x14\n" +
+	"\x05scope\x18\x01 \x01(\tR\x05scope\x12\x16\n" +
+	"\x06schema\x18\x02 \x01(\tR\x06schema\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x10\n" +
+	"\x03fqn\x18\x04 \x01(\tR\x03fqn\x12\x17\n" +
+	"\axid_age\x18\x05 \x01(\x03R\x06xidAge\x12\x19\n" +
+	"\bmxid_age\x18\x06 \x01(\x03R\amxidAge\x129\n" +
+	"\x19autovacuum_freeze_max_age\x18\a \x01(\x03R\x16autovacuumFreezeMaxAge*\xb9\x01\n" +
 	"\n" +
 	"ObjectKind\x12\x1b\n" +
 	"\x17OBJECT_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
@@ -912,7 +1030,7 @@ func file_proto_lynceus_v1_snapshot_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_lynceus_v1_snapshot_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_proto_lynceus_v1_snapshot_proto_goTypes = []any{
 	(ObjectKind)(0),        // 0: lynceus.v1.ObjectKind
 	(*Snapshot)(nil),       // 1: lynceus.v1.Snapshot
@@ -920,22 +1038,24 @@ var file_proto_lynceus_v1_snapshot_proto_goTypes = []any{
 	(*ActivityBucket)(nil), // 3: lynceus.v1.ActivityBucket
 	(*SchemaObject)(nil),   // 4: lynceus.v1.SchemaObject
 	(*TableStat)(nil),      // 5: lynceus.v1.TableStat
-	(*QueryPlan)(nil),      // 6: lynceus.v1.QueryPlan
-	(*LogEvent)(nil),       // 7: lynceus.v1.LogEvent
+	(*FreezeAge)(nil),      // 6: lynceus.v1.FreezeAge
+	(*QueryPlan)(nil),      // 7: lynceus.v1.QueryPlan
+	(*LogEvent)(nil),       // 8: lynceus.v1.LogEvent
 }
 var file_proto_lynceus_v1_snapshot_proto_depIdxs = []int32{
 	2, // 0: lynceus.v1.Snapshot.query_stats:type_name -> lynceus.v1.QueryStat
 	3, // 1: lynceus.v1.Snapshot.activity_buckets:type_name -> lynceus.v1.ActivityBucket
-	6, // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
+	7, // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
 	4, // 3: lynceus.v1.Snapshot.schema_objects:type_name -> lynceus.v1.SchemaObject
 	5, // 4: lynceus.v1.Snapshot.table_stats:type_name -> lynceus.v1.TableStat
-	7, // 5: lynceus.v1.Snapshot.log_events:type_name -> lynceus.v1.LogEvent
-	0, // 6: lynceus.v1.SchemaObject.kind:type_name -> lynceus.v1.ObjectKind
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	8, // 5: lynceus.v1.Snapshot.log_events:type_name -> lynceus.v1.LogEvent
+	6, // 6: lynceus.v1.Snapshot.freeze_ages:type_name -> lynceus.v1.FreezeAge
+	0, // 7: lynceus.v1.SchemaObject.kind:type_name -> lynceus.v1.ObjectKind
+	8, // [8:8] is the sub-list for method output_type
+	8, // [8:8] is the sub-list for method input_type
+	8, // [8:8] is the sub-list for extension type_name
+	8, // [8:8] is the sub-list for extension extendee
+	0, // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_proto_lynceus_v1_snapshot_proto_init() }
@@ -951,7 +1071,7 @@ func file_proto_lynceus_v1_snapshot_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_lynceus_v1_snapshot_proto_rawDesc), len(file_proto_lynceus_v1_snapshot_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
