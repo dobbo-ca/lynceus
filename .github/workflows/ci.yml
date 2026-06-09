@@ -26,7 +26,7 @@ jobs:
       # files, failing the sync check below. protoc-gen-go and templ are pinned
       # inside the Makefile, so `make gen` is fully reproducible.
       - name: Install protoc
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
         with:
           version: '35.0'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
