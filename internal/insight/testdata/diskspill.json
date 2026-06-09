@@ -1,0 +1,10 @@
+[{"Plan":{"Node Type":"Sort","Actual Rows":50000,"Actual Loops":1,"Plan Rows":50000,
+  "Total Cost":15000.0,"Actual Total Time":900.0,
+  "Sort Method":"external merge","Sort Space Type":"Disk","Sort Space Used":40000,
+  "Plans":[{"Node Type":"Hash Join","Join Type":"Inner","Actual Rows":50000,"Actual Loops":1,
+    "Plan Rows":50000,"Total Cost":10000.0,"Actual Total Time":600.0,
+    "Plans":[
+      {"Node Type":"Seq Scan","Relation Name":"orders","Alias":"orders","Actual Rows":50000,"Actual Loops":1,"Plan Rows":50000,"Total Cost":3000.0,"Actual Total Time":120.0},
+      {"Node Type":"Hash","Actual Rows":100000,"Actual Loops":1,"Plan Rows":100000,"Total Cost":4000.0,"Actual Total Time":250.0,
+        "Hash Batches":4,"Original Hash Batches":1,"Peak Memory Usage":20000,
+        "Plans":[{"Node Type":"Seq Scan","Relation Name":"customers","Alias":"customers","Actual Rows":100000,"Actual Loops":1,"Plan Rows":100000,"Total Cost":2500.0,"Actual Total Time":90.0}]}]}]}}]

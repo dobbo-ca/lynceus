@@ -23,6 +23,7 @@ const (
 	KindLossyBitmap       Kind = "lossy_bitmap"
 	KindNestedLoop        Kind = "nested_loop"
 	KindWrongIndexOrderBy Kind = "wrong_index_order_by"
+	KindDiskSpill         Kind = "disk_spill"
 )
 
 // Severity ranks how strongly an insight applies.
@@ -67,6 +68,7 @@ var registry = []Detector{
 	DefaultLossyBitmap,
 	DefaultNestedLoop,
 	DefaultWrongIndexOrderBy,
+	DefaultDiskSpill,
 }
 
 // DetectAll runs every registered detector over one plan.

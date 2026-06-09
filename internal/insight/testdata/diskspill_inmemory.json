@@ -1,0 +1,10 @@
+[{"Plan":{"Node Type":"Sort","Actual Rows":5000,"Actual Loops":1,"Plan Rows":5000,
+  "Total Cost":1500.0,"Actual Total Time":90.0,
+  "Sort Method":"quicksort","Sort Space Type":"Memory","Sort Space Used":2000,
+  "Plans":[{"Node Type":"Hash Join","Join Type":"Inner","Actual Rows":5000,"Actual Loops":1,
+    "Plan Rows":5000,"Total Cost":1000.0,"Actual Total Time":60.0,
+    "Plans":[
+      {"Node Type":"Seq Scan","Relation Name":"orders","Alias":"orders","Actual Rows":5000,"Actual Loops":1,"Plan Rows":5000,"Total Cost":300.0,"Actual Total Time":12.0},
+      {"Node Type":"Hash","Actual Rows":10000,"Actual Loops":1,"Plan Rows":10000,"Total Cost":400.0,"Actual Total Time":25.0,
+        "Hash Batches":1,"Original Hash Batches":1,"Peak Memory Usage":4000,
+        "Plans":[{"Node Type":"Seq Scan","Relation Name":"customers","Alias":"customers","Actual Rows":10000,"Actual Loops":1,"Plan Rows":10000,"Total Cost":250.0,"Actual Total Time":9.0}]}]}]}}]
