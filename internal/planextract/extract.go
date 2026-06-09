@@ -75,15 +75,14 @@ func Extract(planJSON []byte, fingerprint string, capturedAt time.Time) (*lynceu
 		return nil, ErrUnsupportedPlanFormat
 	}
 
-	var envs []rawEnvelope
-	if err := json.Unmarshal(planJSON, &envs); err != nil {
-		return nil, ErrUnsupportedPlanFormat
-	}
-	if len(envs) == 0 || envs[0].Plan == nil {
+	// auto_explain.log_format=json emits a bare object {"Query Text",..,"Plan"},
+	// whereas EXPLAIN (FORMAT JSON) wraps it in a one-element array. Accept both.
+	env, ok := decodeEnvelope(planJSON)
+	if !ok || env.Plan == nil {
 		return nil, ErrUnsupportedPlanFormat
 	}
 
-	root := convert(envs[0].Plan)
+	root := convert(env.Plan)
 	return &lynceusv1.QueryPlan{
 		Fingerprint:       fingerprint,
 		CapturedAtUnix:    capturedAt.Unix(),
@@ -92,6 +91,23 @@ func Extract(planJSON []byte, fingerprint string, capturedAt time.Time) (*lynceu
 		ActualTotalTimeMs: root.GetActualTotalTimeMs(),
 		Root:              root,
 	}, nil
+}
+
+// decodeEnvelope unmarshals an auto_explain JSON plan body, accepting either a
+// one-element array (EXPLAIN FORMAT JSON) or a bare object (auto_explain log).
+func decodeEnvelope(planJSON []byte) (rawEnvelope, bool) {
+	var arr []rawEnvelope
+	if err := json.Unmarshal(planJSON, &arr); err == nil {
+		if len(arr) == 0 {
+			return rawEnvelope{}, false
+		}
+		return arr[0], true
+	}
+	var obj rawEnvelope
+	if err := json.Unmarshal(planJSON, &obj); err == nil {
+		return obj, true
+	}
+	return rawEnvelope{}, false
 }
 
 // convert maps a raw node and its subtree into a normalized PlanNode.

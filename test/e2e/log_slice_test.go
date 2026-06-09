@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/dobbo-ca/lynceus/internal/collector"
@@ -49,7 +50,13 @@ func TestLogSlice_planExtractedAndCanaryNeverLeaks(t *testing.T) {
 			"-c", "auto_explain.log_format=json",
 			"-c", "auto_explain.log_analyze=on",
 		),
-		tcpostgres.BasicWaitStrategies(),
+		// logging_collector=on redirects stderr into a log file, so the
+		// "database system is ready" line BasicWaitStrategies watches for
+		// never reaches stderr. Wait on the listening port instead; the
+		// pgxpool connect below tolerates the brief post-listen startup.
+		testcontainers.WithWaitStrategy(
+			wait.ForListeningPort("5432/tcp").WithStartupTimeout(60*time.Second),
+		),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)

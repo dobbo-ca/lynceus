@@ -63,13 +63,22 @@ func planFingerprint(p logparse.LogPayload, body string) string {
 
 // queryTextFromBody pulls the "Query Text" out of an auto_explain JSON body.
 // Used only collector-locally for fingerprinting; the text itself is never
-// shipped (planextract.Extract deliberately ignores it).
+// shipped (planextract.Extract deliberately ignores it). Accepts both the bare
+// object auto_explain logs and the one-element array EXPLAIN FORMAT JSON emits.
 func queryTextFromBody(body string) string {
-	var envs []struct {
+	type envelope struct {
 		QueryText string `json:"Query Text"`
 	}
-	if err := json.Unmarshal([]byte(body), &envs); err != nil || len(envs) == 0 {
+	var envs []envelope
+	if err := json.Unmarshal([]byte(body), &envs); err == nil {
+		if len(envs) == 0 {
+			return ""
+		}
+		return envs[0].QueryText
+	}
+	var env envelope
+	if err := json.Unmarshal([]byte(body), &env); err != nil {
 		return ""
 	}
-	return envs[0].QueryText
+	return env.QueryText
 }

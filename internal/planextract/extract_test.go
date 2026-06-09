@@ -164,6 +164,36 @@ func TestExtract_rowsRemovedByFilter(t *testing.T) {
 	}
 }
 
+func TestExtract_bareObjectFromAutoExplain(t *testing.T) {
+	// auto_explain.log_format=json emits a bare object, NOT the array EXPLAIN
+	// (FORMAT JSON) produces. Extract must handle both. This is the shape that
+	// reaches the collector from a real Postgres log; see the log_slice e2e.
+	bareObject := []byte(`{
+  "Query Text": "SELECT id FROM patients WHERE email = 'x@example.com'",
+  "Plan": {
+    "Node Type": "Seq Scan",
+    "Relation Name": "patients",
+    "Total Cost": 33.64,
+    "Plan Rows": 8,
+    "Filter": "(email = 'x@example.com'::text)"
+  }
+}`)
+	qp, err := planextract.Extract(bareObject, "fp-bare", time.Unix(1700000000, 0))
+	if err != nil {
+		t.Fatalf("Extract bare object: %v", err)
+	}
+	if qp.GetRoot().GetNodeType() != "Seq Scan" {
+		t.Errorf("root node type = %q, want Seq Scan", qp.GetRoot().GetNodeType())
+	}
+	if qp.GetRoot().GetRelationName() != "patients" {
+		t.Errorf("relation = %q, want patients", qp.GetRoot().GetRelationName())
+	}
+	if qp.GetRoot().GetNormalizedCondition() == "" {
+		t.Error("expected a normalized Filter on the Seq Scan, got empty")
+	}
+	assertNoLiteral(t, qp)
+}
+
 func TestExtract_unsupportedFormat(t *testing.T) {
 	// A text-format auto_explain body (not JSON) must be rejected, not guessed.
 	textBody := []byte("Aggregate  (cost=102.83..102.84 rows=1 width=8)\n  ->  Seq Scan on orders")
