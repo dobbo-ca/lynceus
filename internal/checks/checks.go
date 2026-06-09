@@ -7,7 +7,11 @@
 // preserving the T1 privacy contract.
 package checks
 
-import "time"
+import (
+	"time"
+
+	"github.com/dobbo-ca/lynceus/internal/advisor"
+)
 
 // Severity is the alert level of a check result.
 type Severity string
@@ -46,7 +50,8 @@ type Input struct {
 	ServerID   string
 	Now        time.Time
 	TableStats []TableInfo
-	FreezeAges []FreezeInfo // populated in Part B (wraparound)
+	FreezeAges []FreezeInfo                  // populated in Part B (wraparound)
+	IndexRecs  []advisor.IndexRecommendation // populated by the scheduler (ly-u4t.27)
 }
 
 // TableInfo is the check-local projection of store.TableStatRow.
