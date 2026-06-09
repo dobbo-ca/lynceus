@@ -21,6 +21,7 @@ const (
 	KindStaleStats       Kind = "stale_stats"
 	KindLargeOffset      Kind = "large_offset"
 	KindLossyBitmap      Kind = "lossy_bitmap"
+	KindNestedLoop       Kind = "nested_loop"
 )
 
 // Severity ranks how strongly an insight applies.
@@ -63,6 +64,7 @@ var registry = []Detector{
 	DefaultMisEstimate,
 	DefaultLargeOffset,
 	DefaultLossyBitmap,
+	DefaultNestedLoop,
 }
 
 // DetectAll runs every registered detector over one plan.
