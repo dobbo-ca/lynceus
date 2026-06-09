@@ -89,7 +89,7 @@ type Result struct {
 type Check interface {
 	ID() string
 	Category() string
-	Eval(in Input) []Result
+	Eval(in *Input) []Result
 }
 
 var registry []Check
@@ -106,7 +106,7 @@ func DefaultChecks() []Check {
 
 // Run evaluates every check against in and returns all firing results,
 // each stamped with in.ServerID.
-func Run(in Input, checks []Check) []Result {
+func Run(in *Input, checks []Check) []Result {
 	var out []Result
 	for _, c := range checks {
 		for _, r := range c.Eval(in) {

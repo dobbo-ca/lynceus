@@ -14,7 +14,7 @@ func TestIndexAdvisorWarnsOnHotSeqScan(t *testing.T) {
 		{Relation: "public.tiny", Columns: []string{"k"}, QueryCount: 1,
 			TotalBytes: 4096, SeqScans: 3, Rationale: "rare"},
 	}}
-	got := IndexAdvisorCheck{}.Eval(in)
+	got := IndexAdvisorCheck{}.Eval(&in)
 	if len(got) != 2 {
 		t.Fatalf("want 2 results, got %d: %+v", len(got), got)
 	}

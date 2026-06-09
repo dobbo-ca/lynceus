@@ -91,7 +91,7 @@ func (sc *Scheduler) RunOnce(ctx context.Context) error {
 	if !locked {
 		return nil
 	}
-	defer conn.Exec(ctx, `SELECT pg_advisory_unlock($1)`, schedulerLockKey)
+	defer func() { _, _ = conn.Exec(ctx, `SELECT pg_advisory_unlock($1)`, schedulerLockKey) }()
 
 	now := sc.now().UTC()
 	servers, err := sc.stats.RecentServerIDs(ctx, now.AddDate(0, 0, -1))
@@ -104,11 +104,11 @@ func (sc *Scheduler) RunOnce(ctx context.Context) error {
 			log.Printf("checks: assemble %s: %v", srv, err)
 			continue
 		}
-		results := Run(in, sc.checks)
+		results := Run(&in, sc.checks)
 		mutes, _ := sc.stats.ListMutes(ctx, srv)
 		var rows []store.ChecksResultRow
 		for _, r := range results {
-			muted := isMuted(mutes, r)
+			muted := isMuted(mutes, &r)
 			rows = append(rows, store.ChecksResultRow{
 				ServerID: r.ServerID, EvaluatedAt: now, CheckID: r.CheckID,
 				Category: r.Category, Severity: string(r.Severity), Status: string(r.Status),
@@ -127,7 +127,7 @@ func (sc *Scheduler) RunOnce(ctx context.Context) error {
 	return nil
 }
 
-func isMuted(mutes []store.MuteRow, r Result) bool {
+func isMuted(mutes []store.MuteRow, r *Result) bool {
 	for _, m := range mutes {
 		if m.CheckID == r.CheckID && (m.Object == "" || m.Object == r.Object) {
 			return true
@@ -144,7 +144,8 @@ func (sc *Scheduler) assembleInput(ctx context.Context, serverID string, now tim
 	if err != nil {
 		return in, err
 	}
-	for _, t := range tables {
+	for i := range tables {
+		t := &tables[i]
 		in.TableStats = append(in.TableStats, TableInfo{
 			Relation: t.FQN, LiveTuples: t.LiveTuples, DeadTuples: t.DeadTuples,
 			NModSinceAnalyze: t.NModSinceAnalyze, SeqScan: t.SeqScan, IdxScan: t.IdxScan,
@@ -154,7 +155,8 @@ func (sc *Scheduler) assembleInput(ctx context.Context, serverID string, now tim
 	if err != nil {
 		return in, err
 	}
-	for _, f := range fz {
+	for i := range fz {
+		f := &fz[i]
 		in.FreezeAges = append(in.FreezeAges, FreezeInfo{
 			Scope: f.Scope, Relation: f.FQN, XIDAge: f.XIDAge, MXIDAge: f.MXIDAge,
 			AutovacuumFreezeMaxAge: f.AutovacuumFreezeMaxAge,
@@ -180,7 +182,8 @@ func (sc *Scheduler) assembleInput(ctx context.Context, serverID string, now tim
 			}
 		}
 		idxTables := map[string]advisor.TableInfo{}
-		for _, t := range tables {
+		for i := range tables {
+			t := &tables[i]
 			ti := idxTables[t.ObjectName]
 			ti.TotalBytes = t.TotalBytes
 			ti.SeqScans = t.SeqScan

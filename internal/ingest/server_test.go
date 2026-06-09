@@ -194,6 +194,7 @@ func TestIngest_writesTableStats(t *testing.T) {
 	}
 }
 
+//nolint:gocyclo // scenario-driven integration test; the assertions make complexity inherent
 func TestIngest_persistsLogEvents_alongsideQueryPlans(t *testing.T) {
 	pool, srv := setup(t, ingest.Config{
 		DevToken: "dev", RateLimit: 10, RateBurst: 10,

@@ -17,8 +17,8 @@ const (
 func (IndexAdvisorCheck) ID() string       { return "queries.missing_index" }
 func (IndexAdvisorCheck) Category() string { return "queries" }
 
-func (IndexAdvisorCheck) Eval(in Input) []Result {
-	var out []Result
+func (IndexAdvisorCheck) Eval(in *Input) []Result {
+	out := make([]Result, 0, len(in.IndexRecs))
 	for _, rec := range in.IndexRecs {
 		sev := SeverityInfo
 		if rec.SeqScans >= idxWarnSeqScans && rec.TotalBytes >= idxWarnBytes {

@@ -17,7 +17,7 @@ func TestDashboard_rendersTableWithSeededRowsAndNoLiterals(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
@@ -29,11 +29,11 @@ func TestDashboard_rendersTableWithSeededRowsAndNoLiterals(t *testing.T) {
 	html := string(body)
 
 	for _, want := range []string{
-		"Lynceus",                          // brand
-		`id="queries-table"`,               // HTMX swap target
-		`hx-get="/partial/queries"`,        // poll target
-		"fp-slow",                          // a seeded fingerprint
-		"SELECT * FROM big WHERE x = $1",   // a seeded normalized query
+		"Lynceus",                        // brand
+		`id="queries-table"`,             // HTMX swap target
+		`hx-get="/partial/queries"`,      // poll target
+		"fp-slow",                        // a seeded fingerprint
+		"SELECT * FROM big WHERE x = $1", // a seeded normalized query
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered HTML is missing %q", want)
@@ -59,7 +59,7 @@ func TestQueriesPartial_returnsTableFragmentOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}

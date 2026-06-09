@@ -47,7 +47,7 @@ func main() {
 
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
-		log.Fatalf("connect stats db: %v", err)
+		log.Fatalf("connect stats db: %v", err) //nolint:gocritic // exitAfterDefer: deferred cleanup is best-effort on a fatal process exit
 	}
 	defer pool.Close()
 

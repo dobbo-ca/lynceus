@@ -33,7 +33,7 @@ func NewClassifier(rules []Rule) *Classifier {
 // Classify returns the T1 event and the T2 payload split out from rec.
 // The returned LogEvent carries no payload-bearing field; the
 // LogPayload carries every sensitive substring.
-func (c *Classifier) Classify(rec RawRecord) (LogEvent, LogPayload) {
+func (c *Classifier) Classify(rec *RawRecord) (LogEvent, LogPayload) {
 	ev := LogEvent{
 		EventType:      EventUnclassified,
 		Severity:       rec.Severity,
@@ -50,7 +50,7 @@ func (c *Classifier) Classify(rec RawRecord) (LogEvent, LogPayload) {
 		TransactionID:  rec.TxnID,
 	}
 	for _, r := range c.rules {
-		if r.Match(rec) {
+		if r.Match(*rec) {
 			ev.EventType = r.EventType
 			break
 		}

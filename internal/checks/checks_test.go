@@ -12,7 +12,7 @@ type fakeCheck struct {
 
 func (f fakeCheck) ID() string       { return f.id }
 func (f fakeCheck) Category() string { return f.cat }
-func (f fakeCheck) Eval(in Input) []Result {
+func (f fakeCheck) Eval(in *Input) []Result {
 	if !f.trigger {
 		return nil
 	}
@@ -24,7 +24,7 @@ func (f fakeCheck) Eval(in Input) []Result {
 
 func TestRunCollectsFiringResultsAndStampsServerTime(t *testing.T) {
 	in := Input{ServerID: "srv-a"}
-	got := Run(in, []Check{
+	got := Run(&in, []Check{
 		fakeCheck{id: "c.fire", cat: "queries", trigger: true, sev: SeverityCritical},
 		fakeCheck{id: "c.quiet", cat: "queries", trigger: false},
 	})
@@ -41,8 +41,8 @@ func TestRunCollectsFiringResultsAndStampsServerTime(t *testing.T) {
 }
 
 func TestSeverityRankOrders(t *testing.T) {
-	if !(SeverityCritical.rank() > SeverityWarning.rank() &&
-		SeverityWarning.rank() > SeverityInfo.rank()) {
+	if SeverityCritical.rank() <= SeverityWarning.rank() ||
+		SeverityWarning.rank() <= SeverityInfo.rank() {
 		t.Fatal("rank order must be critical > warning > info")
 	}
 }

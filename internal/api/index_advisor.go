@@ -47,7 +47,9 @@ func (s *Server) fetchIndexAdvice(r *http.Request) []web.IndexAdvisorRow {
 		servers[k.ServerID] = true
 	}
 	for srv := range servers {
-		for _, ts := range latestTableStats(r, s, srv, now) {
+		tsList := latestTableStats(r, s, srv, now)
+		for i := range tsList {
+			ts := &tsList[i]
 			ti := tables[ts.ObjectName]
 			ti.TotalBytes = ts.TotalBytes
 			ti.SeqScans = ts.SeqScan

@@ -38,7 +38,9 @@ func (s *Server) fetchVacuumAdvice(r *http.Request) []web.VacuumAdvisorRow {
 	var in []advisor.TableVacuumInfo
 	var freezes []advisor.TableFreezeInfo
 	for srv := range servers {
-		for _, t := range latestTableStats(r, s, srv, now) {
+		tsList := latestTableStats(r, s, srv, now)
+		for i := range tsList {
+			t := &tsList[i]
 			in = append(in, advisor.TableVacuumInfo{
 				Relation:         t.ObjectName,
 				LiveTuples:       t.LiveTuples,
@@ -52,7 +54,8 @@ func (s *Server) fetchVacuumAdvice(r *http.Request) []web.VacuumAdvisorRow {
 		if err != nil {
 			continue
 		}
-		for _, f := range fz {
+		for i := range fz {
+			f := &fz[i]
 			freezes = append(freezes, advisor.TableFreezeInfo{
 				Relation: f.FQN, XIDAge: f.XIDAge, MXIDAge: f.MXIDAge,
 			})

@@ -16,6 +16,10 @@ import (
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 )
 
+// main wires the collector's readers, tickers, and select loop; the branching
+// is inherent orchestration, hence the gocyclo waiver.
+//
+//nolint:gocyclo // orchestration entrypoint; complexity is inherent
 func main() {
 	cfg := loadConfig()
 
@@ -25,7 +29,7 @@ func main() {
 
 	pool, err := pgxpool.New(ctx, cfg.pgDSN)
 	if err != nil {
-		log.Fatalf("connect monitored postgres: %v", err)
+		log.Fatalf("connect monitored postgres: %v", err) //nolint:gocritic // exitAfterDefer: deferred cleanup is best-effort on a fatal process exit
 	}
 	defer pool.Close()
 
@@ -51,7 +55,7 @@ func main() {
 			format = logparse.FormatCSV
 		}
 		tail := collector.NewFileTail(cfg.logSourcePath)
-		defer tail.Close()
+		defer func() { _ = tail.Close() }()
 		logPipe = collector.NewLogPipeline(tail, cfg.serverID, logparse.Options{
 			Format:       format,
 			StderrPrefix: cfg.logStderrPrefix,
@@ -143,7 +147,8 @@ func main() {
 			return
 		}
 		protoBuckets := make([]*lynceusv1.ActivityBucket, 0, len(buckets))
-		for _, b := range buckets {
+		for i := range buckets {
+			b := &buckets[i]
 			protoBuckets = append(protoBuckets, &lynceusv1.ActivityBucket{
 				ServerId:        b.ServerID,
 				DatabaseName:    b.Database,

@@ -20,8 +20,8 @@ const (
 func (WraparoundCheck) ID() string       { return "vacuum.wraparound" }
 func (WraparoundCheck) Category() string { return "vacuum" }
 
-func (WraparoundCheck) Eval(in Input) []Result {
-	var out []Result
+func (WraparoundCheck) Eval(in *Input) []Result {
+	out := make([]Result, 0, len(in.FreezeAges))
 	for _, f := range in.FreezeAges {
 		age := f.XIDAge
 		kind := "transaction-id"

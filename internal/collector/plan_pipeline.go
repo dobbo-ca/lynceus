@@ -32,7 +32,7 @@ func ExtractPlans(events []logparse.LogEvent, payloads []logparse.LogPayload) []
 		if body == "" {
 			continue
 		}
-		fp := planFingerprint(payloads[i], body)
+		fp := planFingerprint(&payloads[i], body)
 		qp, err := planextract.Extract([]byte(body), fp, events[i].OccurredAt)
 		if err != nil {
 			continue // unsupported (non-JSON) format — drop rather than guess
@@ -46,7 +46,7 @@ func ExtractPlans(events []logparse.LogEvent, payloads []logparse.LogPayload) []
 // plan belongs to, collector-locally. It prefers the record's StatementText
 // and falls back to the plan body's "Query Text". Neither string leaves the
 // collector — only the resulting fingerprint hash travels on the wire.
-func planFingerprint(p logparse.LogPayload, body string) string {
+func planFingerprint(p *logparse.LogPayload, body string) string {
 	stmt := p.StatementText
 	if stmt == "" {
 		stmt = queryTextFromBody(body)

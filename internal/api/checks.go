@@ -30,7 +30,8 @@ func (s *Server) fetchChecks(r *http.Request) []web.ChecksRow {
 		if err != nil {
 			continue
 		}
-		for _, c := range res {
+		for i := range res {
+			c := &res[i]
 			out = append(out, web.ChecksRow{
 				Severity: c.Severity, Category: c.Category, CheckID: c.CheckID,
 				Object: c.Object, Detail: c.Detail, Muted: c.Muted,

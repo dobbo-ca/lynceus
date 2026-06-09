@@ -50,7 +50,7 @@ func (p *LogPipeline) Drain() (DrainResult, error) {
 
 	res := DrainResult{}
 	for i := range events {
-		res.LogEvents = append(res.LogEvents, toProtoLogEvent(events[i]))
+		res.LogEvents = append(res.LogEvents, toProtoLogEvent(&events[i]))
 	}
 	res.QueryPlans = ExtractPlans(events, payloads)
 	if p.detectLocally {
@@ -62,7 +62,7 @@ func (p *LogPipeline) Drain() (DrainResult, error) {
 // toProtoLogEvent maps a T1 logparse.LogEvent onto the wire LogEvent. It copies
 // ONLY the classification fields of logparse.LogEvent (event.go:13) — it never
 // reaches into the parallel LogPayload, so no literal can travel.
-func toProtoLogEvent(e logparse.LogEvent) *lynceusv1.LogEvent {
+func toProtoLogEvent(e *logparse.LogEvent) *lynceusv1.LogEvent {
 	return &lynceusv1.LogEvent{
 		EventType:       string(e.EventType),
 		Severity:        e.Severity.String(),

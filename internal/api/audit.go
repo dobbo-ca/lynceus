@@ -64,7 +64,8 @@ func (s *Server) fetchAudit(r *http.Request) (web.AuditFilterValues, []web.Audit
 		return values, nil
 	}
 	out := make([]web.AuditRow, 0, len(recs))
-	for _, rec := range recs {
+	for i := range recs {
+		rec := &recs[i]
 		out = append(out, web.AuditRow{
 			ID:       rec.ID,
 			Actor:    rec.Actor,

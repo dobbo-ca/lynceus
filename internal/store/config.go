@@ -86,6 +86,7 @@ type AuditFilter struct {
 // (id DESC). It is read-only and never touches the hash chain. The
 // projection mirrors VerifyChain so callers get fully-populated
 // AuditRecords (including the chain hashes, for display).
+//nolint:gocritic // hugeParam: cold read-path API; AuditFilter is a caller-owned value struct
 func (c *Config) ListAudit(ctx context.Context, f AuditFilter) ([]AuditRecord, error) {
 	limit := f.Limit
 	if limit <= 0 || limit > 1000 {

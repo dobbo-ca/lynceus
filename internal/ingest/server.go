@@ -82,7 +82,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	defer conn.CloseNow()
+	defer func() { _ = conn.CloseNow() }()
 
 	ctx, cancel := context.WithTimeout(r.Context(), s.cfg.ReadTimeout)
 	defer cancel()

@@ -30,7 +30,7 @@ func TestShipper_sendsSnapshotAndCarriesBearerToken(t *testing.T) {
 			got <- received{err: err}
 			return
 		}
-		defer conn.CloseNow()
+		defer func() { _ = conn.CloseNow() }()
 
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()

@@ -86,7 +86,10 @@ func DetectAll(qp *lynceusv1.QueryPlan) []Insight {
 // DetectPlans runs DetectAll over a batch of plans (e.g. the result of
 // store.TopPlansByQuery) and concatenates the insights.
 func DetectPlans(plans []*lynceusv1.QueryPlan) []Insight {
-	var out []Insight
+	if len(plans) == 0 {
+		return nil
+	}
+	out := make([]Insight, 0, len(plans))
 	for _, qp := range plans {
 		out = append(out, DetectAll(qp)...)
 	}

@@ -109,7 +109,7 @@ func TestClassify_recognisesCoreEvents(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := RawRecord{Message: tc.message, Severity: tc.severity}
-			ev, _ := c.Classify(rec)
+			ev, _ := c.Classify(&rec)
 			if ev.EventType != tc.want {
 				t.Errorf("EventType = %q, want %q", ev.EventType, tc.want)
 			}
@@ -137,7 +137,7 @@ func TestClassify_separatesEventFromPayload(t *testing.T) {
 		Hint:          "",
 	}
 
-	ev, payload := NewClassifier(DefaultRules()).Classify(rec)
+	ev, payload := NewClassifier(DefaultRules()).Classify(&rec)
 
 	if ev.EventType != EventErrorConstraintViolation {
 		t.Errorf("event_type = %q", ev.EventType)
@@ -158,7 +158,7 @@ func TestClassify_separatesEventFromPayload(t *testing.T) {
 	for _, forbidden := range []string{
 		"alice@example.com", "users_pkey", "INSERT INTO users",
 	} {
-		for _, s := range eventStringFields(ev) {
+		for _, s := range eventStringFields(&ev) {
 			if strings.Contains(s, forbidden) {
 				t.Fatalf("LITERAL LEAK: LogEvent field contains %q (event = %+v)", forbidden, ev)
 			}
@@ -181,7 +181,7 @@ func TestClassify_emptyPayloadStaysEmpty(t *testing.T) {
 		Severity: SeverityLog,
 		Message:  "connection authorized: user=postgres database=postgres",
 	}
-	ev, payload := NewClassifier(DefaultRules()).Classify(rec)
+	ev, payload := NewClassifier(DefaultRules()).Classify(&rec)
 	if ev.EventType != EventConnectionAuthorized {
 		t.Errorf("event_type = %q", ev.EventType)
 	}
@@ -190,7 +190,7 @@ func TestClassify_emptyPayloadStaysEmpty(t *testing.T) {
 	}
 }
 
-func eventStringFields(ev LogEvent) []string {
+func eventStringFields(ev *LogEvent) []string {
 	return []string{
 		string(ev.EventType),
 		ev.Severity.String(),

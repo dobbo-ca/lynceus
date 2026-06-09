@@ -58,6 +58,10 @@ func newSchedulerTestStore(t *testing.T) *store.Stats {
 
 type recordingNotifier struct{ got []Result }
 
+// Notify takes Result by value (per the Notifier contract) so it may retain
+// its own copy; the by-value param is intentional.
+//
+//nolint:gocritic // hugeParam: Notifier.Notify is by-value by contract
 func (n *recordingNotifier) Notify(_ context.Context, r Result) error {
 	n.got = append(n.got, r)
 	return nil
@@ -68,7 +72,7 @@ type alwaysCritical struct{}
 
 func (alwaysCritical) ID() string      { return "test.always" }
 func (alwaysCritical) Category() string { return "test" }
-func (alwaysCritical) Eval(in Input) []Result {
+func (alwaysCritical) Eval(in *Input) []Result {
 	return []Result{{CheckID: "test.always", Category: "test",
 		Severity: SeverityCritical, Status: StatusFiring, Object: "obj1", Detail: "x"}}
 }

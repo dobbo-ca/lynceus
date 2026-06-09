@@ -22,6 +22,7 @@ import (
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 )
 
+//nolint:gocyclo // scenario-driven integration test; the assertions make complexity inherent
 func TestInventory_ReturnsObjectsWithSizes(t *testing.T) {
 	ctx := context.Background()
 

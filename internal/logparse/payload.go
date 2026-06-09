@@ -27,7 +27,7 @@ type LogPayload struct {
 // Tier reports TierEmpty if every field is empty, otherwise
 // TierSensitive. There is no in-between: any non-empty payload requires
 // T2 treatment.
-func (p LogPayload) Tier() PayloadTier {
+func (p *LogPayload) Tier() PayloadTier {
 	if p.Message == "" && p.Detail == "" && p.Hint == "" &&
 		p.StatementText == "" && p.InternalQuery == "" && p.ContextLine == "" {
 		return TierEmpty

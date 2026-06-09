@@ -39,6 +39,7 @@ type SetCapabilityPolicyInput struct {
 // carrying that id in audit_chain_id. Ordering note: if the upsert
 // fails, the append-only audit chain stays valid — it records the
 // attempted toggle.
+//nolint:gocritic // hugeParam: cold admin-path API; SetCapabilityPolicyInput is a caller-owned value struct
 func (c *Config) SetCapabilityPolicy(ctx context.Context, in SetCapabilityPolicyInput) (CapabilityPolicy, error) {
 	if in.ServerID == "" {
 		return CapabilityPolicy{}, fmt.Errorf("SetCapabilityPolicy: ServerID required")

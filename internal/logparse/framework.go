@@ -61,7 +61,7 @@ func ParseStream(r io.Reader, opts Options) ([]LogEvent, []LogPayload, error) {
 			// parser regressions.
 			continue
 		}
-		ev, payload := classifier.Classify(rec)
+		ev, payload := classifier.Classify(&rec)
 		events = append(events, ev)
 		payloads = append(payloads, payload)
 	}
