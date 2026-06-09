@@ -1,0 +1,5 @@
+[{"Plan":{"Node Type":"Bitmap Heap Scan","Relation Name":"events","Alias":"events",
+  "Actual Rows":200000,"Actual Loops":1,"Plan Rows":200000,
+  "Total Cost":9000.0,"Actual Total Time":500.0,"Rows Removed by Filter":200,
+  "Plans":[{"Node Type":"Bitmap Index Scan","Index Name":"events_ts_idx",
+    "Actual Rows":200200,"Actual Loops":1,"Plan Rows":200200,"Total Cost":2000.0,"Actual Total Time":80.0}]}}]

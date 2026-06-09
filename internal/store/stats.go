@@ -24,6 +24,10 @@ type Stats struct {
 // fall back to the primary until a replica is attached via WithReadPool.
 func NewStats(pool *pgxpool.Pool) *Stats { return &Stats{pool: pool, ro: pool} }
 
+// Pool returns the primary (read-write) pool. Used by the Checks
+// scheduler to take pg advisory locks. Mirrors Config.Pool().
+func (s *Stats) Pool() *pgxpool.Pool { return s.pool }
+
 // WithReadPool attaches a read-replica pool used to serve standalone
 // reads (TopQueriesByTotalTime). A nil ro is ignored. Returns the
 // receiver for chaining.

@@ -38,6 +38,9 @@ const (
 	SchemaInventory Capability = "schema_inventory"
 	// TableSize gates the per-table size/growth/TOAST reader (ly-xqf.6).
 	TableSize Capability = "table_size"
+	// FreezeAge gates the per-database/per-table transaction-id / MultiXact
+	// freeze-age reader feeding the wraparound check (ly-u4t.26).
+	FreezeAge Capability = "freeze_age"
 )
 
 // Declared returns every capability the package knows how to probe.
@@ -56,6 +59,7 @@ func Declared() []Capability {
 		RolePermissions,
 		SchemaInventory,
 		TableSize,
+		FreezeAge,
 	}
 }
 

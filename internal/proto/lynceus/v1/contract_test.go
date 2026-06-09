@@ -271,6 +271,20 @@ func TestTableStatScalarFieldShapes(t *testing.T) {
 	}
 }
 
+// TestFreezeAgeHasOnlyAggregateFields enforces the T1 privacy guarantee for
+// the freeze-age message (ly-u4t.26). FreezeAge must carry only catalog
+// identifiers (scope/schema/name/fqn) and non-negative AGE counts — never a
+// raw xid, column value, or any per-execution literal. Transaction-id /
+// MultiXact ages are integer distances, not data; this allowlist makes it
+// impossible to silently add a literal-bearing field on the wire.
+func TestFreezeAgeHasOnlyAggregateFields(t *testing.T) {
+	allowed := map[string]struct{}{
+		"scope": {}, "schema": {}, "name": {}, "fqn": {},
+		"xid_age": {}, "mxid_age": {}, "autovacuum_freeze_max_age": {},
+	}
+	assertOnlyAllowed(t, (&lynceusv1.FreezeAge{}).ProtoReflect().Descriptor().Fields(), allowed, "FreezeAge")
+}
+
 // TestSnapshotCarriesLogEvents enforces that the Snapshot envelope grows only
 // by adding allowlisted, literal-free repeated message fields. log_events (8)
 // carries lynceus.v1.LogEvent elements — themselves contract-tested above. The
@@ -286,6 +300,7 @@ func TestSnapshotCarriesLogEvents(t *testing.T) {
 		"log_events":        {},
 		"schema_objects":    {},
 		"table_stats":       {},
+		"freeze_ages":       {},
 	}
 	assertOnlyAllowed(t, (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields(), allowed, "Snapshot")
 

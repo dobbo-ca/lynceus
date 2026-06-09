@@ -57,6 +57,11 @@ message Snapshot {
   // Field number 8 is reserved by the Layer 0 Snapshot field map
   // (6=schema_objects, 7=table_stats, 8=log_events).
   repeated LogEvent log_events = 8;
+
+  // Per-database + per-table transaction-id / MultiXact freeze AGES (counts
+  // only — never raw xids). Each element is a lynceus.v1.FreezeAge,
+  // contract-tested below. Feeds the wraparound check (ly-u4t.26).
+  repeated FreezeAge freeze_ages = 9;
 }
 
 // QueryStat is one row of per-fingerprint query statistics, derived
@@ -185,4 +190,19 @@ message TableStat {
   int64 last_autoanalyze_unix = 21; // [TIMESTAMP, 0 if never]
   int64 vacuum_count          = 22; // [COUNTER]
   int64 autovacuum_count      = 23; // [COUNTER]
+}
+
+// FreezeAge carries transaction-id / MultiXact freeze AGES (counts), never
+// raw xids. Used by the wraparound check (ly-u4t.26). scope is "database"
+// or "table"; for "database" the identifier is the datname and the schema
+// field is "". All age fields are non-negative counts — T1 safe. Same
+// privacy class as TableStat (counts + identifiers only).
+message FreezeAge {
+  string scope = 1;                    // "database" | "table"
+  string schema = 2;                   // "" for database scope
+  string name = 3;                     // table name or database name
+  string fqn = 4;                      // schema.name for tables; datname for db
+  int64 xid_age = 5;                   // age(relfrozenxid) | age(datfrozenxid)
+  int64 mxid_age = 6;                  // mxid_age(relminmxid) | mxid_age(datminmxid)
+  int64 autovacuum_freeze_max_age = 7; // server setting (count) for headroom
 }

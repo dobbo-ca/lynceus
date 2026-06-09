@@ -146,6 +146,13 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if fa := snapshotToFreezeAges(&snap); len(fa) > 0 {
+		if err := s.stats.WriteFreezeAges(ctx, fa); err != nil {
+			s.parkDLQ(ctx, snap.ServerId, "write freeze_ages: "+err.Error(), data)
+			_ = conn.Close(websocket.StatusInternalError, "")
+			return
+		}
+	}
 	_ = conn.Close(websocket.StatusNormalClosure, "")
 }
 
@@ -272,6 +279,33 @@ func snapshotToTableStats(snap *lynceusv1.Snapshot) []store.TableStatRow {
 			LastAutoanalyze: unixToTime(t.LastAutoanalyzeUnix),
 			VacuumCount:     t.VacuumCount,
 			AutovacuumCount: t.AutovacuumCount,
+
+			DataTier: 1,
+		})
+	}
+	return out
+}
+
+// snapshotToFreezeAges maps the T1 FreezeAge entries onto the store row type.
+// CollectedAt comes from the snapshot time; DataTier is fixed at 1 (T1).
+func snapshotToFreezeAges(snap *lynceusv1.Snapshot) []store.FreezeAgeRow {
+	collectedAt := time.Unix(snap.CollectedAtUnix, 0).UTC()
+	if collectedAt.IsZero() || snap.CollectedAtUnix == 0 {
+		collectedAt = time.Now().UTC()
+	}
+	out := make([]store.FreezeAgeRow, 0, len(snap.FreezeAges))
+	for _, f := range snap.FreezeAges {
+		out = append(out, store.FreezeAgeRow{
+			ServerID:    snap.ServerId,
+			CollectedAt: collectedAt,
+			Scope:       f.Scope,
+			SchemaName:  f.Schema,
+			ObjectName:  f.Name,
+			FQN:         f.Fqn,
+
+			XIDAge:                 f.XidAge,
+			MXIDAge:                f.MxidAge,
+			AutovacuumFreezeMaxAge: f.AutovacuumFreezeMaxAge,
 
 			DataTier: 1,
 		})

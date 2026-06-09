@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/dobbo-ca/lynceus/internal/checks"
 	"github.com/dobbo-ca/lynceus/internal/ingest"
 	"github.com/dobbo-ca/lynceus/internal/secure"
 	"github.com/dobbo-ca/lynceus/internal/store"
@@ -48,6 +49,11 @@ func main() {
 	srv := ingest.NewServer(ingest.Config{
 		DevToken: token, RateLimit: rateLimit, RateBurst: rateBurst,
 	}, store.NewStats(pool), pool)
+
+	checksInterval := time.Duration(envInt("LYNCEUS_CHECKS_INTERVAL_SEC", 60)) * time.Second
+	scheduler := checks.NewScheduler(store.NewStats(pool), checks.DefaultChecks(), checks.NopNotifier{}).
+		WithInterval(checksInterval)
+	go scheduler.Run(ctx)
 
 	httpSrv := &http.Server{
 		Addr:        addr,
