@@ -1,0 +1,46 @@
+package web
+
+// ChecksRow is the view-model for one check result.
+type ChecksRow struct {
+	Severity string
+	Category string
+	CheckID  string
+	Object   string
+	Detail   string
+	Muted    bool
+}
+
+templ ChecksPage(rows []ChecksRow) {
+	@Layout("Lynceus — checks", "scheduled health checks + alerts") {
+		<p hx-get="/partial/checks" hx-trigger="every 30s" hx-target="#checks-table" hx-swap="outerHTML"></p>
+		@ChecksTable(rows)
+	}
+}
+
+templ ChecksTable(rows []ChecksRow) {
+	<div id="checks-table">
+		if len(rows) == 0 {
+			<p class="empty">No firing checks — all monitored servers healthy.</p>
+		} else {
+			<table>
+				<thead><tr><th>Severity</th><th>Category</th><th>Check</th><th>Object</th><th>Detail</th><th>Muted</th></tr></thead>
+				<tbody>
+					for _, r := range rows {
+						<tr>
+							<td><code>{ r.Severity }</code></td>
+							<td><code>{ r.Category }</code></td>
+							<td><code>{ r.CheckID }</code></td>
+							<td><code>{ r.Object }</code></td>
+							<td>{ r.Detail }</td>
+							<td>
+								if r.Muted {
+									<code>muted</code>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}
