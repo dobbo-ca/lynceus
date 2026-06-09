@@ -53,6 +53,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /partial/audit", s.handleAuditPartial)
 	s.mux.HandleFunc("GET /plan", s.handlePlanPage)
 	s.mux.HandleFunc("GET /partial/plan", s.handlePlanPartial)
+	s.mux.HandleFunc("GET /index-advisor", s.handleIndexAdvisorPage)
+	s.mux.HandleFunc("GET /partial/index-advisor", s.handleIndexAdvisorPartial)
 	s.mux.HandleFunc("GET /api/queries/top", s.handleTopQueries)
 	s.mux.HandleFunc("GET /api/servers/{id}/capabilities", s.handleCapabilityMatrix)
 	s.mux.HandleFunc("POST /api/servers/{id}/capabilities/{cap}", s.handleCapabilityToggle)

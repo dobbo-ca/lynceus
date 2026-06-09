@@ -1,0 +1,45 @@
+package web
+
+import "fmt"
+
+// IndexAdvisorRow is the view-model for one recommendation. Identifiers + counts
+// only — no literal.
+type IndexAdvisorRow struct {
+	Relation   string
+	Columns    string // "col_a, col_b"
+	QueryCount int
+	SizePretty string // e.g. "500 MB"
+	SeqScans   int64
+	Rationale  string
+}
+
+templ IndexAdvisorPage(rows []IndexAdvisorRow) {
+	@Layout("Lynceus — index advisor", "missing-index suggestions from plan evidence") {
+		<p hx-get="/partial/index-advisor" hx-trigger="every 30s" hx-target="#idx-table" hx-swap="outerHTML"></p>
+		@IndexAdvisorTable(rows)
+	}
+}
+
+templ IndexAdvisorTable(rows []IndexAdvisorRow) {
+	<div id="idx-table">
+		if len(rows) == 0 {
+			<p class="empty">No index suggestions — no seq-scanned filters in the last 30 days.</p>
+		} else {
+			<table>
+				<thead><tr><th>Relation</th><th>Suggested columns</th><th class="num">Queries</th><th class="num">Table size</th><th class="num">Seq scans</th><th>Rationale</th></tr></thead>
+				<tbody>
+					for _, r := range rows {
+						<tr>
+							<td><code>{ r.Relation }</code></td>
+							<td><code>{ r.Columns }</code></td>
+							<td class="num">{ fmt.Sprint(r.QueryCount) }</td>
+							<td class="num">{ r.SizePretty }</td>
+							<td class="num">{ fmt.Sprint(r.SeqScans) }</td>
+							<td>{ r.Rationale }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}
