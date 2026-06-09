@@ -85,6 +85,7 @@ func main() {
 	}
 	inventory := collector.NewInventory(pool, filter, gate, db)
 	tableStatsReader := collector.NewTableStatsReader(pool, filter, gate, db)
+	freezeReader := collector.NewFreezeAgeReader(pool, filter, gate, db)
 
 	// Existing path: full snapshot (query stats + schema inventory + table stats) every
 	// cfg.interval (~10m). The collector is outbound-only: the inventory
@@ -106,18 +107,23 @@ func main() {
 		if err != nil {
 			log.Printf("collector: table stats read: %v", err)
 		}
+		freezeAges, err := freezeReader.Read(ctx, cfg.serverID)
+		if err != nil {
+			log.Printf("collector: freeze age read: %v", err)
+		}
 		snap := &lynceusv1.Snapshot{
 			ServerId:        cfg.serverID,
 			CollectedAtUnix: time.Now().Unix(),
 			QueryStats:      stats,
 			SchemaObjects:   objs,
 			TableStats:      tableStats,
+			FreezeAges:      freezeAges,
 		}
 		if err := shipper.Send(ctx, snap); err != nil {
 			log.Printf("ship full: %v", err)
 			return
 		}
-		log.Printf("shipped %d query_stats, %d schema_objects, %d table_stats", len(stats), len(objs), len(tableStats))
+		log.Printf("shipped %d query_stats, %d schema_objects, %d table_stats, %d freeze_ages", len(stats), len(objs), len(tableStats), len(freezeAges))
 	}
 
 	// Sample pg_stat_activity into the aggregator on the activity cadence.
