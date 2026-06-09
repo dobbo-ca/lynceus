@@ -1,0 +1,5 @@
+[{"Plan":{"Node Type":"Nested Loop","Join Type":"Inner","Plan Rows":1,"Actual Rows":80000,"Actual Loops":1,
+  "Total Cost":5000.0,"Actual Total Time":400.0,
+  "Plans":[
+    {"Node Type":"Index Scan","Relation Name":"a","Alias":"a","Index Name":"a_pkey","Plan Rows":400,"Actual Rows":400,"Actual Loops":1,"Total Cost":50.0,"Actual Total Time":5.0},
+    {"Node Type":"Index Scan","Relation Name":"b","Alias":"b","Index Name":"b_a_id_idx","Plan Rows":200,"Actual Rows":200,"Actual Loops":400,"Total Cost":4.0,"Actual Total Time":0.5}]}}]
