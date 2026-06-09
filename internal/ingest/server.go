@@ -139,12 +139,13 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// Shipped LogEvents (snap.LogEvents) are intentionally a NO-OP here:
-	// there is no log_events stats table or writer yet (tracked as a
-	// dedicated store bead per docs/specs/2026-06-08-layer0-foundation.md
-	// §4.1.6). They are NOT an error and must NOT be parked to the DLQ —
-	// a future bead adds snapshotToLogEvents + s.stats.WriteLogEvents here,
-	// mirroring the query_plans block above.
+	if events := snapshotToLogEvents(&snap); len(events) > 0 {
+		if err := s.stats.WriteLogEvents(ctx, events); err != nil {
+			s.parkDLQ(ctx, snap.ServerId, "write log_events: "+err.Error(), data)
+			_ = conn.Close(websocket.StatusInternalError, "")
+			return
+		}
+	}
 	_ = conn.Close(websocket.StatusNormalClosure, "")
 }
 
@@ -273,6 +274,30 @@ func snapshotToTableStats(snap *lynceusv1.Snapshot) []store.TableStatRow {
 			AutovacuumCount: t.AutovacuumCount,
 
 			DataTier: 1,
+		})
+	}
+	return out
+}
+
+func snapshotToLogEvents(snap *lynceusv1.Snapshot) []store.LogEventRow {
+	out := make([]store.LogEventRow, 0, len(snap.LogEvents))
+	for _, e := range snap.LogEvents {
+		out = append(out, store.LogEventRow{
+			ServerID:        snap.ServerId,
+			EventType:       e.EventType,
+			Severity:        e.Severity,
+			OccurredAt:      time.Unix(e.OccurredAtUnix, 0).UTC(),
+			LoggedAt:        time.Unix(e.LoggedAtUnix, 0).UTC(),
+			Pid:             e.Pid,
+			BackendType:     e.BackendType,
+			DatabaseName:    e.DatabaseName,
+			UserName:        e.UserName,
+			ApplicationName: e.ApplicationName,
+			ClientAddrHash:  e.ClientAddrHash,
+			SqlState:        e.SqlState,
+			SessionLineNum:  e.SessionLineNum,
+			TransactionID:   e.TransactionId,
+			DataTier:        1,
 		})
 	}
 	return out
