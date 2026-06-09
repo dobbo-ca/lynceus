@@ -5,6 +5,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/dobbo-ca/lynceus/internal/advisor"
+	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 	"github.com/dobbo-ca/lynceus/internal/store"
 )
 
@@ -158,5 +160,34 @@ func (sc *Scheduler) assembleInput(ctx context.Context, serverID string, now tim
 			AutovacuumFreezeMaxAge: f.AutovacuumFreezeMaxAge,
 		})
 	}
+
+	// Index Advisor (ly-u4t.27): gather this server's recent plans + table
+	// sizes and run the pure recommender, mirroring api.fetchIndexAdvice but
+	// scoped to serverID. Reuses the `tables` rows already read above.
+	since := now.AddDate(0, 0, -30)
+	if idxKeys, err := sc.stats.ListPlanKeys(ctx, since, now, 200); err == nil {
+		var plans []*lynceusv1.QueryPlan
+		for _, k := range idxKeys {
+			if k.ServerID != serverID {
+				continue
+			}
+			ps, e := sc.stats.TopPlansByQuery(ctx, serverID, k.Fingerprint, since, now, 10)
+			if e != nil {
+				continue
+			}
+			for _, p := range ps {
+				plans = append(plans, p.Plan)
+			}
+		}
+		idxTables := map[string]advisor.TableInfo{}
+		for _, t := range tables {
+			ti := idxTables[t.ObjectName]
+			ti.TotalBytes = t.TotalBytes
+			ti.SeqScans = t.SeqScan
+			idxTables[t.ObjectName] = ti
+		}
+		in.IndexRecs = advisor.RecommendIndexes(plans, idxTables)
+	}
+
 	return in, nil
 }
