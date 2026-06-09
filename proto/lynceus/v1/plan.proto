@@ -65,5 +65,20 @@ message PlanNode {
   // Scan insight to measure scan selectivity. 0 if absent / no ANALYZE.
   int64 rows_removed_by_filter = 17;
 
+  // Sort node spill telemetry (auto_explain "Sort Method"/"Sort Space Type"/
+  // "Sort Space Used"). Enum-like labels + a kB COUNT — never a literal. Used
+  // by the Disk Sort insight. Empty / 0 when the node is not a Sort or had no
+  // ANALYZE actuals.
+  string sort_method        = 18; // "quicksort" | "top-N heapsort" | "external merge" | "external sort"
+  string sort_space_type    = 19; // "Memory" | "Disk"
+  int64  sort_space_used_kb = 20;
+
+  // Hash node spill telemetry (auto_explain "Hash Batches"/"Original Hash
+  // Batches"/"Peak Memory Usage"). COUNTS only. Used by the Hash Batches
+  // insight. 0 when the node is not a Hash.
+  int64 hash_batches          = 21;
+  int64 original_hash_batches = 22;
+  int64 peak_memory_usage_kb  = 23;
+
   repeated PlanNode plans = 16;
 }

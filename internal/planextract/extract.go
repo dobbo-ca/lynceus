@@ -49,6 +49,13 @@ type rawNode struct {
 
 	RowsRemovedByFilter int64 `json:"Rows Removed by Filter"`
 
+	SortMethod          string `json:"Sort Method"`
+	SortSpaceType       string `json:"Sort Space Type"`
+	SortSpaceUsed       int64  `json:"Sort Space Used"`        // kB
+	HashBatches         int64  `json:"Hash Batches"`
+	OriginalHashBatches int64  `json:"Original Hash Batches"`
+	PeakMemoryUsage     int64  `json:"Peak Memory Usage"`      // kB
+
 	Filter      string `json:"Filter"`
 	IndexCond   string `json:"Index Cond"`
 	HashCond    string `json:"Hash Cond"`
@@ -105,6 +112,12 @@ func convert(n *rawNode) *lynceusv1.PlanNode {
 		ActualRows:          n.ActualRows,
 		ActualLoops:         n.ActualLoops,
 		RowsRemovedByFilter: n.RowsRemovedByFilter,
+		SortMethod:          n.SortMethod,
+		SortSpaceType:       n.SortSpaceType,
+		SortSpaceUsedKb:     n.SortSpaceUsed,
+		HashBatches:         n.HashBatches,
+		OriginalHashBatches: n.OriginalHashBatches,
+		PeakMemoryUsageKb:   n.PeakMemoryUsage,
 		NormalizedCondition: normalizeConds(n),
 	}
 	for i := range n.Plans {
