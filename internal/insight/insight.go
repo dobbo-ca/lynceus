@@ -13,15 +13,16 @@ import (
 type Kind string
 
 const (
-	KindSlowScan         Kind = "slow_scan"
-	KindDiskSort         Kind = "disk_sort"
-	KindHashBatches      Kind = "hash_batches"
-	KindInefficientIndex Kind = "inefficient_index"
-	KindMisEstimate      Kind = "mis_estimate"
-	KindStaleStats       Kind = "stale_stats"
-	KindLargeOffset      Kind = "large_offset"
-	KindLossyBitmap      Kind = "lossy_bitmap"
-	KindNestedLoop       Kind = "nested_loop"
+	KindSlowScan          Kind = "slow_scan"
+	KindDiskSort          Kind = "disk_sort"
+	KindHashBatches       Kind = "hash_batches"
+	KindInefficientIndex  Kind = "inefficient_index"
+	KindMisEstimate       Kind = "mis_estimate"
+	KindStaleStats        Kind = "stale_stats"
+	KindLargeOffset       Kind = "large_offset"
+	KindLossyBitmap       Kind = "lossy_bitmap"
+	KindNestedLoop        Kind = "nested_loop"
+	KindWrongIndexOrderBy Kind = "wrong_index_order_by"
 )
 
 // Severity ranks how strongly an insight applies.
@@ -65,6 +66,7 @@ var registry = []Detector{
 	DefaultLargeOffset,
 	DefaultLossyBitmap,
 	DefaultNestedLoop,
+	DefaultWrongIndexOrderBy,
 }
 
 // DetectAll runs every registered detector over one plan.

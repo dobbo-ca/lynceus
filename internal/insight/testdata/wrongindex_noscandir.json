@@ -1,0 +1,4 @@
+[{"Plan":{"Node Type":"Index Scan","Relation Name":"events","Alias":"events",
+  "Index Name":"events_created_at_idx",
+  "Actual Rows":50,"Actual Loops":1,"Plan Rows":50,
+  "Total Cost":9000.0,"Actual Total Time":480.0,"Rows Removed by Filter":200000}}]
