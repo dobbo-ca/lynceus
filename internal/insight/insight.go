@@ -56,6 +56,7 @@ var registry = []Detector{
 	DefaultSlowScan,
 	DefaultDiskSort,
 	DefaultHashBatches,
+	DefaultInefficientIndex,
 }
 
 // DetectAll runs every registered detector over one plan.
