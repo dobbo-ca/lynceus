@@ -49,6 +49,13 @@ type rawNode struct {
 
 	RowsRemovedByFilter int64 `json:"Rows Removed by Filter"`
 
+	SortMethod          string `json:"Sort Method"`
+	SortSpaceType       string `json:"Sort Space Type"`
+	SortSpaceUsed       int64  `json:"Sort Space Used"`        // kB
+	HashBatches         int64  `json:"Hash Batches"`
+	OriginalHashBatches int64  `json:"Original Hash Batches"`
+	PeakMemoryUsage     int64  `json:"Peak Memory Usage"`      // kB
+
 	Filter      string `json:"Filter"`
 	IndexCond   string `json:"Index Cond"`
 	HashCond    string `json:"Hash Cond"`
@@ -68,15 +75,14 @@ func Extract(planJSON []byte, fingerprint string, capturedAt time.Time) (*lynceu
 		return nil, ErrUnsupportedPlanFormat
 	}
 
-	var envs []rawEnvelope
-	if err := json.Unmarshal(planJSON, &envs); err != nil {
-		return nil, ErrUnsupportedPlanFormat
-	}
-	if len(envs) == 0 || envs[0].Plan == nil {
+	// auto_explain.log_format=json emits a bare object {"Query Text",..,"Plan"},
+	// whereas EXPLAIN (FORMAT JSON) wraps it in a one-element array. Accept both.
+	env, ok := decodeEnvelope(planJSON)
+	if !ok || env.Plan == nil {
 		return nil, ErrUnsupportedPlanFormat
 	}
 
-	root := convert(envs[0].Plan)
+	root := convert(env.Plan)
 	return &lynceusv1.QueryPlan{
 		Fingerprint:       fingerprint,
 		CapturedAtUnix:    capturedAt.Unix(),
@@ -85,6 +91,23 @@ func Extract(planJSON []byte, fingerprint string, capturedAt time.Time) (*lynceu
 		ActualTotalTimeMs: root.GetActualTotalTimeMs(),
 		Root:              root,
 	}, nil
+}
+
+// decodeEnvelope unmarshals an auto_explain JSON plan body, accepting either a
+// one-element array (EXPLAIN FORMAT JSON) or a bare object (auto_explain log).
+func decodeEnvelope(planJSON []byte) (rawEnvelope, bool) {
+	var arr []rawEnvelope
+	if err := json.Unmarshal(planJSON, &arr); err == nil {
+		if len(arr) == 0 {
+			return rawEnvelope{}, false
+		}
+		return arr[0], true
+	}
+	var obj rawEnvelope
+	if err := json.Unmarshal(planJSON, &obj); err == nil {
+		return obj, true
+	}
+	return rawEnvelope{}, false
 }
 
 // convert maps a raw node and its subtree into a normalized PlanNode.
@@ -105,6 +128,12 @@ func convert(n *rawNode) *lynceusv1.PlanNode {
 		ActualRows:          n.ActualRows,
 		ActualLoops:         n.ActualLoops,
 		RowsRemovedByFilter: n.RowsRemovedByFilter,
+		SortMethod:          n.SortMethod,
+		SortSpaceType:       n.SortSpaceType,
+		SortSpaceUsedKb:     n.SortSpaceUsed,
+		HashBatches:         n.HashBatches,
+		OriginalHashBatches: n.OriginalHashBatches,
+		PeakMemoryUsageKb:   n.PeakMemoryUsage,
 		NormalizedCondition: normalizeConds(n),
 	}
 	for i := range n.Plans {

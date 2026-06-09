@@ -1,0 +1,2 @@
+[{"Plan":{"Node Type":"Seq Scan","Relation Name":"events","Alias":"events",
+  "Plan Rows":48000,"Actual Rows":50000,"Actual Loops":1,"Total Cost":1200.0,"Actual Total Time":80.0}}]

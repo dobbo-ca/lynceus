@@ -1,0 +1,40 @@
+package web
+
+import "fmt"
+
+type WaitRow struct {
+	Class   string // "IO / DataFileRead" or "CPU"
+	Total   int64
+	Buckets int64
+	Pct     string // share of total, "42%"
+}
+
+templ WaitsPage(server string, rows []WaitRow) {
+	@Layout("Lynceus — wait events", "sampled wait-event breakdown") {
+		<p>Server <code>{ server }</code></p>
+		<p hx-get={ "/partial/waits?server=" + server } hx-trigger="every 30s" hx-target="#waits-table" hx-swap="outerHTML"></p>
+		@WaitsTable(rows)
+	}
+}
+
+templ WaitsTable(rows []WaitRow) {
+	<div id="waits-table">
+		if len(rows) == 0 {
+			<p class="empty">No sampled wait events for this server in the window.</p>
+		} else {
+			<table>
+				<thead><tr><th>Wait class</th><th class="num">Samples</th><th class="num">Share</th><th class="num">Buckets</th></tr></thead>
+				<tbody>
+					for _, r := range rows {
+						<tr>
+							<td><code>{ r.Class }</code></td>
+							<td class="num">{ fmt.Sprint(r.Total) }</td>
+							<td class="num">{ r.Pct }</td>
+							<td class="num">{ fmt.Sprint(r.Buckets) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}

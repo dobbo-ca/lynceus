@@ -28,7 +28,7 @@ Turns built-but-dormant code into a running pipeline and lays the readers everyt
 | `ly-cxe.2` | File-tail log source + wire `planextract`/`logparse`/`insight` into `cmd/collector/main.go` | Collector main is deliberately unwired today (`GOALS.md:81` — "no log source yet"). This turns on plan extraction + log events from a *running* collector. |
 | `ly-xqf.5` | Schema / object inventory + size treemap (first-seen tracking) | New readers → T1 proto → store. **Prereq for Index Advisor + schema Checks.** |
 | `ly-xqf.6` | Table size & growth over time + TOAST breakdown | Same data foundation; feeds VACUUM/bloat advisor. |
-| `ly-u4t.21` | HTTP surfacing of computed insights (`store.TopPlansByQuery` → `insight.DetectPlans`) | Makes analysis *visible*, not just stored. "Thin caller" per GOALS. |
+| `ly-hnt` | HTTP surfacing of computed insights (`store.TopPlansByQuery` → `insight.DetectPlans`) | Makes analysis *visible*, not just stored. "Thin caller" per GOALS. (Originally mis-attributed to `ly-u4t.21`, which is actually a Layer-2 Checks bundle — see Layer 2 below.) |
 | `ly-xqf.10` | Plan visualization — tree + node/grid view | Renders stored plans; pairs with surfacing. |
 | `ly-xnk.4` | Capability matrix API (GET + POST toggle) | Exposes per-DB operator policy (storage already done, `ly-xnk.2`). |
 | `ly-xnk.3` | Effective-policy gate at each reader (retrofit + bake into new readers) | New schema/table readers respect per-DB policy from day one. |
@@ -56,6 +56,7 @@ Each EXPLAIN insight is **one `Detector` + fixtures**, no new schema — plugs i
 |------|-----------|------|
 | `ly-u4t.20` | Checks engine framework (severity, scheduling, results table, gating) | Foundation for all bundles |
 | `ly-u4t.26` | Vacuum checks incl. **TXID + MultiXact wraparound (CRITICAL safety)** | **Pulled early** — only needs txid-age reader; critical-safety MUST |
+| `ly-u4t.21` | Checks bundle — Queries (New Slow Queries regression + Advisor-Insight notifications) | Depends on `ly-u4t.20`; the insight *surfacing* is `ly-hnt` (Layer 0), not this |
 | `ly-u4t.22` | Checks bundle — Connections (long-running, idle-tx, blocking) | Uses activity data |
 | `ly-u4t.23` | Checks bundle — Schema (invalid / unused indexes) | Uses Layer 0 schema stats |
 | `ly-u4t.25` | Checks bundle — System (out of disk) | |

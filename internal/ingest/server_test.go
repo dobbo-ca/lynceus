@@ -194,17 +194,24 @@ func TestIngest_writesTableStats(t *testing.T) {
 	}
 }
 
-func TestIngest_logEventsParkedNoOp_queryPlansStillPersist(t *testing.T) {
+func TestIngest_persistsLogEvents_alongsideQueryPlans(t *testing.T) {
 	pool, srv := setup(t, ingest.Config{
 		DevToken: "dev", RateLimit: 10, RateBurst: 10,
 	})
 	ctx := context.Background()
 
+	occurred := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC).Unix()
 	snap := &lynceusv1.Snapshot{
 		ServerId:        "srv-logpark",
 		CollectedAtUnix: time.Now().Unix(),
 		LogEvents: []*lynceusv1.LogEvent{
-			{EventType: "checkpoint.completed", Severity: "LOG", Pid: 7},
+			{EventType: "checkpoint.completed", Severity: "LOG", Pid: 7,
+				OccurredAtUnix: occurred, LoggedAtUnix: occurred, BackendType: "checkpointer"},
+			{EventType: "lock.deadlock_detected", Severity: "ERROR", Pid: 22,
+				OccurredAtUnix: occurred, LoggedAtUnix: occurred,
+				BackendType: "client backend", DatabaseName: "app", UserName: "alice",
+				ApplicationName: "psql", ClientAddrHash: "abc123", SqlState: "40P01",
+				SessionLineNum: 9, TransactionId: 77},
 		},
 		QueryPlans: []*lynceusv1.QueryPlan{
 			{Fingerprint: "fp-logpark", CapturedAtUnix: time.Now().Unix(),
@@ -225,16 +232,49 @@ func TestIngest_logEventsParkedNoOp_queryPlansStillPersist(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	if plans == 0 {
-		t.Fatal("query_plans did not persist — the log-event no-op must not break the plan path")
+		t.Fatal("query_plans did not persist — the log-event path must not break the plan path")
 	}
 
-	// LogEvents are parked: no log_events table exists yet, and nothing was
-	// written to the DLQ for them (a no-op is not a failure).
+	// Shipped LogEvents now land in the log_events table.
+	var events int
+	for i := 0; i < 100 && events == 0; i++ {
+		_ = pool.QueryRow(ctx,
+			`SELECT count(*) FROM log_events WHERE server_id = 'srv-logpark'`).Scan(&events)
+		if events > 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if events != 2 {
+		t.Fatalf("log_events row count = %d, want 2", events)
+	}
+
+	// Classification fields round-trip on the deadlock event.
+	var (
+		sev, db, usr, app, hash, state string
+		pid, line, txid                int64
+		tier                           int16
+	)
+	if err := pool.QueryRow(ctx,
+		`SELECT severity, database_name, user_name, application_name,
+		        client_addr_hash, sql_state, pid, session_line_num, transaction_id, data_tier
+		   FROM log_events
+		  WHERE server_id = 'srv-logpark' AND event_type = 'lock.deadlock_detected'`,
+	).Scan(&sev, &db, &usr, &app, &hash, &state, &pid, &line, &txid, &tier); err != nil {
+		t.Fatalf("read log_event: %v", err)
+	}
+	if sev != "ERROR" || db != "app" || usr != "alice" || app != "psql" ||
+		hash != "abc123" || state != "40P01" || pid != 22 || line != 9 || txid != 77 || tier != 1 {
+		t.Errorf("log_event fields not persisted: sev=%q db=%q usr=%q app=%q hash=%q state=%q pid=%d line=%d txid=%d tier=%d",
+			sev, db, usr, app, hash, state, pid, line, txid, tier)
+	}
+
+	// A successful persist parks nothing.
 	var dlq int
 	_ = pool.QueryRow(ctx,
 		`SELECT count(*) FROM dlq WHERE server_id = 'srv-logpark'`).Scan(&dlq)
 	if dlq != 0 {
-		t.Fatalf("log events must be a no-op, not parked to DLQ; dlq rows = %d", dlq)
+		t.Fatalf("nothing should be parked on the happy path; dlq rows = %d", dlq)
 	}
 }
 

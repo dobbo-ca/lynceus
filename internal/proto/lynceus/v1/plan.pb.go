@@ -153,7 +153,20 @@ type PlanNode struct {
 	// Rows the node read then discarded via its Filter, per loop (Postgres
 	// "Rows Removed by Filter"). A COUNT, never a literal — used by the Slow
 	// Scan insight to measure scan selectivity. 0 if absent / no ANALYZE.
-	RowsRemovedByFilter int64       `protobuf:"varint,17,opt,name=rows_removed_by_filter,json=rowsRemovedByFilter,proto3" json:"rows_removed_by_filter,omitempty"`
+	RowsRemovedByFilter int64 `protobuf:"varint,17,opt,name=rows_removed_by_filter,json=rowsRemovedByFilter,proto3" json:"rows_removed_by_filter,omitempty"`
+	// Sort node spill telemetry (auto_explain "Sort Method"/"Sort Space Type"/
+	// "Sort Space Used"). Enum-like labels + a kB COUNT — never a literal. Used
+	// by the Disk Sort insight. Empty / 0 when the node is not a Sort or had no
+	// ANALYZE actuals.
+	SortMethod      string `protobuf:"bytes,18,opt,name=sort_method,json=sortMethod,proto3" json:"sort_method,omitempty"`            // "quicksort" | "top-N heapsort" | "external merge" | "external sort"
+	SortSpaceType   string `protobuf:"bytes,19,opt,name=sort_space_type,json=sortSpaceType,proto3" json:"sort_space_type,omitempty"` // "Memory" | "Disk"
+	SortSpaceUsedKb int64  `protobuf:"varint,20,opt,name=sort_space_used_kb,json=sortSpaceUsedKb,proto3" json:"sort_space_used_kb,omitempty"`
+	// Hash node spill telemetry (auto_explain "Hash Batches"/"Original Hash
+	// Batches"/"Peak Memory Usage"). COUNTS only. Used by the Hash Batches
+	// insight. 0 when the node is not a Hash.
+	HashBatches         int64       `protobuf:"varint,21,opt,name=hash_batches,json=hashBatches,proto3" json:"hash_batches,omitempty"`
+	OriginalHashBatches int64       `protobuf:"varint,22,opt,name=original_hash_batches,json=originalHashBatches,proto3" json:"original_hash_batches,omitempty"`
+	PeakMemoryUsageKb   int64       `protobuf:"varint,23,opt,name=peak_memory_usage_kb,json=peakMemoryUsageKb,proto3" json:"peak_memory_usage_kb,omitempty"`
 	Plans               []*PlanNode `protobuf:"bytes,16,rep,name=plans,proto3" json:"plans,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
@@ -301,6 +314,48 @@ func (x *PlanNode) GetRowsRemovedByFilter() int64 {
 	return 0
 }
 
+func (x *PlanNode) GetSortMethod() string {
+	if x != nil {
+		return x.SortMethod
+	}
+	return ""
+}
+
+func (x *PlanNode) GetSortSpaceType() string {
+	if x != nil {
+		return x.SortSpaceType
+	}
+	return ""
+}
+
+func (x *PlanNode) GetSortSpaceUsedKb() int64 {
+	if x != nil {
+		return x.SortSpaceUsedKb
+	}
+	return 0
+}
+
+func (x *PlanNode) GetHashBatches() int64 {
+	if x != nil {
+		return x.HashBatches
+	}
+	return 0
+}
+
+func (x *PlanNode) GetOriginalHashBatches() int64 {
+	if x != nil {
+		return x.OriginalHashBatches
+	}
+	return 0
+}
+
+func (x *PlanNode) GetPeakMemoryUsageKb() int64 {
+	if x != nil {
+		return x.PeakMemoryUsageKb
+	}
+	return 0
+}
+
 func (x *PlanNode) GetPlans() []*PlanNode {
 	if x != nil {
 		return x.Plans
@@ -321,7 +376,7 @@ const file_proto_lynceus_v1_plan_proto_rawDesc = "" +
 	"\n" +
 	"total_cost\x18\x04 \x01(\x01R\ttotalCost\x12/\n" +
 	"\x14actual_total_time_ms\x18\x05 \x01(\x01R\x11actualTotalTimeMs\x12(\n" +
-	"\x04root\x18\x06 \x01(\v2\x14.lynceus.v1.PlanNodeR\x04root\"\x81\x05\n" +
+	"\x04root\x18\x06 \x01(\v2\x14.lynceus.v1.PlanNodeR\x04root\"\xff\x06\n" +
 	"\bPlanNode\x12\x1b\n" +
 	"\tnode_type\x18\x01 \x01(\tR\bnodeType\x12#\n" +
 	"\rrelation_name\x18\x02 \x01(\tR\frelationName\x12\x1d\n" +
@@ -343,7 +398,14 @@ const file_proto_lynceus_v1_plan_proto_rawDesc = "" +
 	"actualRows\x12!\n" +
 	"\factual_loops\x18\x0e \x01(\x03R\vactualLoops\x121\n" +
 	"\x14normalized_condition\x18\x0f \x01(\tR\x13normalizedCondition\x123\n" +
-	"\x16rows_removed_by_filter\x18\x11 \x01(\x03R\x13rowsRemovedByFilter\x12*\n" +
+	"\x16rows_removed_by_filter\x18\x11 \x01(\x03R\x13rowsRemovedByFilter\x12\x1f\n" +
+	"\vsort_method\x18\x12 \x01(\tR\n" +
+	"sortMethod\x12&\n" +
+	"\x0fsort_space_type\x18\x13 \x01(\tR\rsortSpaceType\x12+\n" +
+	"\x12sort_space_used_kb\x18\x14 \x01(\x03R\x0fsortSpaceUsedKb\x12!\n" +
+	"\fhash_batches\x18\x15 \x01(\x03R\vhashBatches\x122\n" +
+	"\x15original_hash_batches\x18\x16 \x01(\x03R\x13originalHashBatches\x12/\n" +
+	"\x14peak_memory_usage_kb\x18\x17 \x01(\x03R\x11peakMemoryUsageKb\x12*\n" +
 	"\x05plans\x18\x10 \x03(\v2\x14.lynceus.v1.PlanNodeR\x05plansBAZ?github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1;lynceusv1b\x06proto3"
 
 var (

@@ -193,6 +193,8 @@ func TestQueryPlanHasNoLiteralFields(t *testing.T) {
 		"actual_startup_time_ms": {}, "actual_total_time_ms": {},
 		"actual_rows": {}, "actual_loops": {},
 		"rows_removed_by_filter": {},
+		"sort_method": {}, "sort_space_type": {}, "sort_space_used_kb": {},
+		"hash_batches": {}, "original_hash_batches": {}, "peak_memory_usage_kb": {},
 		"normalized_condition": {},
 		"plans":                {}, // recursive children
 	}

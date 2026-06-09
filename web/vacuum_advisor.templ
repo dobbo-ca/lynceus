@@ -1,0 +1,41 @@
+package web
+
+// VacuumAdvisorRow is the view-model for one vacuum/analyze finding.
+// Identifiers + counts only — no literal.
+type VacuumAdvisorRow struct {
+	Relation string
+	Category string
+	Severity string
+	DeadPct  string // "37%"
+	Detail   string
+}
+
+templ VacuumAdvisorPage(rows []VacuumAdvisorRow) {
+	@Layout("Lynceus — vacuum advisor", "bloat / stats-freshness / autovacuum-lag findings") {
+		<p hx-get="/partial/vacuum-advisor" hx-trigger="every 30s" hx-target="#vac-table" hx-swap="outerHTML"></p>
+		@VacuumAdvisorTable(rows)
+	}
+}
+
+templ VacuumAdvisorTable(rows []VacuumAdvisorRow) {
+	<div id="vac-table">
+		if len(rows) == 0 {
+			<p class="empty">No vacuum findings — tables are healthy.</p>
+		} else {
+			<table>
+				<thead><tr><th>Severity</th><th>Category</th><th>Relation</th><th class="num">Dead</th><th>Detail</th></tr></thead>
+				<tbody>
+					for _, r := range rows {
+						<tr>
+							<td><code>{ r.Severity }</code></td>
+							<td><code>{ r.Category }</code></td>
+							<td><code>{ r.Relation }</code></td>
+							<td class="num">{ r.DeadPct }</td>
+							<td>{ r.Detail }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}

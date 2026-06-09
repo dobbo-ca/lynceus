@@ -398,6 +398,51 @@ func TestWriteActivityBuckets_createsPartitionAndRoundtrips(t *testing.T) {
 	}
 }
 
+func TestWaitEventHistogram_aggregatesByEvent(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	s := store.NewStats(pool)
+
+	base := time.Date(2024, 1, 8, 0, 0, 0, 0, time.UTC) // a Monday
+	rows := []store.ActivityBucket{
+		{ServerID: "s1", Database: "db", State: "active", WaitEventType: "IO", WaitEvent: "DataFileRead",
+			BucketStart: base, BucketSeconds: 10, SampleCount: 1, CountSum: 30, CountMax: 5},
+		{ServerID: "s1", Database: "db", State: "active", WaitEventType: "IO", WaitEvent: "DataFileRead",
+			BucketStart: base.Add(time.Minute), BucketSeconds: 10, SampleCount: 1, CountSum: 20, CountMax: 4},
+		{ServerID: "s1", Database: "db", State: "active", WaitEventType: "Lock", WaitEvent: "tuple",
+			BucketStart: base, BucketSeconds: 10, SampleCount: 1, CountSum: 5, CountMax: 2},
+		{ServerID: "s1", Database: "db", State: "active", WaitEventType: "", WaitEvent: "",
+			BucketStart: base, BucketSeconds: 10, SampleCount: 1, CountSum: 40, CountMax: 8}, // on-CPU
+	}
+	if err := s.WriteActivityBuckets(ctx, rows); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.WaitEventHistogram(ctx, "s1", base.Add(-time.Hour), base.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Ordered by total desc: IO/DataFileRead(50) > CPU(40) > Lock(5).
+	if len(got) != 3 {
+		t.Fatalf("rows = %d, want 3: %+v", len(got), got)
+	}
+	if got[0].WaitEventType != "IO" || got[0].Total != 50 {
+		t.Errorf("top = %+v, want IO/50", got[0])
+	}
+	// on-CPU row preserved (empty type/event), not dropped.
+	var sawCPU bool
+	for _, g := range got {
+		if g.WaitEventType == "" && g.Total == 40 {
+			sawCPU = true
+		}
+	}
+	if !sawCPU {
+		t.Errorf("on-CPU bucket dropped: %+v", got)
+	}
+}
+
 func TestApplyStatsMigrations_createsSchemaObjects(t *testing.T) {
 	pool := newPool(t)
 	ctx := context.Background()

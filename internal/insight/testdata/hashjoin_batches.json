@@ -1,0 +1,7 @@
+[{"Plan":{"Node Type":"Hash Join","Join Type":"Inner","Actual Rows":50000,"Actual Loops":1,
+  "Plan Rows":50000,"Total Cost":9000.0,"Actual Total Time":600.0,
+  "Plans":[
+    {"Node Type":"Seq Scan","Relation Name":"orders","Alias":"orders","Actual Rows":50000,"Actual Loops":1,"Plan Rows":50000,"Total Cost":3000.0,"Actual Total Time":120.0},
+    {"Node Type":"Hash","Actual Rows":200000,"Actual Loops":1,"Plan Rows":200000,"Total Cost":4000.0,"Actual Total Time":250.0,
+      "Hash Batches":8,"Original Hash Batches":1,"Peak Memory Usage":40960,
+      "Plans":[{"Node Type":"Seq Scan","Relation Name":"customers","Alias":"customers","Actual Rows":200000,"Actual Loops":1,"Plan Rows":200000,"Total Cost":2500.0,"Actual Total Time":90.0}]}]}}]
