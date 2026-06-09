@@ -1,0 +1,5 @@
+[{"Plan":{"Node Type":"Sort","Actual Rows":500,"Actual Loops":1,"Plan Rows":500,
+  "Total Cost":50.0,"Actual Total Time":2.0,
+  "Sort Method":"quicksort","Sort Space Type":"Memory","Sort Space Used":48,
+  "Plans":[{"Node Type":"Seq Scan","Relation Name":"events","Alias":"events",
+    "Actual Rows":500,"Actual Loops":1,"Plan Rows":500,"Total Cost":40.0,"Actual Total Time":1.0}]}}]

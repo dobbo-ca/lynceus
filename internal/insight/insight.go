@@ -13,7 +13,12 @@ import (
 type Kind string
 
 const (
-	KindSlowScan Kind = "slow_scan"
+	KindSlowScan         Kind = "slow_scan"
+	KindDiskSort         Kind = "disk_sort"
+	KindHashBatches      Kind = "hash_batches"
+	KindInefficientIndex Kind = "inefficient_index"
+	KindMisEstimate      Kind = "mis_estimate"
+	KindStaleStats       Kind = "stale_stats"
 )
 
 // Severity ranks how strongly an insight applies.
@@ -49,6 +54,7 @@ type Detector interface {
 // insight detectors here as their beads land (ly-u4t.*).
 var registry = []Detector{
 	DefaultSlowScan,
+	DefaultDiskSort,
 }
 
 // DetectAll runs every registered detector over one plan.
