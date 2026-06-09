@@ -44,6 +44,36 @@ func TestVacuumAdvice_healthy_none(t *testing.T) {
 	}
 }
 
+func TestFreezeAdviceFlagsHighAge(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0).UTC()
+	in := []TableFreezeInfo{
+		{Relation: "public.hot", XIDAge: 1_800_000_000},        // >=1.5e9 -> high
+		{Relation: "public.warm", XIDAge: 600_000_000},         // >=0.5e9 -> medium
+		{Relation: "public.cold", XIDAge: 50_000_000},          // healthy -> none
+		{Relation: "public.mx", XIDAge: 10_000, MXIDAge: 1_700_000_000}, // MultiXact -> high
+	}
+	recs := FreezeAdvice(in, now)
+	got := map[string]VacuumSeverity{}
+	for _, r := range recs {
+		if r.Category != CatFreezing {
+			t.Fatalf("non-freezing category: %+v", r)
+		}
+		got[r.Relation] = r.Severity
+	}
+	if got["public.hot"] != SevHigh {
+		t.Errorf("public.hot = %q, want high", got["public.hot"])
+	}
+	if got["public.warm"] != SevMedium {
+		t.Errorf("public.warm = %q, want medium", got["public.warm"])
+	}
+	if _, ok := got["public.cold"]; ok {
+		t.Errorf("public.cold flagged but is healthy: %+v", recs)
+	}
+	if got["public.mx"] != SevHigh {
+		t.Errorf("public.mx = %q, want high (MultiXact age)", got["public.mx"])
+	}
+}
+
 func findCat(recs []VacuumRecommendation, c VacuumCategory) *VacuumRecommendation {
 	for i := range recs {
 		if recs[i].Category == c {

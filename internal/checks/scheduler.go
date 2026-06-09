@@ -148,5 +148,15 @@ func (sc *Scheduler) assembleInput(ctx context.Context, serverID string, now tim
 			NModSinceAnalyze: t.NModSinceAnalyze, SeqScan: t.SeqScan, IdxScan: t.IdxScan,
 		})
 	}
+	fz, err := sc.stats.LatestFreezeAges(ctx, serverID, now)
+	if err != nil {
+		return in, err
+	}
+	for _, f := range fz {
+		in.FreezeAges = append(in.FreezeAges, FreezeInfo{
+			Scope: f.Scope, Relation: f.FQN, XIDAge: f.XIDAge, MXIDAge: f.MXIDAge,
+			AutovacuumFreezeMaxAge: f.AutovacuumFreezeMaxAge,
+		})
+	}
 	return in, nil
 }
