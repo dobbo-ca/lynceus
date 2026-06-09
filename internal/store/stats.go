@@ -71,7 +71,8 @@ func (s *Stats) WriteQueryStats(ctx context.Context, rows []QueryStat) error {
 	}
 
 	weeks := map[string]time.Time{}
-	for _, r := range rows {
+	for i := range rows {
+		r := &rows[i]
 		weeks[partitionName(r.CollectedAt)] = r.CollectedAt
 	}
 	for _, ts := range weeks {
@@ -261,7 +262,8 @@ func (s *Stats) WriteActivityBuckets(ctx context.Context, rows []ActivityBucket)
 	}
 
 	weeks := map[string]time.Time{}
-	for _, r := range rows {
+	for i := range rows {
+		r := &rows[i]
 		weeks[activityPartitionName(r.BucketStart)] = r.BucketStart
 	}
 	for _, ts := range weeks {

@@ -16,6 +16,7 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 // newPool starts a fresh postgres:16 container and returns a connected
@@ -29,7 +30,7 @@ func newPool(t *testing.T) *pgxpool.Pool {
 		tcpostgres.WithDatabase("lynceus_test"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)

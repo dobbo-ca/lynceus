@@ -35,7 +35,8 @@ func (s *Stats) WriteChecksResults(ctx context.Context, rows []ChecksResultRow) 
 		return nil
 	}
 	weeks := map[string]time.Time{}
-	for _, r := range rows {
+	for i := range rows {
+		r := &rows[i]
 		weeks[checksResultsPartitionName(r.EvaluatedAt)] = r.EvaluatedAt
 	}
 	for _, ts := range weeks {

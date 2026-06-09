@@ -48,7 +48,8 @@ func (s *Stats) WriteLogEvents(ctx context.Context, rows []LogEventRow) error {
 	}
 
 	weeks := map[string]time.Time{}
-	for _, r := range rows {
+	for i := range rows {
+		r := &rows[i]
 		weeks[logEventsPartitionName(r.OccurredAt)] = r.OccurredAt
 	}
 	for _, ts := range weeks {

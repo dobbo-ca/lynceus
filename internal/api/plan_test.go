@@ -61,7 +61,7 @@ func TestPlanPage_rendersTreeAndGrid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
@@ -73,14 +73,14 @@ func TestPlanPage_rendersTreeAndGrid(t *testing.T) {
 	html := string(body)
 
 	for _, want := range []string{
-		"<!doctype html>",       // full page (templ lowercases the doctype)
-		`id="plan-view"`,        // HTMX swap target
-		`class="plan-tree"`,     // the recursive tree container
-		"Aggregate",             // root node type (tree + grid)
-		"Seq Scan",              // child node type (recursion worked)
-		"orders",                // relation identifier
-		"Plan rows",             // grid header
-		"(total &gt; $1)",       // normalized condition, HTML-escaped
+		"<!doctype html>",   // full page (templ lowercases the doctype)
+		`id="plan-view"`,    // HTMX swap target
+		`class="plan-tree"`, // the recursive tree container
+		"Aggregate",         // root node type (tree + grid)
+		"Seq Scan",          // child node type (recursion worked)
+		"orders",            // relation identifier
+		"Plan rows",         // grid header
+		"(total &gt; $1)",   // normalized condition, HTML-escaped
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered HTML is missing %q", want)
@@ -103,7 +103,7 @@ func TestPlanPartial_returnsFragmentOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
@@ -130,7 +130,7 @@ func TestPlan_recursionRendersNestedTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	html := string(body)
 
@@ -152,7 +152,7 @@ func TestPlan_missingKey_rendersEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
@@ -174,7 +174,7 @@ func TestPlan_withoutDevAuth_returns401(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", resp.StatusCode)
 	}

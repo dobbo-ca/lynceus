@@ -132,7 +132,7 @@ const (
 // is counts only. now is accepted for signature parity with VacuumAdvice.
 func FreezeAdvice(freezes []TableFreezeInfo, now time.Time) []VacuumRecommendation {
 	_ = now
-	var out []VacuumRecommendation
+	out := make([]VacuumRecommendation, 0, len(freezes))
 	for _, f := range freezes {
 		age := f.XIDAge
 		kind := "transaction-id"

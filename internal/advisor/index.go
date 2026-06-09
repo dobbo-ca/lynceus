@@ -90,7 +90,7 @@ func RecommendIndexes(plans []*lynceusv1.QueryPlan, tables map[string]TableInfo)
 		})
 	}
 
-	var out []IndexRecommendation
+	out := make([]IndexRecommendation, 0, len(cand))
 	for key, a := range cand {
 		rel := key[:strings.IndexByte(key, 0)]
 		ti := tables[rel]

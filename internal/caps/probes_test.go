@@ -15,6 +15,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/dobbo-ca/lynceus/internal/caps"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 // pgConfig is one optional Postgres customization for runPG. Use
@@ -60,7 +61,7 @@ func runPG(t *testing.T, opts ...pgOpt) *pgxpool.Pool {
 			),
 		)
 	} else {
-		tcOpts = append(tcOpts, tcpostgres.BasicWaitStrategies())
+		tcOpts = append(tcOpts, testpg.ReadyWait())
 	}
 	if len(cfg.extraCmd) > 0 {
 		tcOpts = append(tcOpts, testcontainers.WithCmd(cfg.extraCmd...))

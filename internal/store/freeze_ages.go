@@ -42,7 +42,8 @@ func (s *Stats) WriteFreezeAges(ctx context.Context, rows []FreezeAgeRow) error 
 	}
 
 	weeks := map[string]time.Time{}
-	for _, r := range rows {
+	for i := range rows {
+		r := &rows[i]
 		weeks[freezeAgesPartitionName(r.CollectedAt)] = r.CollectedAt
 	}
 	for _, ts := range weeks {

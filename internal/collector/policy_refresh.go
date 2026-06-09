@@ -35,7 +35,7 @@ func FetchPolicySnapshot(ctx context.Context, baseURL, serverID, db string) (map
 	if err != nil {
 		return nil, fmt.Errorf("get policy-snapshot: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("policy-snapshot status %d", resp.StatusCode)
 	}

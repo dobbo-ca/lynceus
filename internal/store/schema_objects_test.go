@@ -18,6 +18,7 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 func TestSchemaObjects_FirstSeenIsStableAcrossUpserts(t *testing.T) {
@@ -28,7 +29,7 @@ func TestSchemaObjects_FirstSeenIsStableAcrossUpserts(t *testing.T) {
 		tcpostgres.WithDatabase("lynceus_stats"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)

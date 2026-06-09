@@ -28,6 +28,7 @@ import (
 	"github.com/dobbo-ca/lynceus/internal/logparse"
 )
 
+//nolint:gocyclo // scenario-driven integration test; the assertions make complexity inherent
 func TestParseStream_realPostgresCsvlog(t *testing.T) {
 	ctx := context.Background()
 
@@ -93,7 +94,7 @@ func TestParseStream_realPostgresCsvlog(t *testing.T) {
 			t.Fatalf("copy log file: %v", err)
 		}
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 
 	tmp := filepath.Join(t.TempDir(), "postgres.csv")
 	f, err := os.Create(tmp)
@@ -109,7 +110,7 @@ func TestParseStream_realPostgresCsvlog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	events, payloads, err := logparse.ParseStream(in, logparse.Options{
 		Format:   logparse.FormatCSV,

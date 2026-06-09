@@ -10,6 +10,7 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 // newSchedulerTestStore spins up a fresh postgres:16 via testcontainers,
@@ -26,7 +27,7 @@ func newSchedulerTestStore(t *testing.T) *store.Stats {
 		tcpostgres.WithDatabase("lynceus_test"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)
@@ -58,6 +59,10 @@ func newSchedulerTestStore(t *testing.T) *store.Stats {
 
 type recordingNotifier struct{ got []Result }
 
+// Notify takes Result by value (per the Notifier contract) so it may retain
+// its own copy; the by-value param is intentional.
+//
+//nolint:gocritic // hugeParam: Notifier.Notify is by-value by contract
 func (n *recordingNotifier) Notify(_ context.Context, r Result) error {
 	n.got = append(n.got, r)
 	return nil
@@ -66,9 +71,9 @@ func (n *recordingNotifier) Notify(_ context.Context, r Result) error {
 // alwaysCritical fires once for server input regardless of data.
 type alwaysCritical struct{}
 
-func (alwaysCritical) ID() string      { return "test.always" }
+func (alwaysCritical) ID() string       { return "test.always" }
 func (alwaysCritical) Category() string { return "test" }
-func (alwaysCritical) Eval(in Input) []Result {
+func (alwaysCritical) Eval(in *Input) []Result {
 	return []Result{{CheckID: "test.always", Category: "test",
 		Severity: SeverityCritical, Status: StatusFiring, Object: "obj1", Detail: "x"}}
 }

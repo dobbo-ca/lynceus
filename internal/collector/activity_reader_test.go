@@ -20,6 +20,7 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/collector"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 func TestActivityReader_seesDistinctConnectionStates(t *testing.T) {
@@ -30,7 +31,7 @@ func TestActivityReader_seesDistinctConnectionStates(t *testing.T) {
 		tcpostgres.WithDatabase("lynceus_target"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)
@@ -88,10 +89,10 @@ func TestActivityReader_seesDistinctConnectionStates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = activeConn.Close(context.Background()) })
 	activeCtx, cancelActive := context.WithCancel(ctx)
-	t.Cleanup(cancelActive)
+	activeDone := make(chan struct{})
 	go func() {
+		defer close(activeDone)
 		// pg_sleep keeps the backend in `active` state with the literal
 		// secret embedded in the query text — perfect canary for the
 		// "reader must not return query text" assertion.
@@ -99,6 +100,16 @@ func TestActivityReader_seesDistinctConnectionStates(t *testing.T) {
 			"SELECT pg_sleep(5), secret FROM canary WHERE secret = 'leaky-canary@phi.example.com'",
 		)
 	}()
+	// *pgx.Conn is not safe for concurrent use: the cleanup must stop the
+	// goroutine touching activeConn before closing it. Cancel the in-flight
+	// query, wait for the goroutine to return (the channel receive is the
+	// happens-before edge), then close. Otherwise Close races the still-running
+	// Exec — caught by `go test -race` in CI.
+	t.Cleanup(func() {
+		cancelActive()
+		<-activeDone
+		_ = activeConn.Close(context.Background())
+	})
 
 	// Give Postgres a beat to publish the new backend states.
 	time.Sleep(500 * time.Millisecond)

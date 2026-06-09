@@ -21,6 +21,7 @@ import (
 	"github.com/dobbo-ca/lynceus/internal/ingest"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 func setup(t *testing.T, cfg ingest.Config) (*pgxpool.Pool, *httptest.Server) {
@@ -32,7 +33,7 @@ func setup(t *testing.T, cfg ingest.Config) (*pgxpool.Pool, *httptest.Server) {
 		tcpostgres.WithDatabase("lynceus_stats"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)
@@ -194,6 +195,7 @@ func TestIngest_writesTableStats(t *testing.T) {
 	}
 }
 
+//nolint:gocyclo // scenario-driven integration test; the assertions make complexity inherent
 func TestIngest_persistsLogEvents_alongsideQueryPlans(t *testing.T) {
 	pool, srv := setup(t, ingest.Config{
 		DevToken: "dev", RateLimit: 10, RateBurst: 10,

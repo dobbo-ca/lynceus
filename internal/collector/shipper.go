@@ -35,14 +35,17 @@ func (s *Shipper) Send(ctx context.Context, snap *lynceusv1.Snapshot) error {
 	if s.token != "" {
 		headers.Set("Authorization", "Bearer "+s.token)
 	}
-	conn, _, err := websocket.Dial(ctx, s.url, &websocket.DialOptions{
+	conn, resp, err := websocket.Dial(ctx, s.url, &websocket.DialOptions{
 		HTTPHeader: headers,
 	})
 	if err != nil {
 		return fmt.Errorf("dial %s: %w", s.url, err)
 	}
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
 	// Use a deferred error close in case Write panics or errors.
-	defer conn.CloseNow()
+	defer func() { _ = conn.CloseNow() }()
 
 	if err := conn.Write(ctx, websocket.MessageBinary, data); err != nil {
 		return fmt.Errorf("write: %w", err)

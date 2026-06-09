@@ -21,7 +21,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/dobbo-ca/lynceus/internal/collector"
@@ -29,6 +28,7 @@ import (
 	"github.com/dobbo-ca/lynceus/internal/logparse"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 func TestLogSlice_planExtractedAndCanaryNeverLeaks(t *testing.T) {
@@ -50,13 +50,11 @@ func TestLogSlice_planExtractedAndCanaryNeverLeaks(t *testing.T) {
 			"-c", "auto_explain.log_format=json",
 			"-c", "auto_explain.log_analyze=on",
 		),
-		// logging_collector=on redirects stderr into a log file, so the
-		// "database system is ready" line BasicWaitStrategies watches for
-		// never reaches stderr. Wait on the listening port instead; the
-		// pgxpool connect below tolerates the brief post-listen startup.
-		testcontainers.WithWaitStrategy(
-			wait.ForListeningPort("5432/tcp").WithStartupTimeout(60*time.Second),
-		),
+		// logging_collector=on redirects stderr into a log file, so a log-line
+		// wait is unusable. testpg.ReadyWait() uses pg_isready over TCP, which
+		// confirms the server actually accepts connections — a bare port wait
+		// races the post-listen startup and yields "connection reset by peer".
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)
@@ -117,7 +115,7 @@ func TestLogSlice_planExtractedAndCanaryNeverLeaks(t *testing.T) {
 		tcpostgres.WithDatabase("stats"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("stats container unavailable: %v", err)

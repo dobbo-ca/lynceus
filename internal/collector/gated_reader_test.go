@@ -10,6 +10,7 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/collector"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 func TestReader_gatedOff_returnsNoRows(t *testing.T) {
@@ -20,7 +21,7 @@ func TestReader_gatedOff_returnsNoRows(t *testing.T) {
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
 		testcontainers.WithCmd("postgres", "-c", "shared_preload_libraries=pg_stat_statements"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)
@@ -84,7 +85,7 @@ func TestActivityReader_gatedOff_returnsNoRows(t *testing.T) {
 		tcpostgres.WithDatabase("appdb"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)

@@ -29,6 +29,7 @@ import (
 	"github.com/dobbo-ca/lynceus/internal/ingest"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 // The canary literal MUST NOT appear anywhere in the stored row or
@@ -46,7 +47,7 @@ func TestVerticalSlice_normalizedQueryRoundtripsAndCanaryNeverLeaks(t *testing.T
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
 		testcontainers.WithCmd("postgres", "-c", "shared_preload_libraries=pg_stat_statements"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)
@@ -87,7 +88,7 @@ func TestVerticalSlice_normalizedQueryRoundtripsAndCanaryNeverLeaks(t *testing.T
 		tcpostgres.WithDatabase("stats"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("stats container unavailable: %v", err)

@@ -1,5 +1,9 @@
 # golangci-lint config — Goal 3 (performance + simplification).
 # Surfaces allocation, complexity, and idiom issues without blocking on style noise.
+#
+# v2 schema (golangci-lint v2.x). The v1 line (last v1.64.8) is EOL and is
+# built with go1.24, so it refuses this module's go1.26 target; v2 is required.
+version: "2"
 
 run:
   timeout: 5m
@@ -18,20 +22,17 @@ linters:
     - bodyclose    # leaked HTTP/ws response bodies
     - rowserrcheck # sql.Rows error handling (storage correctness)
     - sqlclosecheck
-
-linters-settings:
-  gocyclo:
-    min-complexity: 20
-  gocritic:
-    enabled-tags:
-      - performance
-      - diagnostic
-
-issues:
-  # Generated files carry their own conventions; don't lint them.
-  exclude-rules:
-    - path: '(\.pb\.go|_templ\.go)$'
-      linters:
-        - all
-  exclude-dirs:
-    - test/e2e
+  settings:
+    gocyclo:
+      min-complexity: 20
+    gocritic:
+      enabled-tags:
+        - performance
+        - diagnostic
+  exclusions:
+    # Generated files carry their own conventions; don't report issues from
+    # them. (v1 used issues.exclude-rules + exclude-dirs; v2 unifies both under
+    # linters.exclusions.paths — files are still type-checked, just not reported.)
+    paths:
+      - '(\.pb\.go|_templ\.go)$'
+      - test/e2e

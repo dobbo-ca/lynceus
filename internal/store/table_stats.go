@@ -76,7 +76,8 @@ func (s *Stats) WriteTableStats(ctx context.Context, rows []TableStatRow) error 
 	}
 
 	weeks := map[string]time.Time{}
-	for _, r := range rows {
+	for i := range rows {
+		r := &rows[i]
 		weeks[tableStatsPartitionName(r.CollectedAt)] = r.CollectedAt
 	}
 	for _, ts := range weeks {

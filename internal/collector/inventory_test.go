@@ -20,8 +20,10 @@ import (
 	"github.com/dobbo-ca/lynceus/internal/caps"
 	"github.com/dobbo-ca/lynceus/internal/collector"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
+//nolint:gocyclo // scenario-driven integration test; the assertions make complexity inherent
 func TestInventory_ReturnsObjectsWithSizes(t *testing.T) {
 	ctx := context.Background()
 
@@ -30,7 +32,7 @@ func TestInventory_ReturnsObjectsWithSizes(t *testing.T) {
 		tcpostgres.WithDatabase("lynceus_target"),
 		tcpostgres.WithUsername("test"),
 		tcpostgres.WithPassword("test"),
-		tcpostgres.BasicWaitStrategies(),
+		testpg.ReadyWait(),
 	)
 	if err != nil {
 		t.Skipf("docker/testcontainers unavailable: %v", err)

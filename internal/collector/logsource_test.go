@@ -28,7 +28,7 @@ func TestFileTail_appendReturnsOnlyNewBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	tail := NewFileTail(path)
-	defer tail.Close()
+	defer func() { _ = tail.Close() }()
 
 	if got := readAll(t, tail); got != "line one\n" {
 		t.Fatalf("first Read = %q, want %q", got, "line one\n")
@@ -51,7 +51,7 @@ func TestFileTail_cutsOnNewline(t *testing.T) {
 		t.Fatal(err)
 	}
 	tail := NewFileTail(path)
-	defer tail.Close()
+	defer func() { _ = tail.Close() }()
 
 	// Only the bytes up to and including the last '\n' are returned; the
 	// dangling partial line is withheld until its newline arrives.
@@ -73,7 +73,7 @@ func TestFileTail_truncationResetsOffset(t *testing.T) {
 		t.Fatal(err)
 	}
 	tail := NewFileTail(path)
-	defer tail.Close()
+	defer func() { _ = tail.Close() }()
 	_ = readAll(t, tail) // drain to current offset
 
 	// copytruncate: same inode, file shrinks to zero then gets new content.
@@ -92,7 +92,7 @@ func TestFileTail_rotationReopensNewInode(t *testing.T) {
 		t.Fatal(err)
 	}
 	tail := NewFileTail(path)
-	defer tail.Close()
+	defer func() { _ = tail.Close() }()
 	_ = readAll(t, tail) // consume old file
 
 	// logrotate-by-rename: move old aside, create a fresh file at path.
@@ -109,7 +109,7 @@ func TestFileTail_rotationReopensNewInode(t *testing.T) {
 
 func TestFileTail_missingFileEmptyReaderNoError(t *testing.T) {
 	tail := NewFileTail(filepath.Join(t.TempDir(), "does-not-exist.log"))
-	defer tail.Close()
+	defer func() { _ = tail.Close() }()
 	r, err := tail.Read()
 	if err != nil {
 		t.Fatalf("missing file should not error, got %v", err)
@@ -133,7 +133,7 @@ func TestFileTail_capsMaxChunk(t *testing.T) {
 	}
 	tail := NewFileTail(path)
 	tail.maxChunk = 55 // cap mid-stream; expect cut on the last newline <= 55
-	defer tail.Close()
+	defer func() { _ = tail.Close() }()
 
 	got := readAll(t, tail)
 	if len(got) == 0 || len(got) > 55 {
