@@ -1,10 +1,12 @@
 # Lynceus Parity — Layer 0 Foundation (Spec)
 
 > Date: 2026-06-08 · Part of the dependency-layered parity program (see roadmap). Sub-project 1 of 4 layers.
+>
+> **Correction (2026-06-08, ly-gu3):** the insight HTTP-surfacing work in this spec was originally tracked as `ly-u4t.21`. That bead is in fact **"M3: Checks bundle — Queries"** (a Layer-2 Checks bundle depending on the `ly-u4t.20` Checks engine, still open). The merged `/insights` surfacing is now tracked by **`ly-hnt`** (closed, PR #19). All references below have been re-attributed `ly-u4t.21` → `ly-hnt`.
 
 ## 1. Overview & goal
 
-Layer 0 is the keystone of the parity program: it **turns on engines that already exist but are dormant**, and **lays the catalog data foundation** every higher layer reads from. Today the collector ships `query_stats`, `activity_buckets`, and `query_plans` but never tails a log file (the `logparse`/`planextract`/`insight` packages are built and tested yet unwired — `docs/GOALS.md:81`), exposes no schema/table inventory, surfaces no insights over HTTP, and has no per-capability policy gate. Layer 0 closes exactly those gaps: (a) a rotation-aware file-tail `LogSource` feeds `logparse.ParseStream` so classified T1 `LogEvent`s and `auto_explain`-derived T1 `QueryPlan`s finally flow (ly-cxe.2); (b) two read-only catalog readers produce a structural schema/object inventory plus a per-table size/growth/TOAST time series (ly-xqf.5, ly-xqf.6) — the literal data foundation the Layer 1 Index Advisor (ly-u4t.12) and Layer 2 VACUUM/config/checks engines (ly-u4t.16/.18/.20) depend on; (c) the existing insight engine and stored plans become server-rendered templ/HTMX views (ly-u4t.21, ly-xqf.10); and (d) a per-server capability matrix API plus a cheap collector-local effective-policy gate ensures no row is built or shipped for a disabled capability (ly-xnk.4, ly-xnk.3). The unifying contract is privacy: **every new wire field is an identifier, count, size, duration, enum, or fingerprint — never a literal** — enforced by the proto-schema contract test and the e2e canary.
+Layer 0 is the keystone of the parity program: it **turns on engines that already exist but are dormant**, and **lays the catalog data foundation** every higher layer reads from. Today the collector ships `query_stats`, `activity_buckets`, and `query_plans` but never tails a log file (the `logparse`/`planextract`/`insight` packages are built and tested yet unwired — `docs/GOALS.md:81`), exposes no schema/table inventory, surfaces no insights over HTTP, and has no per-capability policy gate. Layer 0 closes exactly those gaps: (a) a rotation-aware file-tail `LogSource` feeds `logparse.ParseStream` so classified T1 `LogEvent`s and `auto_explain`-derived T1 `QueryPlan`s finally flow (ly-cxe.2); (b) two read-only catalog readers produce a structural schema/object inventory plus a per-table size/growth/TOAST time series (ly-xqf.5, ly-xqf.6) — the literal data foundation the Layer 1 Index Advisor (ly-u4t.12) and Layer 2 VACUUM/config/checks engines (ly-u4t.16/.18/.20) depend on; (c) the existing insight engine and stored plans become server-rendered templ/HTMX views (ly-hnt, ly-xqf.10); and (d) a per-server capability matrix API plus a cheap collector-local effective-policy gate ensures no row is built or shipped for a disabled capability (ly-xnk.4, ly-xnk.3). The unifying contract is privacy: **every new wire field is an identifier, count, size, duration, enum, or fingerprint — never a literal** — enforced by the proto-schema contract test and the e2e canary.
 
 ## 2. Scope (beads covered)
 
@@ -13,7 +15,7 @@ Layer 0 is the keystone of the parity program: it **turns on engines that alread
 | ly-cxe.2 | Collector wiring + file-tail log source | Rotation-aware `FileTail` → `logparse.ParseStream` → T1 `LogEvent`s + extracted `QueryPlan`s on a new log ticker. |
 | ly-xqf.5 | Schema/object inventory reader | Walk `pg_namespace`/`pg_class`/`pg_index`/`pg_proc` → T1 `SchemaObject` upsert with stable first-seen, schema-regex gated. |
 | ly-xqf.6 | Table size/growth + TOAST reader | `pg_class` + `pg_stat_user_tables` → T1 `TableStat` weekly-partitioned growth series (heap/toast/index split, dead-tuple/vacuum metrics). |
-| ly-u4t.21 | Insight HTTP surfacing | `/insights` list + detail: load stored plans via `TopPlansByQuery`, run `insight.DetectPlans`, render with Severity. |
+| ly-hnt | Insight HTTP surfacing | `/insights` list + detail: load stored plans via `TopPlansByQuery`, run `insight.DetectPlans`, render with Severity. |
 | ly-xqf.10 | Plan visualization | `/plan?server=&fp=`: recursive `PlanNode` tree + flat node grid. |
 | ly-xnk.4 | Capability matrix API | `GET` discovered × policy × final-enabled matrix; audited `POST` toggle reusing `SetCapabilityPolicy`. |
 | ly-xnk.3 | Effective-policy reader gate | Collector-local in-memory `caps.Gate` consulted before every reader query; retrofit onto stat_statements/activity readers, born into the new schema/table readers. |
@@ -450,7 +452,7 @@ In `runFull` (`main.go:36-52`, the ~10m cadence where query stats already ship),
 - TOAST/size functions take ACCESS-SHARE catalog locks and `stat()` files; on tens of thousands of relations this is non-trivial — keep on the slow (~10m) full cadence, never the ~10s activity cadence. Read-only / RDS-safe.
 - Contract-test allowlist update must land in the SAME commit as the proto change (by design — the test is the gate).
 
-### 4.3 Insight HTTP surfacing + plan visualization (ly-u4t.21 + ly-xqf.10)
+### 4.3 Insight HTTP surfacing + plan visualization (ly-hnt + ly-xqf.10)
 
 **Goal:** Surface the already-built insight engine and stored plans over HTTP as templ/HTMX SSR views, mirroring the existing dashboard/audit pattern. (1) An insights list/detail surface that loads stored plans via `store.TopPlansByQuery` and runs `insight.DetectPlans`, rendering each `Insight` with its Severity; (2) a plan-viz surface that recursively renders a `PlanNode` tree + a flat node grid. A thin, stateless caller over existing reads — no new business logic, T1-only on the wire. **No proto changes.**
 
@@ -723,7 +725,7 @@ All integration tests use **real Postgres via testcontainers** (`postgres:16`), 
 - Reader: inventory test (seed `reporting` + `patient_phi`, filter `NewSchemaFilter("","^patient_.*")`, assert all `reporting.*` present + ZERO `patient_phi` objects); `TestTableStatsReader_SizesAndToast` (`reporting.big` with `repeat('x',100000)` to force TOAST → `toast_bytes>0`, `heap_bytes>0`, `total≈heap+toast+indexes`, dead/live populated after UPDATE+ANALYZE, no `patient_phi`); `SchemaFilter` unit suite (default-allow, ignore-excludes, include-allowlist, ignore-wins, always-skip-system, invalid-regexp-errors).
 - Ingestion: send a Snapshot with both `schema_objects` + `table_stats`, assert rows land in both tables, malformed write parks to DLQ (`server.go:135-144`).
 
-**ly-u4t.21 / ly-xqf.10** (`internal/api/{insights,plan}_test.go`, package `api_test`) — harness `server_test.go:21-62` (`newPGPool`/`setup`); NEW `seedPlans(t,pool)` mirroring `seedStats` (`server_test.go:80-93`) reusing the fixture `store/plans_test.go:40-66` with a `Seq Scan` child (`ActualLoops>0`, large `RowsRemovedByFilter`, tiny `ActualRows`) so `DefaultSlowScan` fires (`slowscan.go:18`), `CapturedAt = now-1h`:
+**ly-hnt / ly-xqf.10** (`internal/api/{insights,plan}_test.go`, package `api_test`) — harness `server_test.go:21-62` (`newPGPool`/`setup`); NEW `seedPlans(t,pool)` mirroring `seedStats` (`server_test.go:80-93`) reusing the fixture `store/plans_test.go:40-66` with a `Seq Scan` child (`ActualLoops>0`, large `RowsRemovedByFilter`, tiny `ActualRows`) so `DefaultSlowScan` fires (`slowscan.go:18`), `CapturedAt = now-1h`:
 - `TestInsightsPage_rendersDetectedInsights` (200, `text/html`, body has `<!doctype html>`, `id="insights-table"`, `hx-get="/partial/insights"`, nav `href="/insights"`, the seeded relation, a severity token); `TestInsightsPartial_returnsFragmentOnly` (no doctype, has `id="insights-table"`); `TestInsights_withoutDevAuth_returns401` (copy `audit_test.go:87`); **privacy** (copy `dashboard_test.go:43-51`): no banned literal substring in HTML.
 - `TestPlanPage_rendersTreeAndGrid` (200, `id="plan-view"`, `class="plan-tree"`, root + child node types both present, grid `<th>Plan rows`); `TestPlanPartial_returnsFragmentOnly`; `TestPlan_missingKey_rendersEmpty` (`No plan stored` branch).
 - Store: `TestListPlanKeys_returnsDistinctKeys` (two plans one key + one second key → exactly two distinct rows).
@@ -743,7 +745,7 @@ All integration tests use **real Postgres via testcontainers** (`postgres:16`), 
 | ly-cxe.2 | `logsource_test.go` (FileTail), `log_pipeline_test.go` (Drain + privacy), `log_slice_test.go` (e2e canary + rotation), `contract_test.go` Snapshot/LogEvent allowlist |
 | ly-xqf.5 | `schema_objects_test.go` (first-seen stable), `inventory_test.go` (filter privacy), `contract_test.go` SchemaObject |
 | ly-xqf.6 | `table_stats_test.go` (partition round-trip, growth series), `table_stats_reader_test.go` (TOAST/sizes), `contract_test.go` TableStat |
-| ly-u4t.21 | `insights_test.go` (render + 401 + privacy), `plans_test.go::TestListPlanKeys_returnsDistinctKeys` |
+| ly-hnt | `insights_test.go` (render + 401 + privacy), `plans_test.go::TestListPlanKeys_returnsDistinctKeys` |
 | ly-xqf.10 | `plan_test.go` (tree + grid + recursion + empty-key) |
 | ly-xnk.4 | `capabilities_test.go` (toggle+audit, 401, matrix join, default-enabled) |
 | ly-xnk.3 | `gate_test.go`, `capability_policy_test.go::TestAllowed_*`, `reader_test.go::TestReader_gatedOff_returnsNoRows` |
@@ -756,7 +758,7 @@ Dependencies are intra-layer only — pull nothing from Layer 1.
 2. **Store layer (parallelizable across components).**
    a. `0005_schema_objects.sql` + `internal/store/schema_objects.go` (ly-xqf.5). → verify: `schema_objects_test.go`.
    b. `0006_table_stats.sql` + `internal/store/table_stats.go` (ly-xqf.6). → verify: `table_stats_test.go`.
-   c. `ListPlanKeys` on `*store.Stats` (ly-u4t.21). → verify: `TestListPlanKeys_returnsDistinctKeys`.
+   c. `ListPlanKeys` on `*store.Stats` (ly-hnt). → verify: `TestListPlanKeys_returnsDistinctKeys`.
    d. `0004_discovered_capability.sql` + `discovered_capability.go` (ly-xnk.3/.4). → verify: store test + migration auto-discovery.
 3. **Collector readers + gate (prereq for end-to-end + the new readers' privacy filter).**
    a. `caps.Gate`/`Allowed`/`Replace` + `caps.Declared()` constants `SchemaInventory`/`TableSize` (ly-xnk.3). → verify: `gate_test.go` under `-race`.
@@ -764,7 +766,7 @@ Dependencies are intra-layer only — pull nothing from Layer 1.
    c. Retrofit gate onto `Reader`/`ActivityReader` (ly-xnk.3). → verify: `TestReader_gatedOff_returnsNoRows`.
 4. **In parallel with step 3 (no shared state):**
    a. `LogSource`/`FileTail` + `LogPipeline` + `toProtoLogEvent` (ly-cxe.2). → verify: `logsource_test.go`, `log_pipeline_test.go`.
-   b. api handlers `/insights`, `/plan` + templ + `templ generate` (ly-u4t.21/.10). → verify: `insights_test.go`, `plan_test.go`.
+   b. api handlers `/insights`, `/plan` + templ + `templ generate` (ly-hnt + ly-xqf.10). → verify: `insights_test.go`, `plan_test.go`.
    c. api handlers `/api/servers/{id}/capabilities`, `/policy-snapshot` (ly-xnk.4 + ly-xnk.3 B3). → verify: `capabilities_test.go`.
 5. **Wiring (depends on 2-4).** Ingestion converters + write calls for schema_objects/table_stats (+ park log_events); collector `cmd/collector/main.go` constructs gate, readers, log pipeline, tickers, policy refresh. → verify: ingestion test, `go build ./...`.
 6. **End-to-end + canary (depends on all above).** `log_slice_test.go` + extended `slice_test.go` canary paths. → verify: full e2e green, no canary leak.
@@ -777,7 +779,7 @@ Dependencies are intra-layer only — pull nothing from Layer 1.
 - **ly-cxe.2** — collector with `LYNCEUS_LOG_SOURCE_PATH` set tails the file (rotation/truncation-safe, chunks cut on `'\n'`), ships T1 `LogEvent`s + extracted `QueryPlan`s on the log ticker; `LYNCEUS_LOG_SOURCE_PATH=""` leaves the collector byte-for-byte unchanged; `LogEvent` proto bytes never contain a canary planted in the raw line; ingestion log-event parking decision is documented.
 - **ly-xqf.5** — inventory ships `SchemaObject`s for schemas/tables/indexes/views/functions/sequences with sizes + stable first-seen; `ignore_schema_regexp` excludes filtered schemas (zero filtered objects); `parent_fqn` blanked when the parent schema is filtered.
 - **ly-xqf.6** — `TableStat`s ship the heap/toast/index split + dead-tuple/vacuum metrics; weekly-partitioned `table_stats` round-trips; `TableSizeSeries` returns two-week snapshots in order (growth derivable); TOAST forced and observed `>0`.
-- **ly-u4t.21** — `/insights` renders detected insights with Severity from stored plans; `/partial/insights` is a fragment; 401 without dev-auth; no literal in rendered HTML.
+- **ly-hnt** — `/insights` renders detected insights with Severity from stored plans; `/partial/insights` is a fragment; 401 without dev-auth; no literal in rendered HTML.
 - **ly-xqf.10** — `/plan?server=&fp=` renders the recursive `PlanNode` tree + flat grid; missing key → empty-state.
 - **ly-xnk.4** — matrix GET returns discovered × policy × final-enabled per `(capability, database)`; POST toggle writes a `capability_policy` row + a tamper-evident `audit_log` row; absent policy ⇒ enabled.
 - **ly-xnk.3** — every gated reader returns `nil,nil` (issues no query) when its capability is disabled in the gate; gate `Allowed` is lock+map only (no I/O); collector refreshes policy on `fullTicker`; absent key fails open.
