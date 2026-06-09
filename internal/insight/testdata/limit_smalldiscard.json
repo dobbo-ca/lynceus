@@ -1,0 +1,4 @@
+[{"Plan":{"Node Type":"Limit","Actual Rows":100,"Actual Loops":1,"Plan Rows":100,
+  "Total Cost":120.0,"Actual Total Time":2.0,
+  "Plans":[{"Node Type":"Seq Scan","Relation Name":"events","Alias":"events",
+    "Actual Rows":100,"Actual Loops":1,"Plan Rows":100,"Total Cost":110.0,"Actual Total Time":1.5}]}}]

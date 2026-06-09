@@ -19,6 +19,7 @@ const (
 	KindInefficientIndex Kind = "inefficient_index"
 	KindMisEstimate      Kind = "mis_estimate"
 	KindStaleStats       Kind = "stale_stats"
+	KindLargeOffset      Kind = "large_offset"
 )
 
 // Severity ranks how strongly an insight applies.
@@ -59,6 +60,7 @@ var registry = []Detector{
 	DefaultInefficientIndex,
 	DefaultStaleStats,
 	DefaultMisEstimate,
+	DefaultLargeOffset,
 }
 
 // DetectAll runs every registered detector over one plan.
