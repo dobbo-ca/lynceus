@@ -55,6 +55,7 @@ type Detector interface {
 var registry = []Detector{
 	DefaultSlowScan,
 	DefaultDiskSort,
+	DefaultHashBatches,
 }
 
 // DetectAll runs every registered detector over one plan.
