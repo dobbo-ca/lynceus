@@ -153,6 +153,20 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if cs := snapshotToConnectionSamples(&snap); len(cs) > 0 {
+		if err := s.stats.WriteConnectionSamples(ctx, cs); err != nil {
+			s.parkDLQ(ctx, snap.ServerId, "write connection_samples: "+err.Error(), data)
+			_ = conn.Close(websocket.StatusInternalError, "")
+			return
+		}
+	}
+	if be := snapshotToBlockingEdges(&snap); len(be) > 0 {
+		if err := s.stats.WriteBlockingEdges(ctx, be); err != nil {
+			s.parkDLQ(ctx, snap.ServerId, "write blocking_edges: "+err.Error(), data)
+			_ = conn.Close(websocket.StatusInternalError, "")
+			return
+		}
+	}
 	_ = conn.Close(websocket.StatusNormalClosure, "")
 }
 
@@ -352,6 +366,39 @@ func snapshotToActivityBuckets(snap *lynceusv1.Snapshot) []store.ActivityBucket 
 			CountSum:      b.CountSum,
 			CountMax:      b.CountMax,
 			DataTier:      1,
+		})
+	}
+	return out
+}
+
+func snapshotToConnectionSamples(snap *lynceusv1.Snapshot) []store.ConnectionSampleRow {
+	out := make([]store.ConnectionSampleRow, 0, len(snap.ConnectionSamples))
+	for _, c := range snap.ConnectionSamples {
+		out = append(out, store.ConnectionSampleRow{
+			ServerID:      snap.ServerId,
+			ObservedAt:    time.Unix(c.ObservedAtUnix, 0).UTC(),
+			PID:           c.Pid,
+			State:         c.State,
+			ActiveSeconds: c.ActiveSeconds,
+			XactSeconds:   c.XactSeconds,
+			StateSeconds:  c.StateSeconds,
+			WaitEventType: c.WaitEventType,
+			DataTier:      1,
+		})
+	}
+	return out
+}
+
+func snapshotToBlockingEdges(snap *lynceusv1.Snapshot) []store.BlockingEdgeRow {
+	out := make([]store.BlockingEdgeRow, 0, len(snap.BlockingEdges))
+	for _, e := range snap.BlockingEdges {
+		out = append(out, store.BlockingEdgeRow{
+			ServerID:           snap.ServerId,
+			ObservedAt:         time.Unix(e.ObservedAtUnix, 0).UTC(),
+			BlockedPID:         e.BlockedPid,
+			BlockerPID:         e.BlockerPid,
+			BlockedWaitSeconds: e.BlockedWaitSeconds,
+			DataTier:           1,
 		})
 	}
 	return out
