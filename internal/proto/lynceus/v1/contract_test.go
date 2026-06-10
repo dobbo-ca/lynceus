@@ -112,7 +112,7 @@ func TestActivityBucketHasOnlyAggregateFields(t *testing.T) {
 		"state":             {},
 		"wait_event_type":   {},
 		"wait_event":        {},
-		"bucket_start_unix":  {},
+		"bucket_start_unix": {},
 		"bucket_seconds":    {},
 		"sample_count":      {},
 		"count_sum":         {},
@@ -193,7 +193,7 @@ func TestQueryPlanHasNoLiteralFields(t *testing.T) {
 		"actual_startup_time_ms": {}, "actual_total_time_ms": {},
 		"actual_rows": {}, "actual_loops": {},
 		"rows_removed_by_filter": {},
-		"sort_method": {}, "sort_space_type": {}, "sort_space_used_kb": {},
+		"sort_method":            {}, "sort_space_type": {}, "sort_space_used_kb": {},
 		"hash_batches": {}, "original_hash_batches": {}, "peak_memory_usage_kb": {},
 		"normalized_condition": {},
 		"plans":                {}, // recursive children
@@ -285,6 +285,39 @@ func TestFreezeAgeHasOnlyAggregateFields(t *testing.T) {
 	assertOnlyAllowed(t, (&lynceusv1.FreezeAge{}).ProtoReflect().Descriptor().Fields(), allowed, "FreezeAge")
 }
 
+// TestConnectionSampleHasOnlyAggregateFields enforces the T1 privacy guarantee
+// for per-backend connection observations. ConnectionSample must carry only the
+// backend pid, a fixed state/wait label, and integer durations — never the
+// pg_stat_activity `query` column or any literal value.
+func TestConnectionSampleHasOnlyAggregateFields(t *testing.T) {
+	allowed := map[string]struct{}{
+		"server_id": {}, "observed_at_unix": {}, "pid": {}, "state": {},
+		"active_seconds": {}, "xact_seconds": {}, "state_seconds": {},
+		"wait_event_type": {},
+	}
+	assertOnlyAllowed(t, (&lynceusv1.ConnectionSample{}).ProtoReflect().Descriptor().Fields(), allowed, "ConnectionSample")
+
+	for _, name := range []string{"state", "wait_event_type"} {
+		f := (&lynceusv1.ConnectionSample{}).ProtoReflect().Descriptor().Fields().ByName(protoreflect.Name(name))
+		if f == nil {
+			t.Fatalf("field %q missing from ConnectionSample", name)
+		}
+		if got := f.Kind().String(); got != "string" {
+			t.Fatalf("ConnectionSample.%s must be string kind, got %s", name, got)
+		}
+	}
+}
+
+// TestBlockingEdgeHasOnlyPidFields enforces the T1 privacy guarantee for the
+// blocking relationship message: pids and a wait duration only.
+func TestBlockingEdgeHasOnlyPidFields(t *testing.T) {
+	allowed := map[string]struct{}{
+		"server_id": {}, "observed_at_unix": {},
+		"blocked_pid": {}, "blocker_pid": {}, "blocked_wait_seconds": {},
+	}
+	assertOnlyAllowed(t, (&lynceusv1.BlockingEdge{}).ProtoReflect().Descriptor().Fields(), allowed, "BlockingEdge")
+}
+
 // TestSnapshotCarriesLogEvents enforces that the Snapshot envelope grows only
 // by adding allowlisted, literal-free repeated message fields. log_events (8)
 // carries lynceus.v1.LogEvent elements — themselves contract-tested above. The
@@ -292,15 +325,17 @@ func TestFreezeAgeHasOnlyAggregateFields(t *testing.T) {
 // (e.g. log_payloads) to the wire envelope.
 func TestSnapshotCarriesLogEvents(t *testing.T) {
 	allowed := map[string]struct{}{
-		"server_id":         {},
-		"collected_at_unix": {},
-		"query_stats":       {},
-		"activity_buckets":  {},
-		"query_plans":       {},
-		"log_events":        {},
-		"schema_objects":    {},
-		"table_stats":       {},
-		"freeze_ages":       {},
+		"server_id":          {},
+		"collected_at_unix":  {},
+		"query_stats":        {},
+		"activity_buckets":   {},
+		"query_plans":        {},
+		"log_events":         {},
+		"schema_objects":     {},
+		"table_stats":        {},
+		"freeze_ages":        {},
+		"connection_samples": {},
+		"blocking_edges":     {},
 	}
 	assertOnlyAllowed(t, (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields(), allowed, "Snapshot")
 
