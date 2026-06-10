@@ -163,6 +163,28 @@ func (sc *Scheduler) assembleInput(ctx context.Context, serverID string, now tim
 		})
 	}
 
+	conns, err := sc.stats.LatestConnectionSamples(ctx, serverID, now)
+	if err != nil {
+		return in, err
+	}
+	for i := range conns {
+		c := &conns[i]
+		in.Connections = append(in.Connections, ConnInfo{
+			PID: c.PID, State: c.State, ActiveSeconds: c.ActiveSeconds,
+			XactSeconds: c.XactSeconds, StateSeconds: c.StateSeconds, WaitEventType: c.WaitEventType,
+		})
+	}
+	edges, err := sc.stats.LatestBlockingEdges(ctx, serverID, now)
+	if err != nil {
+		return in, err
+	}
+	for i := range edges {
+		e := &edges[i]
+		in.Blocking = append(in.Blocking, BlockEdge{
+			BlockedPID: e.BlockedPID, BlockerPID: e.BlockerPID, BlockedWaitSeconds: e.BlockedWaitSeconds,
+		})
+	}
+
 	// Index Advisor (ly-u4t.27): gather this server's recent plans + table
 	// sizes and run the pure recommender, mirroring api.fetchIndexAdvice but
 	// scoped to serverID. Reuses the `tables` rows already read above.

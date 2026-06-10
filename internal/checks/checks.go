@@ -52,6 +52,9 @@ type Input struct {
 	TableStats []TableInfo
 	FreezeAges []FreezeInfo                  // populated in Part B (wraparound)
 	IndexRecs  []advisor.IndexRecommendation // populated by the scheduler (ly-u4t.27)
+
+	Connections []ConnInfo  // populated by the scheduler (ly-u4t.22)
+	Blocking    []BlockEdge // populated by the scheduler (ly-u4t.22)
 }
 
 // TableInfo is the check-local projection of store.TableStatRow.
@@ -71,6 +74,23 @@ type FreezeInfo struct {
 	XIDAge                 int64  // age(relfrozenxid) / age(datfrozenxid)
 	MXIDAge                int64  // mxid_age(relminmxid) / mxid_age(datminmxid)
 	AutovacuumFreezeMaxAge int64  // server setting (count)
+}
+
+// ConnInfo is the check-local projection of store.ConnectionSampleRow.
+type ConnInfo struct {
+	PID           int64
+	State         string
+	ActiveSeconds int64
+	XactSeconds   int64
+	StateSeconds  int64
+	WaitEventType string
+}
+
+// BlockEdge is the check-local projection of store.BlockingEdgeRow.
+type BlockEdge struct {
+	BlockedPID         int64
+	BlockerPID         int64
+	BlockedWaitSeconds int64
 }
 
 // Result is one firing check observation. Object is an identifier label
