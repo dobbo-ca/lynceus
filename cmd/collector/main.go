@@ -42,6 +42,7 @@ func main() {
 	gate := caps.NewGate()
 	reader := collector.NewReader(pool, gate, db)
 	activityReader := collector.NewActivityReader(pool, gate, db)
+	connectionsReader := collector.NewConnectionsReader(pool, gate, db)
 	aggregator := collector.NewActivityAggregator(cfg.serverID, cfg.activityFlush)
 	shipper := collector.NewShipper(cfg.ingestURL, cfg.token)
 
@@ -174,6 +175,57 @@ func main() {
 		log.Printf("shipped %d activity_buckets", len(protoBuckets))
 	}
 
+	// Sample per-backend connection durations + blocking edges point-in-time
+	// and ship them on the same 60s flush cadence (matches the checks
+	// scheduler tick). T1: pids + durations + fixed state labels only.
+	shipConnections := func() {
+		samples, edges, err := connectionsReader.Read(ctx)
+		if err != nil {
+			log.Printf("read connections: %v", err)
+			return
+		}
+		if len(samples) == 0 && len(edges) == 0 {
+			return
+		}
+		nowUnix := time.Now().Unix()
+		protoSamples := make([]*lynceusv1.ConnectionSample, 0, len(samples))
+		for i := range samples {
+			s := &samples[i]
+			protoSamples = append(protoSamples, &lynceusv1.ConnectionSample{
+				ServerId:       cfg.serverID,
+				ObservedAtUnix: nowUnix,
+				Pid:            s.PID,
+				State:          s.State,
+				ActiveSeconds:  s.ActiveSeconds,
+				XactSeconds:    s.XactSeconds,
+				StateSeconds:   s.StateSeconds,
+				WaitEventType:  s.WaitEventType,
+			})
+		}
+		protoEdges := make([]*lynceusv1.BlockingEdge, 0, len(edges))
+		for i := range edges {
+			e := &edges[i]
+			protoEdges = append(protoEdges, &lynceusv1.BlockingEdge{
+				ServerId:           cfg.serverID,
+				ObservedAtUnix:     nowUnix,
+				BlockedPid:         e.BlockedPID,
+				BlockerPid:         e.BlockerPID,
+				BlockedWaitSeconds: e.BlockedWaitSeconds,
+			})
+		}
+		snap := &lynceusv1.Snapshot{
+			ServerId:          cfg.serverID,
+			CollectedAtUnix:   nowUnix,
+			ConnectionSamples: protoSamples,
+			BlockingEdges:     protoEdges,
+		}
+		if err := shipper.Send(ctx, snap); err != nil {
+			log.Printf("ship connections: %v", err)
+			return
+		}
+		log.Printf("shipped %d connection_samples, %d blocking_edges", len(protoSamples), len(protoEdges))
+	}
+
 	// Drain the log tail → ship classified T1 log events + extracted plans.
 	runLogTail := func() {
 		res, err := logPipe.Drain()
@@ -231,6 +283,7 @@ func main() {
 			sampleActivity()
 		case <-flushTicker.C:
 			flushActivity()
+			shipConnections()
 		case <-logTickerC:
 			runLogTail()
 		}
