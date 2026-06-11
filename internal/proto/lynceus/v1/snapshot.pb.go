@@ -134,7 +134,14 @@ type Snapshot struct {
 	// Per-database + per-table transaction-id / MultiXact freeze AGES (counts
 	// only — never raw xids). Each element is a lynceus.v1.FreezeAge,
 	// contract-tested below. Feeds the wraparound check (ly-u4t.26).
-	FreezeAges    []*FreezeAge `protobuf:"bytes,9,rep,name=freeze_ages,json=freezeAges,proto3" json:"freeze_ages,omitempty"`
+	FreezeAges []*FreezeAge `protobuf:"bytes,9,rep,name=freeze_ages,json=freezeAges,proto3" json:"freeze_ages,omitempty"`
+	// Per-backend connection observations from pg_stat_activity — durations +
+	// pid + fixed state enum, NEVER query text. Feeds the Connections checks
+	// (ly-u4t.22): long-running active + idle-in-transaction. T1.
+	ConnectionSamples []*ConnectionSample `protobuf:"bytes,10,rep,name=connection_samples,json=connectionSamples,proto3" json:"connection_samples,omitempty"`
+	// Blocking relationships (A blocks B) from pg_blocking_pids() — pids only.
+	// Feeds the Connections blocking check (ly-u4t.22). T1.
+	BlockingEdges []*BlockingEdge `protobuf:"bytes,11,rep,name=blocking_edges,json=blockingEdges,proto3" json:"blocking_edges,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -228,6 +235,20 @@ func (x *Snapshot) GetLogEvents() []*LogEvent {
 func (x *Snapshot) GetFreezeAges() []*FreezeAge {
 	if x != nil {
 		return x.FreezeAges
+	}
+	return nil
+}
+
+func (x *Snapshot) GetConnectionSamples() []*ConnectionSample {
+	if x != nil {
+		return x.ConnectionSamples
+	}
+	return nil
+}
+
+func (x *Snapshot) GetBlockingEdges() []*BlockingEdge {
+	if x != nil {
+		return x.BlockingEdges
 	}
 	return nil
 }
@@ -477,6 +498,192 @@ func (x *ActivityBucket) GetCountMax() int64 {
 	return 0
 }
 
+// ConnectionSample is one point-in-time observation of a single client
+// backend from pg_stat_activity. Like ActivityBucket it DELIBERATELY never
+// carries the `query` column or any literal; only the backend pid, a fixed
+// state label, integer durations, and the wait_event_type label travel.
+// Live query text is the separate T2 connection-traces feature (ly-xqf.4).
+//
+// INVARIANT: every field is an identifier (pid), a fixed-vocabulary label
+// (state, wait_event_type), or a non-negative duration COUNT in seconds.
+type ConnectionSample struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ServerId       string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	ObservedAtUnix int64                  `protobuf:"varint,2,opt,name=observed_at_unix,json=observedAtUnix,proto3" json:"observed_at_unix,omitempty"`
+	Pid            int64                  `protobuf:"varint,3,opt,name=pid,proto3" json:"pid,omitempty"`                                           // backend pid — ephemeral OS identifier
+	State          string                 `protobuf:"bytes,4,opt,name=state,proto3" json:"state,omitempty"`                                        // active | idle in transaction | idle in transaction (aborted)
+	ActiveSeconds  int64                  `protobuf:"varint,5,opt,name=active_seconds,json=activeSeconds,proto3" json:"active_seconds,omitempty"`  // now - query_start  (current statement age)
+	XactSeconds    int64                  `protobuf:"varint,6,opt,name=xact_seconds,json=xactSeconds,proto3" json:"xact_seconds,omitempty"`        // now - xact_start   (transaction age)
+	StateSeconds   int64                  `protobuf:"varint,7,opt,name=state_seconds,json=stateSeconds,proto3" json:"state_seconds,omitempty"`     // now - state_change (time in current state)
+	WaitEventType  string                 `protobuf:"bytes,8,opt,name=wait_event_type,json=waitEventType,proto3" json:"wait_event_type,omitempty"` // pg_stat_activity.wait_event_type; "" if not waiting
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ConnectionSample) Reset() {
+	*x = ConnectionSample{}
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectionSample) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectionSample) ProtoMessage() {}
+
+func (x *ConnectionSample) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectionSample.ProtoReflect.Descriptor instead.
+func (*ConnectionSample) Descriptor() ([]byte, []int) {
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ConnectionSample) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *ConnectionSample) GetObservedAtUnix() int64 {
+	if x != nil {
+		return x.ObservedAtUnix
+	}
+	return 0
+}
+
+func (x *ConnectionSample) GetPid() int64 {
+	if x != nil {
+		return x.Pid
+	}
+	return 0
+}
+
+func (x *ConnectionSample) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *ConnectionSample) GetActiveSeconds() int64 {
+	if x != nil {
+		return x.ActiveSeconds
+	}
+	return 0
+}
+
+func (x *ConnectionSample) GetXactSeconds() int64 {
+	if x != nil {
+		return x.XactSeconds
+	}
+	return 0
+}
+
+func (x *ConnectionSample) GetStateSeconds() int64 {
+	if x != nil {
+		return x.StateSeconds
+	}
+	return 0
+}
+
+func (x *ConnectionSample) GetWaitEventType() string {
+	if x != nil {
+		return x.WaitEventType
+	}
+	return ""
+}
+
+// BlockingEdge is one A→B lock-wait relationship derived from
+// pg_blocking_pids(). pids only — no relation name, no query text. T1.
+type BlockingEdge struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	ServerId           string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	ObservedAtUnix     int64                  `protobuf:"varint,2,opt,name=observed_at_unix,json=observedAtUnix,proto3" json:"observed_at_unix,omitempty"`
+	BlockedPid         int64                  `protobuf:"varint,3,opt,name=blocked_pid,json=blockedPid,proto3" json:"blocked_pid,omitempty"`                           // backend waiting on a lock
+	BlockerPid         int64                  `protobuf:"varint,4,opt,name=blocker_pid,json=blockerPid,proto3" json:"blocker_pid,omitempty"`                           // backend holding the conflicting lock
+	BlockedWaitSeconds int64                  `protobuf:"varint,5,opt,name=blocked_wait_seconds,json=blockedWaitSeconds,proto3" json:"blocked_wait_seconds,omitempty"` // now - blocked.state_change
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *BlockingEdge) Reset() {
+	*x = BlockingEdge{}
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BlockingEdge) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BlockingEdge) ProtoMessage() {}
+
+func (x *BlockingEdge) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BlockingEdge.ProtoReflect.Descriptor instead.
+func (*BlockingEdge) Descriptor() ([]byte, []int) {
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *BlockingEdge) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *BlockingEdge) GetObservedAtUnix() int64 {
+	if x != nil {
+		return x.ObservedAtUnix
+	}
+	return 0
+}
+
+func (x *BlockingEdge) GetBlockedPid() int64 {
+	if x != nil {
+		return x.BlockedPid
+	}
+	return 0
+}
+
+func (x *BlockingEdge) GetBlockerPid() int64 {
+	if x != nil {
+		return x.BlockerPid
+	}
+	return 0
+}
+
+func (x *BlockingEdge) GetBlockedWaitSeconds() int64 {
+	if x != nil {
+		return x.BlockedWaitSeconds
+	}
+	return 0
+}
+
 // SchemaObject is one row of the monitored database's structural
 // inventory. It carries STRUCTURAL metadata only — schema and relation
 // names, an enum kind, a byte size, partition flags, and a first-seen
@@ -503,7 +710,7 @@ type SchemaObject struct {
 
 func (x *SchemaObject) Reset() {
 	*x = SchemaObject{}
-	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[3]
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -515,7 +722,7 @@ func (x *SchemaObject) String() string {
 func (*SchemaObject) ProtoMessage() {}
 
 func (x *SchemaObject) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[3]
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -528,7 +735,7 @@ func (x *SchemaObject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SchemaObject.ProtoReflect.Descriptor instead.
 func (*SchemaObject) Descriptor() ([]byte, []int) {
-	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{3}
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SchemaObject) GetKind() ObjectKind {
@@ -627,7 +834,7 @@ type TableStat struct {
 
 func (x *TableStat) Reset() {
 	*x = TableStat{}
-	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[4]
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -639,7 +846,7 @@ func (x *TableStat) String() string {
 func (*TableStat) ProtoMessage() {}
 
 func (x *TableStat) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[4]
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -652,7 +859,7 @@ func (x *TableStat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TableStat.ProtoReflect.Descriptor instead.
 func (*TableStat) Descriptor() ([]byte, []int) {
-	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{4}
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *TableStat) GetSchema() string {
@@ -836,7 +1043,7 @@ type FreezeAge struct {
 
 func (x *FreezeAge) Reset() {
 	*x = FreezeAge{}
-	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[5]
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -848,7 +1055,7 @@ func (x *FreezeAge) String() string {
 func (*FreezeAge) ProtoMessage() {}
 
 func (x *FreezeAge) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[5]
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -861,7 +1068,7 @@ func (x *FreezeAge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FreezeAge.ProtoReflect.Descriptor instead.
 func (*FreezeAge) Descriptor() ([]byte, []int) {
-	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{5}
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *FreezeAge) GetScope() string {
@@ -918,7 +1125,7 @@ var File_proto_lynceus_v1_snapshot_proto protoreflect.FileDescriptor
 const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\n" +
 	"\x1fproto/lynceus/v1/snapshot.proto\x12\n" +
-	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\x1a proto/lynceus/v1/log_event.proto\"\xf0\x03\n" +
+	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\x1a proto/lynceus/v1/log_event.proto\"\xfe\x04\n" +
 	"\bSnapshot\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12*\n" +
 	"\x11collected_at_unix\x18\x02 \x01(\x03R\x0fcollectedAtUnix\x126\n" +
@@ -933,7 +1140,10 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\n" +
 	"log_events\x18\b \x03(\v2\x14.lynceus.v1.LogEventR\tlogEvents\x126\n" +
 	"\vfreeze_ages\x18\t \x03(\v2\x15.lynceus.v1.FreezeAgeR\n" +
-	"freezeAges\"\x9a\x02\n" +
+	"freezeAges\x12K\n" +
+	"\x12connection_samples\x18\n" +
+	" \x03(\v2\x1c.lynceus.v1.ConnectionSampleR\x11connectionSamples\x12?\n" +
+	"\x0eblocking_edges\x18\v \x03(\v2\x18.lynceus.v1.BlockingEdgeR\rblockingEdges\"\x9a\x02\n" +
 	"\tQueryStat\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12)\n" +
 	"\x10normalized_query\x18\x02 \x01(\tR\x0fnormalizedQuery\x12\x14\n" +
@@ -956,7 +1166,24 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\fsample_count\x18\b \x01(\x05R\vsampleCount\x12\x1b\n" +
 	"\tcount_sum\x18\t \x01(\x03R\bcountSum\x12\x1b\n" +
 	"\tcount_max\x18\n" +
-	" \x01(\x03R\bcountMax\"\x86\x02\n" +
+	" \x01(\x03R\bcountMax\"\x98\x02\n" +
+	"\x10ConnectionSample\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12(\n" +
+	"\x10observed_at_unix\x18\x02 \x01(\x03R\x0eobservedAtUnix\x12\x10\n" +
+	"\x03pid\x18\x03 \x01(\x03R\x03pid\x12\x14\n" +
+	"\x05state\x18\x04 \x01(\tR\x05state\x12%\n" +
+	"\x0eactive_seconds\x18\x05 \x01(\x03R\ractiveSeconds\x12!\n" +
+	"\fxact_seconds\x18\x06 \x01(\x03R\vxactSeconds\x12#\n" +
+	"\rstate_seconds\x18\a \x01(\x03R\fstateSeconds\x12&\n" +
+	"\x0fwait_event_type\x18\b \x01(\tR\rwaitEventType\"\xc9\x01\n" +
+	"\fBlockingEdge\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12(\n" +
+	"\x10observed_at_unix\x18\x02 \x01(\x03R\x0eobservedAtUnix\x12\x1f\n" +
+	"\vblocked_pid\x18\x03 \x01(\x03R\n" +
+	"blockedPid\x12\x1f\n" +
+	"\vblocker_pid\x18\x04 \x01(\x03R\n" +
+	"blockerPid\x120\n" +
+	"\x14blocked_wait_seconds\x18\x05 \x01(\x03R\x12blockedWaitSeconds\"\x86\x02\n" +
 	"\fSchemaObject\x12*\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x16.lynceus.v1.ObjectKindR\x04kind\x12\x16\n" +
 	"\x06schema\x18\x02 \x01(\tR\x06schema\x12\x12\n" +
@@ -1030,32 +1257,36 @@ func file_proto_lynceus_v1_snapshot_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_lynceus_v1_snapshot_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_proto_lynceus_v1_snapshot_proto_goTypes = []any{
-	(ObjectKind)(0),        // 0: lynceus.v1.ObjectKind
-	(*Snapshot)(nil),       // 1: lynceus.v1.Snapshot
-	(*QueryStat)(nil),      // 2: lynceus.v1.QueryStat
-	(*ActivityBucket)(nil), // 3: lynceus.v1.ActivityBucket
-	(*SchemaObject)(nil),   // 4: lynceus.v1.SchemaObject
-	(*TableStat)(nil),      // 5: lynceus.v1.TableStat
-	(*FreezeAge)(nil),      // 6: lynceus.v1.FreezeAge
-	(*QueryPlan)(nil),      // 7: lynceus.v1.QueryPlan
-	(*LogEvent)(nil),       // 8: lynceus.v1.LogEvent
+	(ObjectKind)(0),          // 0: lynceus.v1.ObjectKind
+	(*Snapshot)(nil),         // 1: lynceus.v1.Snapshot
+	(*QueryStat)(nil),        // 2: lynceus.v1.QueryStat
+	(*ActivityBucket)(nil),   // 3: lynceus.v1.ActivityBucket
+	(*ConnectionSample)(nil), // 4: lynceus.v1.ConnectionSample
+	(*BlockingEdge)(nil),     // 5: lynceus.v1.BlockingEdge
+	(*SchemaObject)(nil),     // 6: lynceus.v1.SchemaObject
+	(*TableStat)(nil),        // 7: lynceus.v1.TableStat
+	(*FreezeAge)(nil),        // 8: lynceus.v1.FreezeAge
+	(*QueryPlan)(nil),        // 9: lynceus.v1.QueryPlan
+	(*LogEvent)(nil),         // 10: lynceus.v1.LogEvent
 }
 var file_proto_lynceus_v1_snapshot_proto_depIdxs = []int32{
-	2, // 0: lynceus.v1.Snapshot.query_stats:type_name -> lynceus.v1.QueryStat
-	3, // 1: lynceus.v1.Snapshot.activity_buckets:type_name -> lynceus.v1.ActivityBucket
-	7, // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
-	4, // 3: lynceus.v1.Snapshot.schema_objects:type_name -> lynceus.v1.SchemaObject
-	5, // 4: lynceus.v1.Snapshot.table_stats:type_name -> lynceus.v1.TableStat
-	8, // 5: lynceus.v1.Snapshot.log_events:type_name -> lynceus.v1.LogEvent
-	6, // 6: lynceus.v1.Snapshot.freeze_ages:type_name -> lynceus.v1.FreezeAge
-	0, // 7: lynceus.v1.SchemaObject.kind:type_name -> lynceus.v1.ObjectKind
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	2,  // 0: lynceus.v1.Snapshot.query_stats:type_name -> lynceus.v1.QueryStat
+	3,  // 1: lynceus.v1.Snapshot.activity_buckets:type_name -> lynceus.v1.ActivityBucket
+	9,  // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
+	6,  // 3: lynceus.v1.Snapshot.schema_objects:type_name -> lynceus.v1.SchemaObject
+	7,  // 4: lynceus.v1.Snapshot.table_stats:type_name -> lynceus.v1.TableStat
+	10, // 5: lynceus.v1.Snapshot.log_events:type_name -> lynceus.v1.LogEvent
+	8,  // 6: lynceus.v1.Snapshot.freeze_ages:type_name -> lynceus.v1.FreezeAge
+	4,  // 7: lynceus.v1.Snapshot.connection_samples:type_name -> lynceus.v1.ConnectionSample
+	5,  // 8: lynceus.v1.Snapshot.blocking_edges:type_name -> lynceus.v1.BlockingEdge
+	0,  // 9: lynceus.v1.SchemaObject.kind:type_name -> lynceus.v1.ObjectKind
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_proto_lynceus_v1_snapshot_proto_init() }
@@ -1071,7 +1302,7 @@ func file_proto_lynceus_v1_snapshot_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_lynceus_v1_snapshot_proto_rawDesc), len(file_proto_lynceus_v1_snapshot_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

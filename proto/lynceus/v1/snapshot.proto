@@ -62,6 +62,15 @@ message Snapshot {
   // only — never raw xids). Each element is a lynceus.v1.FreezeAge,
   // contract-tested below. Feeds the wraparound check (ly-u4t.26).
   repeated FreezeAge freeze_ages = 9;
+
+  // Per-backend connection observations from pg_stat_activity — durations +
+  // pid + fixed state enum, NEVER query text. Feeds the Connections checks
+  // (ly-u4t.22): long-running active + idle-in-transaction. T1.
+  repeated ConnectionSample connection_samples = 10;
+
+  // Blocking relationships (A blocks B) from pg_blocking_pids() — pids only.
+  // Feeds the Connections blocking check (ly-u4t.22). T1.
+  repeated BlockingEdge blocking_edges = 11;
 }
 
 // QueryStat is one row of per-fingerprint query statistics, derived
@@ -118,6 +127,35 @@ message ActivityBucket {
   int32  sample_count       = 8;  // how many ~10s samples fed this bucket
   int64  count_sum          = 9;  // sum of per-sample connection counts
   int64  count_max          = 10; // peak per-sample connection count
+}
+
+// ConnectionSample is one point-in-time observation of a single client
+// backend from pg_stat_activity. Like ActivityBucket it DELIBERATELY never
+// carries the `query` column or any literal; only the backend pid, a fixed
+// state label, integer durations, and the wait_event_type label travel.
+// Live query text is the separate T2 connection-traces feature (ly-xqf.4).
+//
+// INVARIANT: every field is an identifier (pid), a fixed-vocabulary label
+// (state, wait_event_type), or a non-negative duration COUNT in seconds.
+message ConnectionSample {
+  string server_id        = 1;
+  int64  observed_at_unix = 2;
+  int64  pid              = 3;  // backend pid — ephemeral OS identifier
+  string state            = 4;  // active | idle in transaction | idle in transaction (aborted)
+  int64  active_seconds   = 5;  // now - query_start  (current statement age)
+  int64  xact_seconds     = 6;  // now - xact_start   (transaction age)
+  int64  state_seconds    = 7;  // now - state_change (time in current state)
+  string wait_event_type  = 8;  // pg_stat_activity.wait_event_type; "" if not waiting
+}
+
+// BlockingEdge is one A→B lock-wait relationship derived from
+// pg_blocking_pids(). pids only — no relation name, no query text. T1.
+message BlockingEdge {
+  string server_id            = 1;
+  int64  observed_at_unix     = 2;
+  int64  blocked_pid          = 3;  // backend waiting on a lock
+  int64  blocker_pid          = 4;  // backend holding the conflicting lock
+  int64  blocked_wait_seconds = 5;  // now - blocked.state_change
 }
 
 // ObjectKind enumerates the schema-catalog object types Lynceus inventories.
