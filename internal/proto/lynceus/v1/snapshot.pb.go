@@ -142,6 +142,12 @@ type Snapshot struct {
 	// Blocking relationships (A blocks B) from pg_blocking_pids() — pids only.
 	// Feeds the Connections blocking check (ly-u4t.22). T1.
 	BlockingEdges []*BlockingEdge `protobuf:"bytes,11,rep,name=blocking_edges,json=blockingEdges,proto3" json:"blocking_edges,omitempty"`
+	// Per-index scan counter + structural validity/uniqueness flags from
+	// pg_index + pg_stat_user_indexes, on the slow (~10m) full cadence. Feeds
+	// the Schema checks (ly-u4t.23): invalid indexes + unused indexes. See
+	// IndexStat — T1, identifiers/counts/booleans only, NEVER an index
+	// expression or predicate.
+	IndexStats    []*IndexStat `protobuf:"bytes,12,rep,name=index_stats,json=indexStats,proto3" json:"index_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -249,6 +255,13 @@ func (x *Snapshot) GetConnectionSamples() []*ConnectionSample {
 func (x *Snapshot) GetBlockingEdges() []*BlockingEdge {
 	if x != nil {
 		return x.BlockingEdges
+	}
+	return nil
+}
+
+func (x *Snapshot) GetIndexStats() []*IndexStat {
+	if x != nil {
+		return x.IndexStats
 	}
 	return nil
 }
@@ -1023,6 +1036,133 @@ func (x *TableStat) GetAutovacuumCount() int64 {
 	return 0
 }
 
+// IndexStat is one per-index scan counter + size + structural validity/
+// uniqueness flags, sampled from pg_index + pg_class + pg_stat_user_indexes
+// on the slow (~10m) full cadence. Feeds the Schema checks (ly-u4t.23):
+// invalid indexes (indisvalid=false) and unused indexes (low idx_scan).
+//
+// INVARIANT: every field is a catalog IDENTIFIER (schema/name/fqn/table_fqn),
+// a scan COUNTER, a byte SIZE, or a structural catalog BOOLEAN. It carries NO
+// index expression (pg_get_indexdef), partial-index predicate
+// (pg_index.indpred), column value, or any per-execution literal — those can
+// embed customer data and require a separate T2 message gated behind RBAC +
+// audit. Same privacy class as TableStat (counts + identifiers only).
+type IndexStat struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Schema        string                 `protobuf:"bytes,1,opt,name=schema,proto3" json:"schema,omitempty"`                          // index/table namespace IDENTIFIER (filtered at the collector boundary)
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                              // index IDENTIFIER
+	Fqn           string                 `protobuf:"bytes,3,opt,name=fqn,proto3" json:"fqn,omitempty"`                                // "schema.index" IDENTIFIER — join key
+	TableFqn      string                 `protobuf:"bytes,4,opt,name=table_fqn,json=tableFqn,proto3" json:"table_fqn,omitempty"`      // "schema.table" the index belongs to IDENTIFIER
+	IdxScan       int64                  `protobuf:"varint,5,opt,name=idx_scan,json=idxScan,proto3" json:"idx_scan,omitempty"`        // pg_stat_user_indexes.idx_scan          [COUNTER]
+	SizeBytes     int64                  `protobuf:"varint,6,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`  // pg_relation_size(indexrelid)           [SIZE]
+	IsValid       bool                   `protobuf:"varint,7,opt,name=is_valid,json=isValid,proto3" json:"is_valid,omitempty"`        // pg_index.indisvalid  — false = failed CREATE INDEX CONCURRENTLY
+	IsReady       bool                   `protobuf:"varint,8,opt,name=is_ready,json=isReady,proto3" json:"is_ready,omitempty"`        // pg_index.indisready  — false = still building
+	IsUnique      bool                   `protobuf:"varint,9,opt,name=is_unique,json=isUnique,proto3" json:"is_unique,omitempty"`     // pg_index.indisunique — backs a UNIQUE constraint
+	IsPrimary     bool                   `protobuf:"varint,10,opt,name=is_primary,json=isPrimary,proto3" json:"is_primary,omitempty"` // pg_index.indisprimary — backs a PRIMARY KEY
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IndexStat) Reset() {
+	*x = IndexStat{}
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IndexStat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IndexStat) ProtoMessage() {}
+
+func (x *IndexStat) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IndexStat.ProtoReflect.Descriptor instead.
+func (*IndexStat) Descriptor() ([]byte, []int) {
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *IndexStat) GetSchema() string {
+	if x != nil {
+		return x.Schema
+	}
+	return ""
+}
+
+func (x *IndexStat) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *IndexStat) GetFqn() string {
+	if x != nil {
+		return x.Fqn
+	}
+	return ""
+}
+
+func (x *IndexStat) GetTableFqn() string {
+	if x != nil {
+		return x.TableFqn
+	}
+	return ""
+}
+
+func (x *IndexStat) GetIdxScan() int64 {
+	if x != nil {
+		return x.IdxScan
+	}
+	return 0
+}
+
+func (x *IndexStat) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *IndexStat) GetIsValid() bool {
+	if x != nil {
+		return x.IsValid
+	}
+	return false
+}
+
+func (x *IndexStat) GetIsReady() bool {
+	if x != nil {
+		return x.IsReady
+	}
+	return false
+}
+
+func (x *IndexStat) GetIsUnique() bool {
+	if x != nil {
+		return x.IsUnique
+	}
+	return false
+}
+
+func (x *IndexStat) GetIsPrimary() bool {
+	if x != nil {
+		return x.IsPrimary
+	}
+	return false
+}
+
 // FreezeAge carries transaction-id / MultiXact freeze AGES (counts), never
 // raw xids. Used by the wraparound check (ly-u4t.26). scope is "database"
 // or "table"; for "database" the identifier is the datname and the schema
@@ -1043,7 +1183,7 @@ type FreezeAge struct {
 
 func (x *FreezeAge) Reset() {
 	*x = FreezeAge{}
-	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[7]
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1055,7 +1195,7 @@ func (x *FreezeAge) String() string {
 func (*FreezeAge) ProtoMessage() {}
 
 func (x *FreezeAge) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[7]
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1068,7 +1208,7 @@ func (x *FreezeAge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FreezeAge.ProtoReflect.Descriptor instead.
 func (*FreezeAge) Descriptor() ([]byte, []int) {
-	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{7}
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *FreezeAge) GetScope() string {
@@ -1125,7 +1265,7 @@ var File_proto_lynceus_v1_snapshot_proto protoreflect.FileDescriptor
 const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\n" +
 	"\x1fproto/lynceus/v1/snapshot.proto\x12\n" +
-	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\x1a proto/lynceus/v1/log_event.proto\"\xfe\x04\n" +
+	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\x1a proto/lynceus/v1/log_event.proto\"\xb6\x05\n" +
 	"\bSnapshot\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12*\n" +
 	"\x11collected_at_unix\x18\x02 \x01(\x03R\x0fcollectedAtUnix\x126\n" +
@@ -1143,7 +1283,9 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"freezeAges\x12K\n" +
 	"\x12connection_samples\x18\n" +
 	" \x03(\v2\x1c.lynceus.v1.ConnectionSampleR\x11connectionSamples\x12?\n" +
-	"\x0eblocking_edges\x18\v \x03(\v2\x18.lynceus.v1.BlockingEdgeR\rblockingEdges\"\x9a\x02\n" +
+	"\x0eblocking_edges\x18\v \x03(\v2\x18.lynceus.v1.BlockingEdgeR\rblockingEdges\x126\n" +
+	"\vindex_stats\x18\f \x03(\v2\x15.lynceus.v1.IndexStatR\n" +
+	"indexStats\"\x9a\x02\n" +
 	"\tQueryStat\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12)\n" +
 	"\x10normalized_query\x18\x02 \x01(\tR\x0fnormalizedQuery\x12\x14\n" +
@@ -1225,7 +1367,21 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\x11last_analyze_unix\x18\x14 \x01(\x03R\x0flastAnalyzeUnix\x122\n" +
 	"\x15last_autoanalyze_unix\x18\x15 \x01(\x03R\x13lastAutoanalyzeUnix\x12!\n" +
 	"\fvacuum_count\x18\x16 \x01(\x03R\vvacuumCount\x12)\n" +
-	"\x10autovacuum_count\x18\x17 \x01(\x03R\x0fautovacuumCount\"\xce\x01\n" +
+	"\x10autovacuum_count\x18\x17 \x01(\x03R\x0fautovacuumCount\"\x92\x02\n" +
+	"\tIndexStat\x12\x16\n" +
+	"\x06schema\x18\x01 \x01(\tR\x06schema\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
+	"\x03fqn\x18\x03 \x01(\tR\x03fqn\x12\x1b\n" +
+	"\ttable_fqn\x18\x04 \x01(\tR\btableFqn\x12\x19\n" +
+	"\bidx_scan\x18\x05 \x01(\x03R\aidxScan\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x06 \x01(\x03R\tsizeBytes\x12\x19\n" +
+	"\bis_valid\x18\a \x01(\bR\aisValid\x12\x19\n" +
+	"\bis_ready\x18\b \x01(\bR\aisReady\x12\x1b\n" +
+	"\tis_unique\x18\t \x01(\bR\bisUnique\x12\x1d\n" +
+	"\n" +
+	"is_primary\x18\n" +
+	" \x01(\bR\tisPrimary\"\xce\x01\n" +
 	"\tFreezeAge\x12\x14\n" +
 	"\x05scope\x18\x01 \x01(\tR\x05scope\x12\x16\n" +
 	"\x06schema\x18\x02 \x01(\tR\x06schema\x12\x12\n" +
@@ -1257,7 +1413,7 @@ func file_proto_lynceus_v1_snapshot_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_lynceus_v1_snapshot_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_proto_lynceus_v1_snapshot_proto_goTypes = []any{
 	(ObjectKind)(0),          // 0: lynceus.v1.ObjectKind
 	(*Snapshot)(nil),         // 1: lynceus.v1.Snapshot
@@ -1267,26 +1423,28 @@ var file_proto_lynceus_v1_snapshot_proto_goTypes = []any{
 	(*BlockingEdge)(nil),     // 5: lynceus.v1.BlockingEdge
 	(*SchemaObject)(nil),     // 6: lynceus.v1.SchemaObject
 	(*TableStat)(nil),        // 7: lynceus.v1.TableStat
-	(*FreezeAge)(nil),        // 8: lynceus.v1.FreezeAge
-	(*QueryPlan)(nil),        // 9: lynceus.v1.QueryPlan
-	(*LogEvent)(nil),         // 10: lynceus.v1.LogEvent
+	(*IndexStat)(nil),        // 8: lynceus.v1.IndexStat
+	(*FreezeAge)(nil),        // 9: lynceus.v1.FreezeAge
+	(*QueryPlan)(nil),        // 10: lynceus.v1.QueryPlan
+	(*LogEvent)(nil),         // 11: lynceus.v1.LogEvent
 }
 var file_proto_lynceus_v1_snapshot_proto_depIdxs = []int32{
 	2,  // 0: lynceus.v1.Snapshot.query_stats:type_name -> lynceus.v1.QueryStat
 	3,  // 1: lynceus.v1.Snapshot.activity_buckets:type_name -> lynceus.v1.ActivityBucket
-	9,  // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
+	10, // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
 	6,  // 3: lynceus.v1.Snapshot.schema_objects:type_name -> lynceus.v1.SchemaObject
 	7,  // 4: lynceus.v1.Snapshot.table_stats:type_name -> lynceus.v1.TableStat
-	10, // 5: lynceus.v1.Snapshot.log_events:type_name -> lynceus.v1.LogEvent
-	8,  // 6: lynceus.v1.Snapshot.freeze_ages:type_name -> lynceus.v1.FreezeAge
+	11, // 5: lynceus.v1.Snapshot.log_events:type_name -> lynceus.v1.LogEvent
+	9,  // 6: lynceus.v1.Snapshot.freeze_ages:type_name -> lynceus.v1.FreezeAge
 	4,  // 7: lynceus.v1.Snapshot.connection_samples:type_name -> lynceus.v1.ConnectionSample
 	5,  // 8: lynceus.v1.Snapshot.blocking_edges:type_name -> lynceus.v1.BlockingEdge
-	0,  // 9: lynceus.v1.SchemaObject.kind:type_name -> lynceus.v1.ObjectKind
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	8,  // 9: lynceus.v1.Snapshot.index_stats:type_name -> lynceus.v1.IndexStat
+	0,  // 10: lynceus.v1.SchemaObject.kind:type_name -> lynceus.v1.ObjectKind
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_proto_lynceus_v1_snapshot_proto_init() }
@@ -1302,7 +1460,7 @@ func file_proto_lynceus_v1_snapshot_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_lynceus_v1_snapshot_proto_rawDesc), len(file_proto_lynceus_v1_snapshot_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
