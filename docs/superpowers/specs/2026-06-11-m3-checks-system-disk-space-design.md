@@ -2,6 +2,17 @@
 
 **Bead:** ly-u4t.25 (P1). **Parity:** System checks. **Depends on:** ly-u4t.20 (Checks engine, merged).
 
+> **Status (2026-06-11): superseded in part / decomposed.** Two decisions postdate this doc:
+> (1) the `DiskUsage` message generalizes to a source-agnostic **`HostMetric`** sample
+> `{source, instance, category(cpu|memory|disk|network|…), resource, metric, value, unit}` — disk is
+> just the first `category`; and (2) the work split into separate beads: **ly-u4t.28** (HostMetric
+> model — proto/store/ingest/scheduler), **ly-u4t.29** (on-host statfs source), **ly-99s.5.1/.2**
+> (AWS API / event-stream sources), **ly-99s.5.3** (PlanetScale), **ly-99s.5.4** (Azure Flexible
+> Server), and **ly-u4t.25** (this — the `system.disk_space` *check* only). All sit behind the fleet
+> entity model **ly-99s.1**. Treat the `DiskUsage`-typed sections below as the disk *category* shape
+> within `HostMetric`; the HostMetric model + per-category/source design will be finalized when
+> ly-u4t.28 is planned. The check semantics (warn ≥85% / crit ≥95%, per instance×resource) stand.
+
 ## Problem
 
 "Out of Disk Space" is the one M3 check whose signal does **not** live inside Postgres. A
