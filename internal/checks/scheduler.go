@@ -185,6 +185,19 @@ func (sc *Scheduler) assembleInput(ctx context.Context, serverID string, now tim
 		})
 	}
 
+	idxStats, err := sc.stats.LatestIndexStats(ctx, serverID, now)
+	if err != nil {
+		return in, err
+	}
+	for i := range idxStats {
+		ix := &idxStats[i]
+		in.Indexes = append(in.Indexes, IndexInfo{
+			Schema: ix.SchemaName, Name: ix.ObjectName, FQN: ix.FQN, TableFQN: ix.TableFQN,
+			IdxScan: ix.IdxScan, SizeBytes: ix.SizeBytes,
+			IsValid: ix.IsValid, IsReady: ix.IsReady, IsUnique: ix.IsUnique, IsPrimary: ix.IsPrimary,
+		})
+	}
+
 	// Index Advisor (ly-u4t.27): gather this server's recent plans + table
 	// sizes and run the pure recommender, mirroring api.fetchIndexAdvice but
 	// scoped to serverID. Reuses the `tables` rows already read above.

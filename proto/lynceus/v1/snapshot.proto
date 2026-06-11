@@ -71,6 +71,13 @@ message Snapshot {
   // Blocking relationships (A blocks B) from pg_blocking_pids() — pids only.
   // Feeds the Connections blocking check (ly-u4t.22). T1.
   repeated BlockingEdge blocking_edges = 11;
+
+  // Per-index scan counter + structural validity/uniqueness flags from
+  // pg_index + pg_stat_user_indexes, on the slow (~10m) full cadence. Feeds
+  // the Schema checks (ly-u4t.23): invalid indexes + unused indexes. See
+  // IndexStat — T1, identifiers/counts/booleans only, NEVER an index
+  // expression or predicate.
+  repeated IndexStat index_stats = 12;
 }
 
 // QueryStat is one row of per-fingerprint query statistics, derived
@@ -228,6 +235,32 @@ message TableStat {
   int64 last_autoanalyze_unix = 21; // [TIMESTAMP, 0 if never]
   int64 vacuum_count          = 22; // [COUNTER]
   int64 autovacuum_count      = 23; // [COUNTER]
+}
+
+// IndexStat is one per-index scan counter + size + structural validity/
+// uniqueness flags, sampled from pg_index + pg_class + pg_stat_user_indexes
+// on the slow (~10m) full cadence. Feeds the Schema checks (ly-u4t.23):
+// invalid indexes (indisvalid=false) and unused indexes (low idx_scan).
+//
+// INVARIANT: every field is a catalog IDENTIFIER (schema/name/fqn/table_fqn),
+// a scan COUNTER, a byte SIZE, or a structural catalog BOOLEAN. It carries NO
+// index expression (pg_get_indexdef), partial-index predicate
+// (pg_index.indpred), column value, or any per-execution literal — those can
+// embed customer data and require a separate T2 message gated behind RBAC +
+// audit. Same privacy class as TableStat (counts + identifiers only).
+message IndexStat {
+  string schema    = 1;  // index/table namespace IDENTIFIER (filtered at the collector boundary)
+  string name      = 2;  // index IDENTIFIER
+  string fqn       = 3;  // "schema.index" IDENTIFIER — join key
+  string table_fqn = 4;  // "schema.table" the index belongs to IDENTIFIER
+
+  int64 idx_scan   = 5;  // pg_stat_user_indexes.idx_scan          [COUNTER]
+  int64 size_bytes = 6;  // pg_relation_size(indexrelid)           [SIZE]
+
+  bool is_valid   = 7;   // pg_index.indisvalid  — false = failed CREATE INDEX CONCURRENTLY
+  bool is_ready   = 8;   // pg_index.indisready  — false = still building
+  bool is_unique  = 9;   // pg_index.indisunique — backs a UNIQUE constraint
+  bool is_primary = 10;  // pg_index.indisprimary — backs a PRIMARY KEY
 }
 
 // FreezeAge carries transaction-id / MultiXact freeze AGES (counts), never

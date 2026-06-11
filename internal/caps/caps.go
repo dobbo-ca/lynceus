@@ -41,6 +41,9 @@ const (
 	// FreezeAge gates the per-database/per-table transaction-id / MultiXact
 	// freeze-age reader feeding the wraparound check (ly-u4t.26).
 	FreezeAge Capability = "freeze_age"
+	// IndexStats gates the per-index scan/validity reader feeding the Schema
+	// checks (ly-u4t.23): invalid indexes + unused indexes.
+	IndexStats Capability = "index_stats"
 )
 
 // Declared returns every capability the package knows how to probe.
@@ -60,6 +63,7 @@ func Declared() []Capability {
 		SchemaInventory,
 		TableSize,
 		FreezeAge,
+		IndexStats,
 	}
 }
 

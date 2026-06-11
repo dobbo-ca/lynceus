@@ -152,6 +152,11 @@ func (s *Server) persistSnapshot(ctx context.Context, snap *lynceusv1.Snapshot) 
 			return "write freeze_ages", err
 		}
 	}
+	if ix := snapshotToIndexStats(snap); len(ix) > 0 {
+		if err := s.stats.WriteIndexStats(ctx, ix); err != nil {
+			return "write index_stats", err
+		}
+	}
 	if cs := snapshotToConnectionSamples(snap); len(cs) > 0 {
 		if err := s.stats.WriteConnectionSamples(ctx, cs); err != nil {
 			return "write connection_samples", err
@@ -315,6 +320,34 @@ func snapshotToFreezeAges(snap *lynceusv1.Snapshot) []store.FreezeAgeRow {
 			XIDAge:                 f.XidAge,
 			MXIDAge:                f.MxidAge,
 			AutovacuumFreezeMaxAge: f.AutovacuumFreezeMaxAge,
+
+			DataTier: 1,
+		})
+	}
+	return out
+}
+
+func snapshotToIndexStats(snap *lynceusv1.Snapshot) []store.IndexStatRow {
+	collectedAt := time.Unix(snap.CollectedAtUnix, 0).UTC()
+	if collectedAt.IsZero() || snap.CollectedAtUnix == 0 {
+		collectedAt = time.Now().UTC()
+	}
+	out := make([]store.IndexStatRow, 0, len(snap.IndexStats))
+	for _, ix := range snap.IndexStats {
+		out = append(out, store.IndexStatRow{
+			ServerID:    snap.ServerId,
+			CollectedAt: collectedAt,
+			SchemaName:  ix.Schema,
+			ObjectName:  ix.Name,
+			FQN:         ix.Fqn,
+			TableFQN:    ix.TableFqn,
+
+			IdxScan:   ix.IdxScan,
+			SizeBytes: ix.SizeBytes,
+			IsValid:   ix.IsValid,
+			IsReady:   ix.IsReady,
+			IsUnique:  ix.IsUnique,
+			IsPrimary: ix.IsPrimary,
 
 			DataTier: 1,
 		})

@@ -336,6 +336,7 @@ func TestSnapshotCarriesLogEvents(t *testing.T) {
 		"freeze_ages":        {},
 		"connection_samples": {},
 		"blocking_edges":     {},
+		"index_stats":        {},
 	}
 	assertOnlyAllowed(t, (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields(), allowed, "Snapshot")
 
@@ -364,5 +365,53 @@ func TestSnapshotCarriesTableStats(t *testing.T) {
 	}
 	if got := f.Message(); got == nil || got.Name() != "TableStat" {
 		t.Fatalf("table_stats must be repeated TableStat, got %v", got)
+	}
+}
+
+// TestIndexStatHasOnlyAggregateFields enforces the T1 privacy guarantee for
+// the per-index message (ly-u4t.23). IndexStat must carry only catalog
+// identifiers (schema/name/fqn/table_fqn), a scan COUNTER, a size byte-count,
+// and structural catalog booleans — never the index expression
+// (pg_get_indexdef) or a partial-index predicate (pg_index.indpred), both of
+// which can embed literal values from the monitored database. Those belong in
+// a separate T2 message gated behind RBAC + audit.
+func TestIndexStatHasOnlyAggregateFields(t *testing.T) {
+	allowed := map[string]struct{}{
+		"schema": {}, "name": {}, "fqn": {}, "table_fqn": {},
+		"idx_scan": {}, "size_bytes": {},
+		"is_valid": {}, "is_ready": {}, "is_unique": {}, "is_primary": {},
+	}
+	assertOnlyAllowed(t, (&lynceusv1.IndexStat{}).ProtoReflect().Descriptor().Fields(), allowed, "IndexStat")
+}
+
+// TestIndexStatScalarFieldShapes guards against a refactor that swaps an
+// identifier string for bytes or a nested message able to embed unstructured
+// content. Only the four identifiers are strings.
+func TestIndexStatScalarFieldShapes(t *testing.T) {
+	fields := (&lynceusv1.IndexStat{}).ProtoReflect().Descriptor().Fields()
+	for _, fn := range []string{"schema", "name", "fqn", "table_fqn"} {
+		f := fields.ByName(protoreflect.Name(fn))
+		if f == nil {
+			t.Fatalf("field %q missing from IndexStat", fn)
+		}
+		if got := f.Kind().String(); got != "string" {
+			t.Fatalf("IndexStat.%s must be string kind, got %s", fn, got)
+		}
+	}
+}
+
+// TestSnapshotCarriesIndexStats verifies the index_stats field exists on the
+// Snapshot wrapper as a repeated IndexStat at field number 12.
+func TestSnapshotCarriesIndexStats(t *testing.T) {
+	fields := (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields()
+	f := fields.ByName("index_stats")
+	if f == nil {
+		t.Fatal("index_stats field missing from Snapshot")
+	}
+	if f.Number() != 12 {
+		t.Fatalf("index_stats field number = %d, want 12", f.Number())
+	}
+	if got := f.Message(); got == nil || got.Name() != "IndexStat" {
+		t.Fatalf("index_stats must be repeated IndexStat, got %v", got)
 	}
 }
