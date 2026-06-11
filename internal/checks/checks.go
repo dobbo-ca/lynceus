@@ -55,6 +55,8 @@ type Input struct {
 
 	Connections []ConnInfo  // populated by the scheduler (ly-u4t.22)
 	Blocking    []BlockEdge // populated by the scheduler (ly-u4t.22)
+
+	Indexes []IndexInfo // populated by the scheduler (ly-u4t.23)
 }
 
 // TableInfo is the check-local projection of store.TableStatRow.
@@ -91,6 +93,21 @@ type BlockEdge struct {
 	BlockedPID         int64
 	BlockerPID         int64
 	BlockedWaitSeconds int64
+}
+
+// IndexInfo is the check-local projection of store.IndexStatRow. Identifiers,
+// a scan count, a size, and structural booleans only — T1.
+type IndexInfo struct {
+	Schema    string
+	Name      string
+	FQN       string
+	TableFQN  string
+	IdxScan   int64
+	SizeBytes int64
+	IsValid   bool
+	IsReady   bool
+	IsUnique  bool
+	IsPrimary bool
 }
 
 // Result is one firing check observation. Object is an identifier label
