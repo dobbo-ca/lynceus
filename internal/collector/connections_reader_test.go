@@ -63,14 +63,24 @@ func TestConnectionsReader_seesBlockingEdge(t *testing.T) {
 		t.Fatalf("A update: %v", err)
 	}
 
-	// Session B: try to update the same row → blocks on A's lock.
+	// Session B: try to update the same row → blocks on A's lock. The Exec
+	// stays in-flight until we cancel it (A never commits), so it gets its own
+	// cancellable context; cleanup cancels it and waits for the goroutine to
+	// finish BEFORE releasing connB, avoiding a concurrent-use race.
 	connB, err := pool.Acquire(ctx)
 	if err != nil {
 		t.Fatalf("acquire B: %v", err)
 	}
+	bCtx, bCancel := context.WithCancel(ctx)
+	bDone := make(chan struct{})
+	// Defers run LIFO: cancel+wait first, then release connB, then (the
+	// earlier-declared) connA.Release and pool.Close — so no cleanup touches
+	// connB while its Exec is still in flight.
 	defer connB.Release()
+	defer func() { bCancel(); <-bDone }()
 	go func() {
-		_, _ = connB.Exec(ctx, `UPDATE t SET id = id WHERE id = 1`)
+		defer close(bDone)
+		_, _ = connB.Exec(bCtx, `UPDATE t SET id = id WHERE id = 1`)
 	}()
 
 	r := collector.NewConnectionsReader(pool, caps.NewGate(), "app")
