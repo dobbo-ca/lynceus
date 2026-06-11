@@ -195,6 +195,41 @@ func TestIngest_writesTableStats(t *testing.T) {
 	}
 }
 
+func TestIngest_writesIndexStats(t *testing.T) {
+	pool, srv := setup(t, ingest.Config{
+		DevToken:  "dev",
+		RateLimit: 10, RateBurst: 10,
+	})
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	snap := &lynceusv1.Snapshot{
+		ServerId:        "srv-ix",
+		CollectedAtUnix: now.Unix(),
+		IndexStats: []*lynceusv1.IndexStat{{
+			Schema: "public", Name: "t_pkey", Fqn: "public.t_pkey",
+			TableFqn: "public.t", IdxScan: 5, SizeBytes: 8192,
+			IsValid: true, IsReady: true, IsUnique: true, IsPrimary: true,
+		}},
+	}
+	ship := collector.NewShipper(wsURL(srv.URL), "dev")
+	if err := ship.Send(ctx, snap); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	stats := store.NewStats(pool)
+	out, err := stats.LatestIndexStats(ctx, "srv-ix", now.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("latest: %v", err)
+	}
+	if len(out) != 1 || out[0].FQN != "public.t_pkey" {
+		t.Fatalf("index_stats row not persisted: %+v", out)
+	}
+	if !out[0].IsPrimary || !out[0].IsUnique || out[0].IdxScan != 5 {
+		t.Errorf("index flags/scan not persisted: %+v", out[0])
+	}
+}
+
 //nolint:gocyclo // scenario-driven integration test; the assertions make complexity inherent
 func TestIngest_persistsLogEvents_alongsideQueryPlans(t *testing.T) {
 	pool, srv := setup(t, ingest.Config{
