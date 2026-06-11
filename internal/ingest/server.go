@@ -105,69 +105,64 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows := snapshotToRows(&snap)
-	if err := s.stats.WriteQueryStats(ctx, rows); err != nil {
-		s.parkDLQ(ctx, snap.ServerId, "write: "+err.Error(), data)
+	if label, err := s.persistSnapshot(ctx, &snap); err != nil {
+		s.parkDLQ(ctx, snap.ServerId, label+": "+err.Error(), data)
 		_ = conn.Close(websocket.StatusInternalError, "")
 		return
 	}
-	if buckets := snapshotToActivityBuckets(&snap); len(buckets) > 0 {
-		if err := s.stats.WriteActivityBuckets(ctx, buckets); err != nil {
-			s.parkDLQ(ctx, snap.ServerId, "write activity: "+err.Error(), data)
-			_ = conn.Close(websocket.StatusInternalError, "")
-			return
-		}
-	}
-	if plans := snapshotToQueryPlans(&snap); len(plans) > 0 {
-		if err := s.stats.WriteQueryPlans(ctx, plans); err != nil {
-			s.parkDLQ(ctx, snap.ServerId, "write plans: "+err.Error(), data)
-			_ = conn.Close(websocket.StatusInternalError, "")
-			return
-		}
-	}
-	if objs := snapshotToSchemaObjects(&snap); len(objs) > 0 {
-		if err := s.schemaObjects.UpsertSchemaObjects(ctx, objs); err != nil {
-			s.parkDLQ(ctx, snap.ServerId, "write schema_objects: "+err.Error(), data)
-			_ = conn.Close(websocket.StatusInternalError, "")
-			return
-		}
-	}
-	if ts := snapshotToTableStats(&snap); len(ts) > 0 {
-		if err := s.stats.WriteTableStats(ctx, ts); err != nil {
-			s.parkDLQ(ctx, snap.ServerId, "write table_stats: "+err.Error(), data)
-			_ = conn.Close(websocket.StatusInternalError, "")
-			return
-		}
-	}
-	if events := snapshotToLogEvents(&snap); len(events) > 0 {
-		if err := s.stats.WriteLogEvents(ctx, events); err != nil {
-			s.parkDLQ(ctx, snap.ServerId, "write log_events: "+err.Error(), data)
-			_ = conn.Close(websocket.StatusInternalError, "")
-			return
-		}
-	}
-	if fa := snapshotToFreezeAges(&snap); len(fa) > 0 {
-		if err := s.stats.WriteFreezeAges(ctx, fa); err != nil {
-			s.parkDLQ(ctx, snap.ServerId, "write freeze_ages: "+err.Error(), data)
-			_ = conn.Close(websocket.StatusInternalError, "")
-			return
-		}
-	}
-	if cs := snapshotToConnectionSamples(&snap); len(cs) > 0 {
-		if err := s.stats.WriteConnectionSamples(ctx, cs); err != nil {
-			s.parkDLQ(ctx, snap.ServerId, "write connection_samples: "+err.Error(), data)
-			_ = conn.Close(websocket.StatusInternalError, "")
-			return
-		}
-	}
-	if be := snapshotToBlockingEdges(&snap); len(be) > 0 {
-		if err := s.stats.WriteBlockingEdges(ctx, be); err != nil {
-			s.parkDLQ(ctx, snap.ServerId, "write blocking_edges: "+err.Error(), data)
-			_ = conn.Close(websocket.StatusInternalError, "")
-			return
-		}
-	}
 	_ = conn.Close(websocket.StatusNormalClosure, "")
+}
+
+// persistSnapshot writes every row set derived from snap to the stats store, in
+// order. On the first write error it returns a short label (used in the DLQ
+// message) and the error; the caller parks the raw frame and closes the socket.
+// Splitting this out of handle keeps that orchestrator within the cyclomatic
+// budget as new row types are added.
+func (s *Server) persistSnapshot(ctx context.Context, snap *lynceusv1.Snapshot) (string, error) {
+	if err := s.stats.WriteQueryStats(ctx, snapshotToRows(snap)); err != nil {
+		return "write", err
+	}
+	if buckets := snapshotToActivityBuckets(snap); len(buckets) > 0 {
+		if err := s.stats.WriteActivityBuckets(ctx, buckets); err != nil {
+			return "write activity", err
+		}
+	}
+	if plans := snapshotToQueryPlans(snap); len(plans) > 0 {
+		if err := s.stats.WriteQueryPlans(ctx, plans); err != nil {
+			return "write plans", err
+		}
+	}
+	if objs := snapshotToSchemaObjects(snap); len(objs) > 0 {
+		if err := s.schemaObjects.UpsertSchemaObjects(ctx, objs); err != nil {
+			return "write schema_objects", err
+		}
+	}
+	if ts := snapshotToTableStats(snap); len(ts) > 0 {
+		if err := s.stats.WriteTableStats(ctx, ts); err != nil {
+			return "write table_stats", err
+		}
+	}
+	if events := snapshotToLogEvents(snap); len(events) > 0 {
+		if err := s.stats.WriteLogEvents(ctx, events); err != nil {
+			return "write log_events", err
+		}
+	}
+	if fa := snapshotToFreezeAges(snap); len(fa) > 0 {
+		if err := s.stats.WriteFreezeAges(ctx, fa); err != nil {
+			return "write freeze_ages", err
+		}
+	}
+	if cs := snapshotToConnectionSamples(snap); len(cs) > 0 {
+		if err := s.stats.WriteConnectionSamples(ctx, cs); err != nil {
+			return "write connection_samples", err
+		}
+	}
+	if be := snapshotToBlockingEdges(snap); len(be) > 0 {
+		if err := s.stats.WriteBlockingEdges(ctx, be); err != nil {
+			return "write blocking_edges", err
+		}
+	}
+	return "", nil
 }
 
 func (s *Server) limiterFor(serverID string) *rate.Limiter {
