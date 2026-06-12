@@ -192,3 +192,49 @@ func (c *Config) scanServerIDs(ctx context.Context, q string, arg string) ([]str
 	}
 	return out, rows.Err()
 }
+
+// BackfillFleet links every server stream that has no instance yet to a freshly
+// created 1:1 cluster + instance (name derived from the stream). Existing
+// single-stream deployments become a cluster-of-one / instance-of-one with no
+// behavior change. Idempotent: only NULL-instance_id rows are processed, so a
+// re-run creates nothing. Intended to run alongside ApplyConfigMigrations.
+func (c *Config) BackfillFleet(ctx context.Context) error {
+	rows, err := c.pool.Query(ctx,
+		`SELECT id, name FROM servers WHERE instance_id IS NULL ORDER BY id`)
+	if err != nil {
+		return err
+	}
+	type pending struct{ id, name string }
+	var todo []pending
+	for rows.Next() {
+		var p pending
+		if err := rows.Scan(&p.id, &p.name); err != nil {
+			rows.Close()
+			return err
+		}
+		todo = append(todo, p)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, p := range todo {
+		name := p.name
+		if name == "" {
+			name = p.id
+		}
+		cl, err := c.CreateCluster(ctx, name)
+		if err != nil {
+			return err
+		}
+		in, err := c.CreateInstance(ctx, cl.ID, name)
+		if err != nil {
+			return err
+		}
+		if err := c.AssignServerToInstance(ctx, p.id, in.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -134,3 +134,55 @@ func TestFleetStore_createResolveAndRollup(t *testing.T) {
 		t.Fatalf("ListServerStreams = %+v err=%v", streams, err)
 	}
 }
+
+func TestBackfillFleet_linksLegacyServers1to1AndIsIdempotent(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyConfigMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	cfg := store.NewConfig(pool)
+
+	// Two legacy server streams with no instance link.
+	for _, r := range [][2]string{{"srv-1", "prod db"}, {"srv-2", "stage db"}} {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO servers (id, name) VALUES ($1, $2)`, r[0], r[1]); err != nil {
+			t.Fatalf("seed %s: %v", r[0], err)
+		}
+	}
+
+	if err := cfg.BackfillFleet(ctx); err != nil {
+		t.Fatalf("BackfillFleet: %v", err)
+	}
+
+	// Each legacy stream now resolves to its own cluster+instance, names kept.
+	for _, sid := range []string{"srv-1", "srv-2"} {
+		ss, inst, cl, err := cfg.ResolveServer(ctx, sid)
+		if err != nil {
+			t.Fatalf("ResolveServer %s after backfill: %v", sid, err)
+		}
+		if ss.InstanceID == "" || inst.ClusterID != cl.ID {
+			t.Fatalf("%s not fully linked: ss=%+v inst=%+v cl=%+v", sid, ss, inst, cl)
+		}
+	}
+	assertCounts := func(wantClusters, wantInstances int) {
+		t.Helper()
+		var nc, ni int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM cluster`).Scan(&nc); err != nil {
+			t.Fatal(err)
+		}
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM instance`).Scan(&ni); err != nil {
+			t.Fatal(err)
+		}
+		if nc != wantClusters || ni != wantInstances {
+			t.Fatalf("counts: clusters=%d instances=%d, want %d/%d", nc, ni, wantClusters, wantInstances)
+		}
+	}
+	assertCounts(2, 2)
+
+	// Idempotent: a second run links nothing new (no duplicate clusters/instances).
+	if err := cfg.BackfillFleet(ctx); err != nil {
+		t.Fatalf("BackfillFleet re-run: %v", err)
+	}
+	assertCounts(2, 2)
+}
