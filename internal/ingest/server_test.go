@@ -360,3 +360,64 @@ func TestServer_parksOverLimitSnapshotInDLQ(t *testing.T) {
 		t.Errorf("query_stats for srv-2 = %d, want 1", qs)
 	}
 }
+
+// TestServer_derivesAndPersistsInsightsFromPlan sends a Snapshot carrying a
+// slow-scan QueryPlan and asserts the ingest server derives + persists an
+// insights row (server-side derivation; no collector emission).
+func TestServer_derivesAndPersistsInsightsFromPlan(t *testing.T) {
+	pool, srv := setup(t, ingest.Config{DevToken: "dev", RateLimit: 10, RateBurst: 10})
+	ctx := context.Background()
+
+	captured := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+	snap := &lynceusv1.Snapshot{
+		ServerId:        "srv-ins",
+		CollectedAtUnix: captured.Unix(),
+		QueryPlans: []*lynceusv1.QueryPlan{{
+			Fingerprint:    "fp-slow",
+			CapturedAtUnix: captured.Unix(),
+			FormatVersion:  1,
+			Root: &lynceusv1.PlanNode{
+				NodeType:            "Seq Scan",
+				RelationName:        "events",
+				ActualRows:          10,
+				ActualLoops:         1,
+				RowsRemovedByFilter: 99990,
+			},
+		}},
+	}
+
+	ship := collector.NewShipper(wsURL(srv.URL), "dev")
+	if err := ship.Send(ctx, snap); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	var rows int
+	for i := 0; i < 50 && rows == 0; i++ {
+		_ = pool.QueryRow(ctx,
+			`SELECT count(*) FROM insights WHERE server_id='srv-ins' AND kind='slow_scan'`,
+		).Scan(&rows)
+		if rows > 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if rows != 1 {
+		t.Fatalf("insights row count = %d, want 1", rows)
+	}
+
+	var sev, rel string
+	if err := pool.QueryRow(ctx,
+		`SELECT severity, relation FROM insights WHERE server_id='srv-ins'`,
+	).Scan(&sev, &rel); err != nil {
+		t.Fatalf("read insight: %v", err)
+	}
+	if sev != "high" || rel != "events" {
+		t.Fatalf("insight = (%s, %s), want (high, events)", sev, rel)
+	}
+
+	var dlq int
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM dlq`).Scan(&dlq)
+	if dlq != 0 {
+		t.Errorf("dlq count = %d, want 0", dlq)
+	}
+}

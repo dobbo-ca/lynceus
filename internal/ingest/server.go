@@ -18,6 +18,7 @@ import (
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/dobbo-ca/lynceus/internal/insight"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 	"github.com/dobbo-ca/lynceus/internal/store"
 )
@@ -132,6 +133,11 @@ func (s *Server) persistSnapshot(ctx context.Context, snap *lynceusv1.Snapshot) 
 			return "write plans", err
 		}
 	}
+	if insights := snapshotToInsights(snap); len(insights) > 0 {
+		if err := s.stats.WriteInsights(ctx, insights); err != nil {
+			return "write insights", err
+		}
+	}
 	if objs := snapshotToSchemaObjects(snap); len(objs) > 0 {
 		if err := s.schemaObjects.UpsertSchemaObjects(ctx, objs); err != nil {
 			return "write schema_objects", err
@@ -225,6 +231,34 @@ func snapshotToQueryPlans(snap *lynceusv1.Snapshot) []store.QueryPlanRow {
 			Plan:       p,
 			DataTier:   1,
 		})
+	}
+	return out
+}
+
+// snapshotToInsights derives T1 insights from the snapshot's normalized plans
+// by running the (pure) insight engine, stamping each with its plan's
+// captured_at and the snapshot's server_id. Server-side derivation — the input
+// plans are already literal-free, so no literal can appear here.
+func snapshotToInsights(snap *lynceusv1.Snapshot) []store.InsightRow {
+	var out []store.InsightRow
+	for _, p := range snap.QueryPlans {
+		capturedAt := time.Unix(p.CapturedAtUnix, 0).UTC()
+		for _, in := range insight.DetectAll(p) {
+			out = append(out, store.InsightRow{
+				ServerID:     snap.ServerId,
+				CapturedAt:   capturedAt,
+				Kind:         string(in.Kind),
+				Severity:     string(in.Severity),
+				Fingerprint:  in.Fingerprint,
+				Relation:     in.Relation,
+				NodePath:     in.NodePath,
+				RowsReturned: in.RowsReturned,
+				RowsScanned:  in.RowsScanned,
+				Selectivity:  in.Selectivity,
+				Detail:       in.Detail,
+				DataTier:     1,
+			})
+		}
 	}
 	return out
 }
