@@ -138,6 +138,14 @@ func (s *Server) persistSnapshot(ctx context.Context, snap *lynceusv1.Snapshot) 
 			return "write insights", err
 		}
 	}
+	return s.persistExtendedRows(ctx, snap)
+}
+
+// persistExtendedRows writes the M3 schema/health row types from a snapshot. It
+// is split out of persistSnapshot so each function stays within the cyclomatic
+// budget as new row types are added. Same convention: returns a short DLQ label
+// and the error on the first write failure, "" otherwise.
+func (s *Server) persistExtendedRows(ctx context.Context, snap *lynceusv1.Snapshot) (string, error) {
 	if objs := snapshotToSchemaObjects(snap); len(objs) > 0 {
 		if err := s.schemaObjects.UpsertSchemaObjects(ctx, objs); err != nil {
 			return "write schema_objects", err

@@ -40,8 +40,8 @@ func (s *Stats) WriteInsights(ctx context.Context, rows []InsightRow) error {
 		return nil
 	}
 	weeks := map[string]time.Time{}
-	for _, r := range rows {
-		weeks[insightsPartitionName(r.CapturedAt)] = r.CapturedAt
+	for i := range rows {
+		weeks[insightsPartitionName(rows[i].CapturedAt)] = rows[i].CapturedAt
 	}
 	for _, ts := range weeks {
 		if err := s.EnsureInsightsWeeklyPartition(ctx, ts); err != nil {
