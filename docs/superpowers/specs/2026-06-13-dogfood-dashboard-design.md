@@ -74,6 +74,14 @@ database, query rate summed across all underlying resources.)
 
 ### 4. Insights — persisted, computed at the collector
 
+> **Phase 1 reframe (2026-06-13):** planning found the collector does not ship
+> `query_plans` yet and PlanetScale may not expose `auto_explain`, so Phase 1
+> (ly-yuc.1) derives insights **server-side at ingestion** from the already-T1
+> plans instead of via a collector-emitted `Insight` proto. Privacy is
+> equivalent; collector plan-shipping is deferred to Phase 4 (ly-yuc.4). The
+> collector-side description below is the longer-term target, not the Phase 1
+> build — see `docs/superpowers/plans/2026-06-13-dogfood-phase1-insights-and-rollup-reads.md`.
+
 Insights are **persisted** to a new table, and detection runs **at the collector**
 (analysis-at-the-edge is the product backbone). Flow:
 
