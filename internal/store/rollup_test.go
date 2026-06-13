@@ -69,3 +69,52 @@ func TestQueryReadsForServers_scopeAndAggregate(t *testing.T) {
 		t.Fatalf("empty-set throughput = %+v err=%v, want 0", tp0, err)
 	}
 }
+
+func TestActivitySummaryForServers(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	s := store.NewStats(pool)
+
+	t0 := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+	t1 := t0.Add(time.Minute) // a later bucket
+	buckets := []store.ActivityBucket{
+		{ServerID: "srv-a", Database: "app", State: "active", WaitEventType: "", WaitEvent: "",
+			BucketStart: t0, BucketSeconds: 60, SampleCount: 6, CountSum: 30, CountMax: 5},
+		{ServerID: "srv-a", Database: "app", State: "active", WaitEventType: "", WaitEvent: "",
+			BucketStart: t1, BucketSeconds: 60, SampleCount: 6, CountSum: 48, CountMax: 8},
+		{ServerID: "srv-b", Database: "app", State: "active", WaitEventType: "", WaitEvent: "",
+			BucketStart: t1, BucketSeconds: 60, SampleCount: 6, CountSum: 24, CountMax: 4},
+		{ServerID: "srv-a", Database: "app", State: "active", WaitEventType: "IO", WaitEvent: "DataFileRead",
+			BucketStart: t1, BucketSeconds: 60, SampleCount: 6, CountSum: 40, CountMax: 7},
+		{ServerID: "srv-other", Database: "app", State: "active", WaitEventType: "", WaitEvent: "",
+			BucketStart: t1, BucketSeconds: 60, SampleCount: 6, CountSum: 600, CountMax: 99},
+	}
+	if err := s.WriteActivityBuckets(ctx, buckets); err != nil {
+		t.Fatalf("seed activity: %v", err)
+	}
+
+	set := []string{"srv-a", "srv-b"}
+	since, until := t0.Add(-time.Hour), t1.Add(time.Hour)
+	a, err := s.ActivitySummaryForServers(ctx, set, since, until)
+	if err != nil {
+		t.Fatalf("ActivitySummaryForServers: %v", err)
+	}
+	// newest bucket is t1; active CountMax summed over the set = 8 + 4 + 7 = 19.
+	if a.ActiveConns != 19 {
+		t.Fatalf("active conns = %d, want 19", a.ActiveConns)
+	}
+	if a.TopWait != "DataFileRead" {
+		t.Fatalf("top wait = %q, want DataFileRead", a.TopWait)
+	}
+
+	a2, err := s.ActivitySummaryForServers(ctx, []string{"srv-b"}, since, until)
+	if err != nil {
+		t.Fatalf("ActivitySummaryForServers srv-b: %v", err)
+	}
+	if a2.TopWait != "" {
+		t.Fatalf("srv-b top wait = %q, want empty", a2.TopWait)
+	}
+}
