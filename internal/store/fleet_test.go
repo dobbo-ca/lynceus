@@ -51,6 +51,76 @@ func TestFleetMigration_createsEntitiesAndServerLink(t *testing.T) {
 	}
 }
 
+// assertResolveChain verifies every field of the ResolveServer return chain.
+func assertResolveChain(t *testing.T, ss *store.ServerStream, inst *store.Instance, gotCl *store.Cluster, primaryID, clID string) {
+	t.Helper()
+	if ss.ServerID != "srv-app" {
+		t.Fatalf("resolve chain wrong ServerID: ss=%+v", ss)
+	}
+	if ss.InstanceID != primaryID {
+		t.Fatalf("resolve chain wrong ss.InstanceID: ss=%+v", ss)
+	}
+	if inst.ID != primaryID {
+		t.Fatalf("resolve chain wrong inst.ID: inst=%+v", inst)
+	}
+	if inst.ClusterID != clID {
+		t.Fatalf("resolve chain wrong inst.ClusterID: inst=%+v", inst)
+	}
+	if gotCl.ID != clID {
+		t.Fatalf("resolve chain wrong cluster ID: cl=%+v", gotCl)
+	}
+}
+
+// assertInstanceRollup verifies ServerIDsForInstance returns the expected two server IDs.
+func assertInstanceRollup(t *testing.T, got []string) {
+	t.Helper()
+	if len(got) != 2 {
+		t.Fatalf("instance stream ids = %v, want [srv-app srv-reporting]", got)
+	}
+	if got[0] != "srv-app" {
+		t.Fatalf("instance stream ids[0] = %q, want srv-app", got[0])
+	}
+	if got[1] != "srv-reporting" {
+		t.Fatalf("instance stream ids[1] = %q, want srv-reporting", got[1])
+	}
+}
+
+// assertListClusters verifies ListClusters returns exactly one cluster with the expected ID.
+func assertListClusters(t *testing.T, clusters []store.Cluster, err error, clID string) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("ListClusters err=%v", err)
+	}
+	if len(clusters) != 1 {
+		t.Fatalf("ListClusters = %+v, want 1 cluster", clusters)
+	}
+	if clusters[0].ID != clID {
+		t.Fatalf("ListClusters[0].ID = %q, want %q", clusters[0].ID, clID)
+	}
+}
+
+// assertListInstances verifies ListInstances returns the expected count.
+func assertListInstances(t *testing.T, insts []store.Instance, err error, want int) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("ListInstances err=%v", err)
+	}
+	if len(insts) != want {
+		t.Fatalf("ListInstances = %+v, want %d", insts, want)
+	}
+}
+
+// assertListServerStreams verifies ListServerStreams returns the expected count.
+func assertListServerStreams(t *testing.T, streams []store.ServerStream, err error, want int) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("ListServerStreams err=%v", err)
+	}
+	if len(streams) != want {
+		t.Fatalf("ListServerStreams = %+v, want %d", streams, want)
+	}
+}
+
 func TestFleetStore_createResolveAndRollup(t *testing.T) {
 	pool := newPool(t)
 	ctx := context.Background()
@@ -99,19 +169,15 @@ func TestFleetStore_createResolveAndRollup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveServer: %v", err)
 	}
-	if ss.ServerID != "srv-app" || ss.InstanceID != primary.ID ||
-		inst.ID != primary.ID || inst.ClusterID != cl.ID || gotCl.ID != cl.ID {
-		t.Fatalf("resolve chain wrong: ss=%+v inst=%+v cl=%+v", ss, inst, gotCl)
-	}
+	assertResolveChain(t, &ss, &inst, &gotCl, primary.ID, cl.ID)
 
 	// Roll-up: instance -> its stream ids; cluster -> all stream ids.
 	got, err := cfg.ServerIDsForInstance(ctx, primary.ID)
 	if err != nil {
 		t.Fatalf("ServerIDsForInstance: %v", err)
 	}
-	if len(got) != 2 || got[0] != "srv-app" || got[1] != "srv-reporting" {
-		t.Fatalf("instance stream ids = %v, want [srv-app srv-reporting]", got)
-	}
+	assertInstanceRollup(t, got)
+
 	all, err := cfg.ServerIDsForCluster(ctx, cl.ID)
 	if err != nil {
 		t.Fatalf("ServerIDsForCluster: %v", err)
@@ -122,17 +188,13 @@ func TestFleetStore_createResolveAndRollup(t *testing.T) {
 
 	// Listing helpers for the UI.
 	clusters, err := cfg.ListClusters(ctx)
-	if err != nil || len(clusters) != 1 || clusters[0].ID != cl.ID {
-		t.Fatalf("ListClusters = %+v err=%v", clusters, err)
-	}
+	assertListClusters(t, clusters, err, cl.ID)
+
 	insts, err := cfg.ListInstances(ctx, cl.ID)
-	if err != nil || len(insts) != 2 {
-		t.Fatalf("ListInstances = %+v err=%v", insts, err)
-	}
+	assertListInstances(t, insts, err, 2)
+
 	streams, err := cfg.ListServerStreams(ctx, primary.ID)
-	if err != nil || len(streams) != 2 {
-		t.Fatalf("ListServerStreams = %+v err=%v", streams, err)
-	}
+	assertListServerStreams(t, streams, err, 2)
 }
 
 func TestBackfillFleet_linksLegacyServers1to1AndIsIdempotent(t *testing.T) {
