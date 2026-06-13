@@ -1,0 +1,144 @@
+package fleetview_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/testcontainers/testcontainers-go"
+	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+
+	"github.com/dobbo-ca/lynceus/internal/fleetview"
+	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testpg"
+)
+
+// newDB starts a fresh postgres:16 container and returns a connected pool.
+func newDB(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	ctx := context.Background()
+	c, err := tcpostgres.Run(ctx, "postgres:16",
+		tcpostgres.WithDatabase("lynceus_test"),
+		tcpostgres.WithUsername("test"),
+		tcpostgres.WithPassword("test"),
+		testpg.ReadyWait(),
+	)
+	if err != nil {
+		t.Skipf("docker/testcontainers unavailable: %v", err)
+	}
+	t.Cleanup(func() { _ = testcontainers.TerminateContainer(c) })
+	url, err := c.ConnectionString(ctx, "sslmode=disable")
+	if err != nil {
+		t.Fatalf("connection string: %v", err)
+	}
+	pool, err := pgxpool.New(ctx, url)
+	if err != nil {
+		t.Fatalf("pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	return pool
+}
+
+// newStores spins up TWO separate databases. Config and stats live in distinct
+// Postgres databases in production (each with its own schema_migrations), so the
+// aggregator — which takes a Config and a Stats backed by different pools — is
+// tested against that same split. The config pool is returned too, for seeding
+// the servers table directly.
+func newStores(t *testing.T) (*store.Config, *store.Stats, *pgxpool.Pool) {
+	t.Helper()
+	ctx := context.Background()
+	configPool := newDB(t)
+	statsPool := newDB(t)
+	if err := store.ApplyConfigMigrations(ctx, configPool); err != nil {
+		t.Fatalf("config migrate: %v", err)
+	}
+	if err := store.ApplyStatsMigrations(ctx, statsPool); err != nil {
+		t.Fatalf("stats migrate: %v", err)
+	}
+	return store.NewConfig(configPool), store.NewStats(statsPool), configPool
+}
+
+func TestListClusterSummaries_rollsUpAcrossStreams(t *testing.T) {
+	cfg, stats, configPool := newStores(t)
+	ctx := context.Background()
+
+	for _, id := range []string{"srv-a", "srv-b"} {
+		if _, err := configPool.Exec(ctx, `INSERT INTO servers (id, name) VALUES ($1, $1)`, id); err != nil {
+			t.Fatalf("seed server %s: %v", id, err)
+		}
+	}
+	cl, err := cfg.CreateCluster(ctx, "prod")
+	if err != nil {
+		t.Fatalf("CreateCluster: %v", err)
+	}
+	inst, err := cfg.CreateInstance(ctx, cl.ID, "primary")
+	if err != nil {
+		t.Fatalf("CreateInstance: %v", err)
+	}
+	for _, id := range []string{"srv-a", "srv-b"} {
+		if err := cfg.AssignServerToInstance(ctx, id, inst.ID); err != nil {
+			t.Fatalf("assign %s: %v", id, err)
+		}
+	}
+
+	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+	if err := stats.WriteQueryStats(ctx, []store.QueryStat{
+		{ServerID: "srv-a", CollectedAt: now, Fingerprint: "fp-1", NormalizedQuery: "SELECT $1",
+			Calls: 100, TotalTimeMs: 200, MeanTimeMs: 2.0},
+		{ServerID: "srv-b", CollectedAt: now, Fingerprint: "fp-2", NormalizedQuery: "SELECT $1 FROM t",
+			Calls: 300, TotalTimeMs: 30, MeanTimeMs: 0.1},
+	}); err != nil {
+		t.Fatalf("seed stats: %v", err)
+	}
+	if err := stats.WriteInsights(ctx, []store.InsightRow{
+		{ServerID: "srv-a", CapturedAt: now, Kind: "slow_scan", Severity: "high",
+			Fingerprint: "fp-1", Relation: "orders", NodePath: "Seq Scan(orders)",
+			RowsReturned: 1, RowsScanned: 100000, Selectivity: 0.00001, Detail: "x"},
+	}); err != nil {
+		t.Fatalf("seed insights: %v", err)
+	}
+
+	since, until := now.Add(-time.Hour), now.Add(time.Hour)
+	sums, err := fleetview.ListClusterSummaries(ctx, cfg, stats, since, until)
+	if err != nil {
+		t.Fatalf("ListClusterSummaries: %v", err)
+	}
+	if len(sums) != 1 {
+		t.Fatalf("summaries = %d, want 1", len(sums))
+	}
+	s := sums[0]
+	if s.Cluster.ID != cl.ID {
+		t.Fatalf("cluster id = %q, want %q", s.Cluster.ID, cl.ID)
+	}
+	if s.InstanceCount != 1 || s.StreamCount != 2 {
+		t.Fatalf("counts: instances=%d streams=%d, want 1/2", s.InstanceCount, s.StreamCount)
+	}
+	if s.Calls != 400 {
+		t.Fatalf("calls = %d, want 400 (combined)", s.Calls)
+	}
+	if s.AvgLatencyMs < 0.57 || s.AvgLatencyMs > 0.58 {
+		t.Fatalf("avg latency = %v, want ~0.575", s.AvgLatencyMs)
+	}
+	if s.InsightCount != 1 {
+		t.Fatalf("insight count = %d, want 1", s.InsightCount)
+	}
+}
+
+func TestListClusterSummaries_clusterWithNoStreams(t *testing.T) {
+	cfg, stats, _ := newStores(t)
+	ctx := context.Background()
+
+	cl, err := cfg.CreateCluster(ctx, "empty")
+	if err != nil {
+		t.Fatalf("CreateCluster: %v", err)
+	}
+	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+	sums, err := fleetview.ListClusterSummaries(ctx, cfg, stats, now.Add(-time.Hour), now.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("ListClusterSummaries: %v", err)
+	}
+	if len(sums) != 1 || sums[0].Cluster.ID != cl.ID || sums[0].StreamCount != 0 || sums[0].Calls != 0 {
+		t.Fatalf("empty cluster summary wrong: %+v", sums)
+	}
+}
