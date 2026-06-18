@@ -1,0 +1,286 @@
+package web
+
+import "fmt"
+
+// OverviewInstance is the topology view-model for one instance in the cluster.
+type OverviewInstance struct {
+	Name        string
+	Role        string
+	Databases   []string
+	Calls       int64
+	ActiveConns int64
+}
+
+// OverviewQuery is the view-model for one row in the most-expensive-queries table.
+type OverviewQuery struct {
+	Fingerprint     string
+	NormalizedQuery string
+	Calls           int64
+	MeanMs          float64
+	TotalMs         float64
+	HasInsight      bool
+}
+
+// OverviewInsight is the view-model for one insight in the cluster insights panel.
+type OverviewInsight struct {
+	Severity    string
+	Relation    string
+	Detail      string
+	Fingerprint string
+}
+
+// OverviewVM is the full view-model for the cluster Overview page.
+type OverviewVM struct {
+	ClusterID    string
+	Name         string
+	QPS          float64
+	AvgLatencyMs float64
+	ActiveConns  int64
+	TopWait      string
+	InsightCount int
+	StreamCount  int
+	Sparkline    string
+	Instances    []OverviewInstance
+	Queries      []OverviewQuery
+	Insights     []OverviewInsight
+}
+
+// OverviewPage renders the full cluster Overview page.
+templ OverviewPage(vm OverviewVM) {
+	@Layout("Lynceus — "+vm.Name, "cluster overview") {
+		<div class="overview-layout">
+			@OverviewSidebar(vm.ClusterID)
+			<main class="overview-main">
+				<h2 id="overview">{ vm.Name }</h2>
+				<div class="tiles">
+					<div class="tile">
+						<div class="tile-label">q/s</div>
+						<div class="tile-value">{ fmt.Sprintf("%.1f", vm.QPS) }</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Avg latency (ms)</div>
+						<div class="tile-value">{ fmt.Sprintf("%.1f", vm.AvgLatencyMs) }</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Active conns</div>
+						<div class="tile-value">{ fmt.Sprintf("%d", vm.ActiveConns) }</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Insights</div>
+						<div class="tile-value">{ fmt.Sprintf("%d", vm.InsightCount) }</div>
+					</div>
+					<div class="tile">
+						<div class="tile-label">Streams</div>
+						<div class="tile-value">{ fmt.Sprintf("%d", vm.StreamCount) }</div>
+					</div>
+					if vm.Sparkline != "" {
+						<div class="tile tile-sparkline">
+							<div class="tile-label">QPS trend</div>
+							<svg viewBox="0 0 100 24" width="100" height="24">
+								<polyline points={ vm.Sparkline } fill="none" stroke="#2b6cb0" stroke-width="2"/>
+							</svg>
+						</div>
+					}
+				</div>
+				@OverviewTopology(vm.Instances)
+				@OverviewQueries(vm)
+				@OverviewInsights(vm.Insights)
+				<section id="facts" class="overview-section">
+					<h3>Facts</h3>
+					<dl class="facts-list">
+						<dt>Instances</dt>
+						<dd>{ fmt.Sprintf("%d", len(vm.Instances)) }</dd>
+						<dt>Databases monitored</dt>
+						<dd>{ fmt.Sprintf("%d", vm.StreamCount) }</dd>
+						<dt>Data tier</dt>
+						<dd>T1</dd>
+						<dt>Top wait</dt>
+						<dd>
+							if vm.TopWait == "" {
+								{ "—" }
+							} else {
+								{ vm.TopWait }
+							}
+						</dd>
+					</dl>
+				</section>
+			</main>
+		</div>
+	}
+}
+
+// OverviewSidebar renders the left sidebar with Overview active and stub anchors
+// for cluster-scoped views (Phase 4 adds real routes).
+templ OverviewSidebar(clusterID string) {
+	<nav class="sidebar">
+		<a class="sidebar-link sidebar-link--active" href={ templ.SafeURL("/databases/" + clusterID) }>Overview</a>
+		<a class="sidebar-link" href={ templ.SafeURL("#queries") }>Queries</a>
+		<a class="sidebar-link" href={ templ.SafeURL("#insights") }>Insights</a>
+		<a class="sidebar-link" href={ templ.SafeURL("#activity") }>Activity</a>
+		<a class="sidebar-link" href={ templ.SafeURL("#settings") }>Settings</a>
+	</nav>
+}
+
+// OverviewTopology renders topology cards — one per instance showing role, name,
+// databases, calls, and active connections.
+templ OverviewTopology(insts []OverviewInstance) {
+	<section id="topology" class="overview-section">
+		<h3>Topology</h3>
+		if len(insts) == 0 {
+			<p class="empty">No instances linked yet.</p>
+		} else {
+			<div class="topo-cards">
+				for i := range insts {
+					<div class="topo-card">
+						<div class="topo-role">
+							<span class={ "badge-role badge-role--" + insts[i].Role }>{ insts[i].Role }</span>
+						</div>
+						<div class="topo-name">{ insts[i].Name }</div>
+						<div class="topo-meta">
+							{ fmt.Sprintf("%d", len(insts[i].Databases)) } database(s)
+						</div>
+						<div class="topo-meta">
+							{ fmt.Sprintf("%d", insts[i].Calls) } calls ·
+							{ fmt.Sprintf("%d", insts[i].ActiveConns) } active conns
+						</div>
+					</div>
+				}
+			</div>
+		}
+	</section>
+}
+
+// OverviewQueries renders the most-expensive-queries table. Each row has an
+// HTMX-driven drill-in to reveal the normalized plan tree + matching insight.
+templ OverviewQueries(vm OverviewVM) {
+	<section id="queries" class="overview-section">
+		<h3>Most expensive queries (last 24 h)</h3>
+		if len(vm.Queries) == 0 {
+			<p class="empty">No query stats in the last 24 hours.</p>
+		} else {
+			<table>
+				<thead>
+					<tr>
+						<th>Query</th>
+						<th class="num">Calls</th>
+						<th class="num">Mean (ms)</th>
+						<th class="num">Total (ms)</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					for i := range vm.Queries {
+						<tr>
+							<td>
+								<button
+									class="query-btn"
+									hx-get={ "/partial/databases/" + vm.ClusterID + "/query/" + vm.Queries[i].Fingerprint }
+									hx-target={ "#drill-" + vm.Queries[i].Fingerprint }
+									hx-swap="innerHTML"
+								>
+									<code>{ vm.Queries[i].NormalizedQuery }</code>
+								</button>
+								if vm.Queries[i].HasInsight {
+									<span class="badge">slow scan</span>
+								}
+							</td>
+							<td class="num">{ fmt.Sprintf("%d", vm.Queries[i].Calls) }</td>
+							<td class="num">{ fmt.Sprintf("%.2f", vm.Queries[i].MeanMs) }</td>
+							<td class="num">{ fmt.Sprintf("%.1f", vm.Queries[i].TotalMs) }</td>
+							<td></td>
+						</tr>
+						<tr>
+							<td colspan="5">
+								<div id={ "drill-" + vm.Queries[i].Fingerprint }></div>
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</section>
+}
+
+// QueryDrilldown is the HTMX fragment rendered for one (cluster, fingerprint).
+// Shows the matching insight (if any) then the normalized plan tree.
+templ QueryDrilldown(plan PlanVM, insight *OverviewInsight) {
+	<div id="plan-view">
+		if insight != nil {
+			<div class="insight-banner insight-banner--{ insight.Severity }">
+				<strong>{ insight.Severity }</strong>
+				{ " — " }
+				{ insight.Relation }
+				{ ": " }
+				{ insight.Detail }
+			</div>
+		}
+		if plan.Empty {
+			<p class="empty">No plan stored for this server and fingerprint.</p>
+		} else {
+			<h2>Plan tree</h2>
+			<ul class="plan-tree">
+				@PlanTreeNode(plan.Root)
+			</ul>
+			<h2>Nodes</h2>
+			<table>
+				<thead>
+					<tr>
+						<th>Node type</th>
+						<th>Relation</th>
+						<th>Index</th>
+						<th>Condition</th>
+						<th class="num">Plan rows</th>
+						<th class="num">Actual rows</th>
+						<th class="num">Loops</th>
+						<th class="num">Total cost</th>
+						<th class="num">Rows removed</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, n := range plan.Flat {
+						<tr>
+							<td><code>{ n.NodeType }</code></td>
+							<td>{ n.Relation }</td>
+							<td>{ n.Index }</td>
+							<td><code>{ n.Condition }</code></td>
+							<td class="num">{ fmt.Sprintf("%d", n.PlanRows) }</td>
+							<td class="num">{ fmt.Sprintf("%d", n.ActualRows) }</td>
+							<td class="num">{ fmt.Sprintf("%d", n.ActualLoops) }</td>
+							<td class="num">{ FmtCost(n.TotalCost) }</td>
+							<td class="num">{ fmt.Sprintf("%d", n.RowsRemovedByFilter) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}
+
+// OverviewInsights renders the insights panel.
+templ OverviewInsights(items []OverviewInsight) {
+	<section id="insights" class="overview-section">
+		<h3>Insights</h3>
+		if len(items) == 0 {
+			<p class="empty">No insights in the last 24 hours.</p>
+		} else {
+			<table>
+				<thead>
+					<tr>
+						<th>Severity</th>
+						<th>Relation</th>
+						<th>Detail</th>
+					</tr>
+				</thead>
+				<tbody>
+					for i := range items {
+						<tr>
+							<td><span class={ "badge-role badge-role--" + items[i].Severity }>{ items[i].Severity }</span></td>
+							<td><code>{ items[i].Relation }</code></td>
+							<td>{ items[i].Detail }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</section>
+}
