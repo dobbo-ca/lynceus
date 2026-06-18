@@ -19,7 +19,7 @@ func (s *Server) handleClusterOverview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = web.OverviewPage(toOverviewVM(detail)).Render(r.Context(), w)
+	_ = web.OverviewPage(toOverviewVM(&detail)).Render(r.Context(), w)
 }
 
 // handleClusterQueryDrilldown renders the plan tree + insight fragment for one
@@ -44,7 +44,7 @@ func (s *Server) handleClusterQueryDrilldown(w http.ResponseWriter, r *http.Requ
 	var match *web.OverviewInsight
 	for i := range insights {
 		if insights[i].Fingerprint == fp {
-			v := toOverviewInsight(insights[i])
+			v := toOverviewInsight(&insights[i])
 			match = &v
 			break
 		}
@@ -55,7 +55,7 @@ func (s *Server) handleClusterQueryDrilldown(w http.ResponseWriter, r *http.Requ
 }
 
 // toOverviewVM maps a ClusterDetail to the templ view-model.
-func toOverviewVM(d fleetview.ClusterDetail) web.OverviewVM {
+func toOverviewVM(d *fleetview.ClusterDetail) web.OverviewVM {
 	var qps float64
 	if n := len(d.QPSBuckets); n > 0 {
 		qps = float64(d.QPSBuckets[n-1].Calls) / 3600.0
@@ -86,7 +86,7 @@ func toOverviewVM(d fleetview.ClusterDetail) web.OverviewVM {
 
 	insights := make([]web.OverviewInsight, 0, len(d.Insights))
 	for i := range d.Insights {
-		insights = append(insights, toOverviewInsight(d.Insights[i]))
+		insights = append(insights, toOverviewInsight(&d.Insights[i]))
 	}
 
 	instances := make([]web.OverviewInstance, 0, len(d.Instances))
@@ -124,7 +124,7 @@ func toOverviewVM(d fleetview.ClusterDetail) web.OverviewVM {
 }
 
 // toOverviewInsight maps a store.InsightRow to the templ view-model.
-func toOverviewInsight(r store.InsightRow) web.OverviewInsight {
+func toOverviewInsight(r *store.InsightRow) web.OverviewInsight {
 	return web.OverviewInsight{
 		Severity:    r.Severity,
 		Relation:    r.Relation,

@@ -64,31 +64,9 @@ func GetClusterDetail(
 		return ClusterDetail{}, false, err
 	}
 
-	topos := make([]InstanceTopo, 0, len(instances))
-	for i := range instances {
-		inst := instances[i]
-		streams, err := cfg.ListServerStreams(ctx, inst.ID)
-		if err != nil {
-			return ClusterDetail{}, false, err
-		}
-		ids, err := cfg.ServerIDsForInstance(ctx, inst.ID)
-		if err != nil {
-			return ClusterDetail{}, false, err
-		}
-		topo := InstanceTopo{Instance: inst, Streams: streams}
-		if len(ids) > 0 {
-			tp, err := stats.ThroughputForServers(ctx, ids, since, until)
-			if err != nil {
-				return ClusterDetail{}, false, err
-			}
-			topo.Calls = tp.Calls
-			act, err := stats.ActivitySummaryForServers(ctx, ids, since, until)
-			if err != nil {
-				return ClusterDetail{}, false, err
-			}
-			topo.ActiveConns = act.ActiveConns
-		}
-		topos = append(topos, topo)
+	topos, err := buildInstanceTopos(ctx, cfg, stats, instances, since, until)
+	if err != nil {
+		return ClusterDetail{}, false, err
 	}
 
 	detail := ClusterDetail{
@@ -133,4 +111,38 @@ func GetClusterDetail(
 	}
 
 	return detail, true, nil
+}
+
+// buildInstanceTopos assembles per-instance topology and rolled-up metrics.
+func buildInstanceTopos(
+	ctx context.Context, cfg *store.Config, stats *store.Stats,
+	instances []store.Instance, since, until time.Time,
+) ([]InstanceTopo, error) {
+	topos := make([]InstanceTopo, 0, len(instances))
+	for i := range instances {
+		inst := instances[i]
+		streams, err := cfg.ListServerStreams(ctx, inst.ID)
+		if err != nil {
+			return nil, err
+		}
+		ids, err := cfg.ServerIDsForInstance(ctx, inst.ID)
+		if err != nil {
+			return nil, err
+		}
+		topo := InstanceTopo{Instance: inst, Streams: streams}
+		if len(ids) > 0 {
+			tp, err := stats.ThroughputForServers(ctx, ids, since, until)
+			if err != nil {
+				return nil, err
+			}
+			topo.Calls = tp.Calls
+			act, err := stats.ActivitySummaryForServers(ctx, ids, since, until)
+			if err != nil {
+				return nil, err
+			}
+			topo.ActiveConns = act.ActiveConns
+		}
+		topos = append(topos, topo)
+	}
+	return topos, nil
 }
