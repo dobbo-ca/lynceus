@@ -43,7 +43,8 @@ func (s *Server) fetchDatabases(r *http.Request) web.DatabasesView {
 	}
 
 	cards := make([]web.DatabaseCard, 0, len(sums))
-	for _, sum := range sums {
+	for i := range sums {
+		sum := &sums[i]
 		var qps float64
 		if n := len(sum.QPSBuckets); n > 0 {
 			qps = float64(sum.QPSBuckets[n-1].Calls) / 3600.0
@@ -74,7 +75,7 @@ func sparklinePoints(buckets []store.QPSBucket) string {
 		return ""
 	}
 	n := len(buckets)
-	var minVal, maxVal int64 = buckets[0].Calls, buckets[0].Calls
+	minVal, maxVal := buckets[0].Calls, buckets[0].Calls
 	for _, b := range buckets[1:] {
 		if b.Calls < minVal {
 			minVal = b.Calls

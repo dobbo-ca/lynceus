@@ -104,7 +104,6 @@ func setupDatabases(t *testing.T) *httptest.Server {
 
 func body(t *testing.T, resp *http.Response) string {
 	t.Helper()
-	defer func() { _ = resp.Body.Close() }()
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("read body: %v", err)
@@ -119,6 +118,7 @@ func TestDatabasesPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /databases: %v", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	b := body(t, resp)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", resp.StatusCode, b)
@@ -141,6 +141,7 @@ func TestDatabasesPartial(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /partial/databases: %v", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	b := body(t, resp)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", resp.StatusCode, b)
@@ -160,6 +161,7 @@ func TestDatabasesPartial_search(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /partial/databases?q=zzz-no-match: %v", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	b := body(t, resp)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
@@ -176,6 +178,7 @@ func TestDatabasesPartial_listView(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /partial/databases?view=list: %v", err)
 	}
+	defer func() { _ = resp.Body.Close() }()
 	b := body(t, resp)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
