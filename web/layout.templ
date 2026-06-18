@@ -40,6 +40,10 @@ templ Layout(title, subtitle string) {
 				form.filters label { display: flex; flex-direction: column; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #666; gap: 0.2rem; }
 				form.filters input, form.filters select { padding: 0.35rem 0.5rem; font-size: 0.9rem; }
 				form.filters button { padding: 0.4rem 0.9rem; font-size: 0.9rem; cursor: pointer; }
+					.cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:0.75rem; }
+					.db-card { display:block; border:1px solid #e0e0e0; border-radius:8px; padding:0.75rem; text-decoration:none; color:inherit; }
+					.db-card:hover { border-color:#2b6cb0; }
+					.db-card .badge { background:#fffbe6; border:1px solid #9e6a03; color:#8a5a00; border-radius:9px; padding:0 0.4rem; font-size:0.75rem; }
 					ul.plan-tree { list-style: none; padding-left: 1.25rem; margin: 0.25rem 0; border-left: 1px solid #e0e0e0; }
 					ul.plan-tree > li { margin: 0.15rem 0; }
 					.node-type { font-weight: 600; }
@@ -49,6 +53,7 @@ templ Layout(title, subtitle string) {
 		<body>
 			<h1>Lynceus</h1>
 			<nav>
+				<a href="/databases">Databases</a>
 				<a href="/">Top queries</a>
 				<a href="/insights">Insights</a>
 				<a href="/index-advisor">Index advisor</a>

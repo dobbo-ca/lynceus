@@ -1,0 +1,129 @@
+package web
+
+import "fmt"
+
+// DatabaseCard is the dashboard view-model for one cluster, metrics rolled up
+// across its streams. All values are T1 (counts / aggregates / labels).
+type DatabaseCard struct {
+	ClusterID     string
+	Name          string
+	QPS           float64 // latest hourly bucket calls / 3600
+	AvgLatencyMs  float64
+	ActiveConns   int64
+	TopWait       string // "" -> rendered as "—"
+	StreamCount   int
+	InstanceCount int
+	InsightCount  int
+	Sparkline     string // SVG <polyline> points attr over viewBox 0 0 100 24; "" if <2 buckets
+}
+
+// DatabasesView is the whole dashboard view-model: the (already search-filtered)
+// cards plus the echoed-back controls state.
+type DatabasesView struct {
+	Cards []DatabaseCard
+	View  string // "cards" (default) | "list"
+	Query string // search term, echoed into the form input
+}
+
+// DatabasesPage renders the full databases dashboard page.
+templ DatabasesPage(v DatabasesView) {
+	@Layout("Lynceus — databases", "monitored databases") {
+		@DatabasesControls(v)
+		<div id="databases-body">
+			@DatabasesBody(v)
+		</div>
+	}
+}
+
+// DatabasesControls renders the persistent search+view controls form.
+// Submits via hx-get to /partial/databases swapping #databases-body.
+// Degrades to a plain GET /databases without JS.
+templ DatabasesControls(v DatabasesView) {
+	<form
+		class="filters"
+		action="/databases"
+		method="get"
+		hx-get="/partial/databases"
+		hx-target="#databases-body"
+		hx-swap="outerHTML"
+		hx-trigger="submit, keyup changed delay:300ms from:input[name='q'], change from:select[name='view']"
+	>
+		<label>
+			Search
+			<input type="text" name="q" value={ v.Query } placeholder="Search databases…"/>
+		</label>
+		<label>
+			View
+			<select name="view">
+				<option value="cards" selected?={ v.View != "list" }>Cards</option>
+				<option value="list" selected?={ v.View == "list" }>List</option>
+			</select>
+		</label>
+		<button type="submit">Search</button>
+	</form>
+}
+
+// DatabasesBody renders the swappable body fragment: either an empty state,
+// a list table, or a cards grid.
+templ DatabasesBody(v DatabasesView) {
+	<div id="databases-body">
+		if len(v.Cards) == 0 {
+			<p class="empty">No databases monitored yet — run a collector and check back.</p>
+		} else if v.View == "list" {
+			<table>
+				<thead>
+					<tr>
+						<th>Database</th>
+						<th class="num">q/s</th>
+						<th class="num">Avg latency (ms)</th>
+						<th class="num">Conns</th>
+						<th>Top wait</th>
+						<th class="num">Streams</th>
+						<th class="num">Insights</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, c := range v.Cards {
+						<tr>
+							<td><a href={ templ.SafeURL("/databases/" + c.ClusterID) }>{ c.Name }</a></td>
+							<td class="num">{ fmt.Sprintf("%.1f", c.QPS) }</td>
+							<td class="num">{ fmt.Sprintf("%.1f", c.AvgLatencyMs) }</td>
+							<td class="num">{ fmt.Sprintf("%d", c.ActiveConns) }</td>
+							<td>
+								if c.TopWait == "" {
+									—
+								} else {
+									{ c.TopWait }
+								}
+							</td>
+							<td class="num">{ fmt.Sprintf("%d", c.StreamCount) }</td>
+							<td class="num">{ fmt.Sprintf("%d", c.InsightCount) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		} else {
+			<div class="cards">
+				for _, c := range v.Cards {
+					<a class="db-card" href={ templ.SafeURL("/databases/" + c.ClusterID) }>
+						if c.Sparkline != "" {
+							<svg viewBox="0 0 100 24" width="100" height="24" style="display:block;margin-bottom:0.4rem;">
+								<polyline points={ c.Sparkline } fill="none" stroke="#2b6cb0" stroke-width="2"/>
+							</svg>
+						}
+						<div style="font-weight:600;margin-bottom:0.25rem;">{ c.Name }</div>
+						<div style="font-size:0.85rem;color:#444;margin-bottom:0.25rem;">
+							{ fmt.Sprintf("%.1f", c.QPS) } q/s
+							if c.InsightCount > 0 {
+								<span class="badge">{ fmt.Sprintf("%d", c.InsightCount) } insight(s)</span>
+							}
+						</div>
+						<div style="font-size:0.75rem;color:#666;">
+							{ fmt.Sprintf("%d", c.StreamCount) } stream(s) · { fmt.Sprintf("%d", c.InstanceCount) } instance(s)
+						</div>
+					</a>
+				}
+			</div>
+		}
+	</div>
+}
