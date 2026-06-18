@@ -204,56 +204,16 @@ templ OverviewQueries(vm OverviewVM) {
 // QueryDrilldown is the HTMX fragment rendered for one (cluster, fingerprint).
 // Shows the matching insight (if any) then the normalized plan tree.
 templ QueryDrilldown(plan PlanVM, insight *OverviewInsight) {
-	<div id="plan-view">
-		if insight != nil {
-			<div class="insight-banner insight-banner--{ insight.Severity }">
-				<strong>{ insight.Severity }</strong>
-				{ " — " }
-				{ insight.Relation }
-				{ ": " }
-				{ insight.Detail }
-			</div>
-		}
-		if plan.Empty {
-			<p class="empty">No plan stored for this server and fingerprint.</p>
-		} else {
-			<h2>Plan tree</h2>
-			<ul class="plan-tree">
-				@PlanTreeNode(plan.Root)
-			</ul>
-			<h2>Nodes</h2>
-			<table>
-				<thead>
-					<tr>
-						<th>Node type</th>
-						<th>Relation</th>
-						<th>Index</th>
-						<th>Condition</th>
-						<th class="num">Plan rows</th>
-						<th class="num">Actual rows</th>
-						<th class="num">Loops</th>
-						<th class="num">Total cost</th>
-						<th class="num">Rows removed</th>
-					</tr>
-				</thead>
-				<tbody>
-					for _, n := range plan.Flat {
-						<tr>
-							<td><code>{ n.NodeType }</code></td>
-							<td>{ n.Relation }</td>
-							<td>{ n.Index }</td>
-							<td><code>{ n.Condition }</code></td>
-							<td class="num">{ fmt.Sprintf("%d", n.PlanRows) }</td>
-							<td class="num">{ fmt.Sprintf("%d", n.ActualRows) }</td>
-							<td class="num">{ fmt.Sprintf("%d", n.ActualLoops) }</td>
-							<td class="num">{ FmtCost(n.TotalCost) }</td>
-							<td class="num">{ fmt.Sprintf("%d", n.RowsRemovedByFilter) }</td>
-						</tr>
-					}
-				</tbody>
-			</table>
-		}
-	</div>
+	if insight != nil {
+		<div class="insight-banner insight-banner--{ insight.Severity }">
+			<strong>{ insight.Severity }</strong>
+			{ " — " }
+			{ insight.Relation }
+			{ ": " }
+			{ insight.Detail }
+		</div>
+	}
+	@PlanView(plan)
 }
 
 // OverviewInsights renders the insights panel.

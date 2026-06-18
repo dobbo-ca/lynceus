@@ -126,7 +126,6 @@ func TestOverviewPage_unknownCluster_returns404(t *testing.T) {
 		t.Fatalf("GET: %v", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	_ = resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", resp.StatusCode)
