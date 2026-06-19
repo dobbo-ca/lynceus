@@ -45,6 +45,14 @@ func NewServer(cfg Config, stats *store.Stats, conf *store.Config) *Server {
 func (s *Server) Handler() http.Handler { return s.withAuth(s.mux) }
 
 func (s *Server) routes() {
+	s.mux.HandleFunc("GET /databases", s.handleDatabases)
+	s.mux.HandleFunc("GET /partial/databases", s.handleDatabasesPartial)
+	s.mux.HandleFunc("GET /databases/{clusterID}", s.handleClusterOverview)
+	s.mux.HandleFunc("GET /databases/{clusterID}/queries", s.handleClusterQueries)
+	s.mux.HandleFunc("GET /databases/{clusterID}/insights", s.handleClusterInsights)
+	s.mux.HandleFunc("GET /databases/{clusterID}/activity", s.handleClusterActivity)
+	s.mux.HandleFunc("GET /databases/{clusterID}/settings", s.handleClusterSettings)
+	s.mux.HandleFunc("GET /partial/databases/{clusterID}/query/{fingerprint}", s.handleClusterQueryDrilldown)
 	s.mux.HandleFunc("GET /", s.handleDashboard)
 	s.mux.HandleFunc("GET /partial/queries", s.handleQueriesPartial)
 	s.mux.HandleFunc("GET /insights", s.handleInsightsPage)
