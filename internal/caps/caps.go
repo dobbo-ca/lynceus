@@ -1,9 +1,11 @@
 // Package caps probes a monitored PostgreSQL instance to discover which
 // Lynceus capabilities are available on it: which extensions are
 // installed, what the role can read, where logs go, what server version
-// is running. Results are metadata-only — every Reason string is bounded
-// content written by this package, never a literal from the monitored
-// database, preserving the Lynceus T1 privacy contract.
+// is running. Results are metadata-only — the cross-boundary Status.Reason
+// is a closed, package-authored ReasonCode, never a literal from the
+// monitored database, preserving the Lynceus T1 privacy contract. Any
+// human-readable diagnostic lives in the collector-local Status.Detail
+// field, which never crosses the wire.
 //
 // Discover is intended to run at the collector on the full-snapshot
 // cadence; wiring into cmd/collector and the wire-message form for
@@ -67,16 +69,104 @@ func Declared() []Capability {
 	}
 }
 
+// ReasonCode is a closed, package-authored vocabulary explaining a probe's
+// verdict. It is the CROSS-BOUNDARY field: the discovery write-back (the
+// future first non-test caller of store.UpsertDiscoveredCapabilities)
+// serializes Status.Reason and that value may travel from the collector to
+// the api_server. It therefore must NEVER carry a literal from the monitored
+// database — only one of AllReasonCodes(). See
+// docs/superpowers/plans/crd-operator-control-plane.md §4.6.
+type ReasonCode string
+
+// The closed reason-code vocabulary. Every Status constructed in this
+// package sets Reason to one of these. Edit AllReasonCodes() when adding a
+// constant.
+const (
+	// ReasonProbeError is the verdict for any probe that hit a driver error.
+	// Set via ErrToCode — see its doc for the privacy rationale.
+	ReasonProbeError           ReasonCode = "PROBE_ERROR"
+	ReasonNotInstalled         ReasonCode = "NOT_INSTALLED"
+	ReasonInstalled            ReasonCode = "INSTALLED"
+	ReasonParseError           ReasonCode = "PARSE_ERROR"
+	ReasonVersionBelowBaseline ReasonCode = "VERSION_BELOW_BASELINE"
+	ReasonVersionOK            ReasonCode = "VERSION_OK"
+	ReasonNotPreloaded         ReasonCode = "NOT_PRELOADED"
+	ReasonDisabled             ReasonCode = "DISABLED"
+	ReasonNoRole               ReasonCode = "NO_ROLE"
+	ReasonRoleOK               ReasonCode = "ROLE_OK"
+	ReasonLogReachable         ReasonCode = "LOG_REACHABLE"
+	ReasonLogUnreachable       ReasonCode = "LOG_UNREACHABLE"
+	// ReasonInternal marks a Status that no probe recorded (a bug in this
+	// package), surfaced by Discover's completeness loop.
+	ReasonInternal ReasonCode = "INTERNAL"
+)
+
+// AllReasonCodes returns the closed reason-code vocabulary. The contract
+// test iterates it to prove every code is bounded, package-authored content.
+//
+// ponytail: this slice is a second hand-maintained copy of the ReasonCode
+// const block above (ceiling: two lists synced by hand). Kept deliberately —
+// the contract test needs an enumerable set and Go has no built-in iterator
+// over a const group.
+func AllReasonCodes() []ReasonCode {
+	return []ReasonCode{
+		ReasonProbeError,
+		ReasonNotInstalled,
+		ReasonInstalled,
+		ReasonParseError,
+		ReasonVersionBelowBaseline,
+		ReasonVersionOK,
+		ReasonNotPreloaded,
+		ReasonDisabled,
+		ReasonNoRole,
+		ReasonRoleOK,
+		ReasonLogReachable,
+		ReasonLogUnreachable,
+		ReasonInternal,
+	}
+}
+
+// ErrToCode is the single enforced funnel that maps any driver/probe error
+// to a cross-boundary ReasonCode. It returns ReasonProbeError unconditionally
+// and DISCARDS err entirely: a pgx error can echo statement text, identifiers,
+// hints, or constraint bodies from the monitored database, so the error string
+// must never reach Status.Reason. Every probe-error site routes through this
+// helper instead of writing a Reason literal, which keeps the literal-stripping
+// in one auditable, unit-testable place (see TestErrToCode_stripsPoisonedLiteral).
+// Callers that want the message keep it in collector-local Status.Detail, never
+// Reason.
+//
+// ponytail: the parameter is unused by design (ceiling: a code-only mapping) —
+// it exists so call sites read as "this error becomes this code" and so the
+// funnel is the obvious place every probe error must pass through.
+func ErrToCode(error) ReasonCode {
+	return ReasonProbeError
+}
+
+// pick returns yes when avail is true, else no. It collapses the
+// "reason := no; if avail { reason = yes }" shape the boolean probes share.
+func pick(avail bool, yes, no ReasonCode) ReasonCode {
+	if avail {
+		return yes
+	}
+	return no
+}
+
 // Status is one probe's verdict.
 //
-// Reason is a short, bounded, package-authored string — never a row,
-// column value, or query from the monitored database. For Available
-// probes it carries a useful detail (e.g. extension version, list of
-// granted roles); for unavailable probes it explains why (e.g.
-// "extension not installed", "probe error: ...").
+// Reason is the CROSS-BOUNDARY field — a closed ReasonCode, never a row,
+// column value, error message, or query from the monitored database. It is
+// the field the discovery write-back serializes and may travel over the
+// wire, so it must be one of AllReasonCodes().
+//
+// Detail is collector-local human-readable diagnostics (e.g. extension
+// version, list of granted roles, log destination). It MAY contain bounded
+// monitored-DB-derived content and therefore MUST NEVER cross the wire: the
+// discovery write-back serializes Reason, not Detail.
 type Status struct {
 	Available bool
-	Reason    string
+	Reason    ReasonCode
+	Detail    string
 }
 
 // Set is the output of Discover. Every Capability returned by Declared()
@@ -126,7 +216,8 @@ func (d *Discoverer) Discover(ctx context.Context) (Set, error) {
 		if _, ok := out[c]; !ok {
 			out[c] = Status{
 				Available: false,
-				Reason:    "probe did not record a result (bug)",
+				Reason:    ReasonInternal,
+				Detail:    "probe did not record a result (bug)",
 			}
 		}
 	}

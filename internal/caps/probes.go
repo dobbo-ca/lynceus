@@ -21,9 +21,9 @@ var extensionsOfInterest = map[string]Capability{
 
 // ProbeExtensions writes one Status entry into out for each extension
 // declared in extensionsOfInterest. Available=true iff the extension
-// has a row in pg_extension on the connected database; Reason carries
-// the extversion when available, otherwise "not installed" / a probe
-// error message.
+// has a row in pg_extension on the connected database; Reason is the
+// closed code (INSTALLED / NOT_INSTALLED / PROBE_ERROR) and the
+// collector-local Detail carries the extversion / error message.
 //
 // Writes occur unconditionally — every key from extensionsOfInterest is
 // always set, so Discover's completeness invariant holds even when this
@@ -37,7 +37,8 @@ func ProbeExtensions(ctx context.Context, pool *pgxpool.Pool, out Set) {
 		for _, cap := range extensionsOfInterest {
 			out[cap] = Status{
 				Available: false,
-				Reason:    fmt.Sprintf("probe error: %s", err.Error()),
+				Reason:    ErrToCode(err),
+				Detail:    fmt.Sprintf("probe error: %s", err.Error()),
 			}
 		}
 		return
@@ -56,12 +57,14 @@ func ProbeExtensions(ctx context.Context, pool *pgxpool.Pool, out Set) {
 		if ver, ok := versions[extname]; ok {
 			out[cap] = Status{
 				Available: true,
-				Reason:    fmt.Sprintf("extversion=%s", ver),
+				Reason:    ReasonInstalled,
+				Detail:    fmt.Sprintf("extversion=%s", ver),
 			}
 		} else {
 			out[cap] = Status{
 				Available: false,
-				Reason:    "not installed",
+				Reason:    ReasonNotInstalled,
+				Detail:    "not installed",
 			}
 		}
 	}
@@ -75,7 +78,8 @@ func ProbeServerVersion(ctx context.Context, pool *pgxpool.Pool, out Set) {
 	if err != nil {
 		out[ServerVersion] = Status{
 			Available: false,
-			Reason:    fmt.Sprintf("probe error: %s", err.Error()),
+			Reason:    ErrToCode(err),
+			Detail:    fmt.Sprintf("probe error: %s", err.Error()),
 		}
 		return
 	}
@@ -83,20 +87,23 @@ func ProbeServerVersion(ctx context.Context, pool *pgxpool.Pool, out Set) {
 	if err != nil {
 		out[ServerVersion] = Status{
 			Available: false,
-			Reason:    fmt.Sprintf("parse error: %q", raw),
+			Reason:    ReasonParseError,
+			Detail:    "server_version_num not an integer",
 		}
 		return
 	}
 	if n < 12_0000 {
 		out[ServerVersion] = Status{
 			Available: false,
-			Reason:    fmt.Sprintf("server_version_num=%d below baseline 120000", n),
+			Reason:    ReasonVersionBelowBaseline,
+			Detail:    fmt.Sprintf("server_version_num=%d below baseline 120000", n),
 		}
 		return
 	}
 	out[ServerVersion] = Status{
 		Available: true,
-		Reason:    fmt.Sprintf("server_version_num=%d", n),
+		Reason:    ReasonVersionOK,
+		Detail:    fmt.Sprintf("server_version_num=%d", n),
 	}
 }
 
@@ -121,7 +128,7 @@ func ProbeRolePermissions(ctx context.Context, pool *pgxpool.Pool, out Set) {
 	for _, c := range checks {
 		var got bool
 		if err := pool.QueryRow(ctx, c.query).Scan(&got); err != nil {
-			parts = append(parts, fmt.Sprintf("%s=err(%s)", c.label, err.Error()))
+			parts = append(parts, fmt.Sprintf("%s=err", c.label))
 			continue
 		}
 		parts = append(parts, fmt.Sprintf("%s=%t", c.label, got))
@@ -132,9 +139,11 @@ func ProbeRolePermissions(ctx context.Context, pool *pgxpool.Pool, out Set) {
 			super = got
 		}
 	}
+	avail := monitor || super
 	out[RolePermissions] = Status{
-		Available: monitor || super,
-		Reason:    strings.Join(parts, ","),
+		Available: avail,
+		Reason:    pick(avail, ReasonRoleOK, ReasonNoRole),
+		Detail:    strings.Join(parts, ","),
 	}
 }
 
@@ -153,16 +162,19 @@ func ProbeStatActivityFullRead(ctx context.Context, pool *pgxpool.Pool, out Set)
 	).Scan(&hasRead); err != nil {
 		out[PgStatActivityFullRead] = Status{
 			Available: false,
-			Reason:    fmt.Sprintf("probe error: %s", err.Error()),
+			Reason:    ErrToCode(err),
+			Detail:    fmt.Sprintf("probe error: %s", err.Error()),
 		}
 		return
 	}
 	_ = pool.QueryRow(ctx,
 		`SELECT rolsuper FROM pg_roles WHERE rolname = current_user`,
 	).Scan(&isSuper)
+	avail := hasRead || isSuper
 	out[PgStatActivityFullRead] = Status{
-		Available: hasRead || isSuper,
-		Reason:   fmt.Sprintf("pg_read_all_stats=%t,rolsuper=%t", hasRead, isSuper),
+		Available: avail,
+		Reason:    pick(avail, ReasonRoleOK, ReasonNoRole),
+		Detail:    fmt.Sprintf("pg_read_all_stats=%t,rolsuper=%t", hasRead, isSuper),
 	}
 }
 
@@ -174,14 +186,16 @@ func ProbeLogDestination(ctx context.Context, pool *pgxpool.Pool, out Set) {
 	if err := pool.QueryRow(ctx, `SHOW log_destination`).Scan(&dest); err != nil {
 		out[LogDestination] = Status{
 			Available: false,
-			Reason:    fmt.Sprintf("probe error: %s", err.Error()),
+			Reason:    ErrToCode(err),
+			Detail:    fmt.Sprintf("probe error: %s", err.Error()),
 		}
 		return
 	}
 	if err := pool.QueryRow(ctx, `SHOW logging_collector`).Scan(&collector); err != nil {
 		out[LogDestination] = Status{
 			Available: false,
-			Reason:    fmt.Sprintf("probe error: %s", err.Error()),
+			Reason:    ErrToCode(err),
+			Detail:    fmt.Sprintf("probe error: %s", err.Error()),
 		}
 		return
 	}
@@ -197,7 +211,10 @@ func ProbeLogDestination(ctx context.Context, pool *pgxpool.Pool, out Set) {
 	avail := collectorOn || !strings.EqualFold(strings.TrimSpace(dest), "stderr")
 	out[LogDestination] = Status{
 		Available: avail,
-		Reason: fmt.Sprintf("dest=%s; collector=%t; file=%s",
+		Reason:    pick(avail, ReasonLogReachable, ReasonLogUnreachable),
+		// Detail is collector-local only: dest is a bounded GUC value and
+		// file is a server-side log path — neither may cross the wire.
+		Detail: fmt.Sprintf("dest=%s; collector=%t; file=%s",
 			dest, collectorOn, file),
 	}
 }
@@ -211,14 +228,16 @@ func ProbeAutoExplain(ctx context.Context, pool *pgxpool.Pool, out Set) {
 	if err := pool.QueryRow(ctx, `SHOW shared_preload_libraries`).Scan(&preload); err != nil {
 		out[AutoExplain] = Status{
 			Available: false,
-			Reason:    fmt.Sprintf("probe error: %s", err.Error()),
+			Reason:    ErrToCode(err),
+			Detail:    fmt.Sprintf("probe error: %s", err.Error()),
 		}
 		return
 	}
 	if !libraryListed(preload, "auto_explain") {
 		out[AutoExplain] = Status{
 			Available: false,
-			Reason:    "not in shared_preload_libraries",
+			Reason:    ReasonNotPreloaded,
+			Detail:    "not in shared_preload_libraries",
 		}
 		return
 	}
@@ -227,7 +246,8 @@ func ProbeAutoExplain(ctx context.Context, pool *pgxpool.Pool, out Set) {
 	if err := pool.QueryRow(ctx, `SHOW auto_explain.log_min_duration`).Scan(&threshold); err != nil {
 		out[AutoExplain] = Status{
 			Available: false,
-			Reason:    fmt.Sprintf("preloaded but threshold unreadable: %s", err.Error()),
+			Reason:    ErrToCode(err),
+			Detail:    fmt.Sprintf("preloaded but threshold unreadable: %s", err.Error()),
 		}
 		return
 	}
@@ -235,13 +255,15 @@ func ProbeAutoExplain(ctx context.Context, pool *pgxpool.Pool, out Set) {
 	if threshold == "-1" {
 		out[AutoExplain] = Status{
 			Available: false,
-			Reason:    "preloaded but log_min_duration=-1 (disabled)",
+			Reason:    ReasonDisabled,
+			Detail:    "preloaded but log_min_duration=-1 (disabled)",
 		}
 		return
 	}
 	out[AutoExplain] = Status{
 		Available: true,
-		Reason:    fmt.Sprintf("log_min_duration=%s", threshold),
+		Reason:    ReasonInstalled,
+		Detail:    fmt.Sprintf("log_min_duration=%s", threshold),
 	}
 }
 

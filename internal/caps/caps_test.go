@@ -42,9 +42,13 @@ func TestDeclared_listsAllKnownCapabilities(t *testing.T) {
 
 func TestSet_isMapStringStatus(t *testing.T) {
 	s := caps.Set{}
-	s[caps.PgStatStatements] = caps.Status{Available: true, Reason: "1.10"}
+	s[caps.PgStatStatements] = caps.Status{
+		Available: true,
+		Reason:    caps.ReasonInstalled,
+		Detail:    "extversion=1.10",
+	}
 	got := s[caps.PgStatStatements]
-	if !got.Available || got.Reason != "1.10" {
+	if !got.Available || got.Reason != caps.ReasonInstalled || got.Detail != "extversion=1.10" {
 		t.Fatalf("Set assignment broken: %+v", got)
 	}
 }
