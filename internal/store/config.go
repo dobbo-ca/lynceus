@@ -183,6 +183,32 @@ func (c *pgxConfig) AppendAudit(ctx context.Context, e AuditEntry) error {
 
 // AppendAuditReturning appends and returns the persisted record.
 func (c *pgxConfig) AppendAuditReturning(ctx context.Context, e AuditEntry) (AuditRecord, error) {
+	tx, err := c.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return AuditRecord{}, fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", auditLockKey); err != nil {
+		return AuditRecord{}, fmt.Errorf("advisory lock: %w", err)
+	}
+
+	rec, err := appendAuditTx(ctx, tx, e)
+	if err != nil {
+		return AuditRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return AuditRecord{}, fmt.Errorf("commit: %w", err)
+	}
+	return rec, nil
+}
+
+// appendAuditTx appends one audit row using a caller-supplied tx that
+// MUST already hold the auditLockKey advisory lock. It does NOT lock or
+// commit — the caller owns both, so several mutations can share one audit
+// append inside a single transaction (e.g. ApplyCapabilityPoliciesBatch).
+func appendAuditTx(ctx context.Context, tx pgx.Tx, e AuditEntry) (AuditRecord, error) {
 	// Canonicalize the detail JSONB sub-document, if any.
 	var detail []byte
 	if e.Detail != nil {
@@ -197,20 +223,10 @@ func (c *pgxConfig) AppendAuditReturning(ctx context.Context, e AuditEntry) (Aud
 		detail = canon
 	}
 
-	tx, err := c.pool.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return AuditRecord{}, fmt.Errorf("begin: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", auditLockKey); err != nil {
-		return AuditRecord{}, fmt.Errorf("advisory lock: %w", err)
-	}
-
 	// Read the tail row's row_hash. nextval() gives us the id that the
 	// pending INSERT will assign, while staying inside the lock.
 	var prev []byte
-	err = tx.QueryRow(ctx,
+	err := tx.QueryRow(ctx,
 		`SELECT row_hash FROM audit_log ORDER BY id DESC LIMIT 1`,
 	).Scan(&prev)
 	if err == pgx.ErrNoRows {
@@ -242,10 +258,6 @@ func (c *pgxConfig) AppendAuditReturning(ctx context.Context, e AuditEntry) (Aud
 		nextID, e.Actor, e.Action, e.ServerID, e.DataTier, detail, at, prev, rowHash,
 	); err != nil {
 		return AuditRecord{}, fmt.Errorf("insert: %w", err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return AuditRecord{}, fmt.Errorf("commit: %w", err)
 	}
 
 	return AuditRecord{
