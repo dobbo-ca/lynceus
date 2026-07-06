@@ -28,7 +28,7 @@ func (NopNotifier) Notify(context.Context, Result) error { return nil }
 // Scheduler periodically evaluates checks over the latest per-server stats
 // and persists results. It runs in the ingestion service (write side).
 type Scheduler struct {
-	stats    *store.Stats
+	stats    store.Stats
 	checks   []Check
 	notify   Notifier
 	interval time.Duration
@@ -37,7 +37,7 @@ type Scheduler struct {
 
 // NewScheduler builds a Scheduler with the given store, checks, and
 // notifier. interval defaults to 60s; now defaults to time.Now.
-func NewScheduler(s *store.Stats, cs []Check, n Notifier) *Scheduler {
+func NewScheduler(s store.Stats, cs []Check, n Notifier) *Scheduler {
 	if n == nil {
 		n = NopNotifier{}
 	}

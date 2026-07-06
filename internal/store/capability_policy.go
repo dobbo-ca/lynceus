@@ -39,8 +39,9 @@ type SetCapabilityPolicyInput struct {
 // carrying that id in audit_chain_id. Ordering note: if the upsert
 // fails, the append-only audit chain stays valid — it records the
 // attempted toggle.
+//
 //nolint:gocritic // hugeParam: cold admin-path API; SetCapabilityPolicyInput is a caller-owned value struct
-func (c *Config) SetCapabilityPolicy(ctx context.Context, in SetCapabilityPolicyInput) (CapabilityPolicy, error) {
+func (c *pgxConfig) SetCapabilityPolicy(ctx context.Context, in SetCapabilityPolicyInput) (CapabilityPolicy, error) {
 	if in.ServerID == "" {
 		return CapabilityPolicy{}, fmt.Errorf("SetCapabilityPolicy: ServerID required")
 	}
@@ -112,7 +113,7 @@ func dbNameDetail(name string) any {
 // IS NULL); a non-empty value selects that database's override row. It
 // does NOT fall back between the two — use EffectiveCapability for
 // resolution. found is false when no such row exists.
-func (c *Config) GetCapabilityPolicy(ctx context.Context, serverID, databaseName, capability string) (CapabilityPolicy, bool, error) {
+func (c *pgxConfig) GetCapabilityPolicy(ctx context.Context, serverID, databaseName, capability string) (CapabilityPolicy, bool, error) {
 	var (
 		out    CapabilityPolicy
 		dbName *string
@@ -166,7 +167,7 @@ const (
 // (the caller decides the absent-policy default). The single query asks
 // for both the override and the default and prefers the override via
 // ORDER BY, so it is one round trip.
-func (c *Config) EffectiveCapability(ctx context.Context, serverID, databaseName, capability string) (enabled bool, source PolicySource, found bool, err error) {
+func (c *pgxConfig) EffectiveCapability(ctx context.Context, serverID, databaseName, capability string) (enabled bool, source PolicySource, found bool, err error) {
 	var isOverride bool
 	row := c.ro.QueryRow(ctx,
 		`SELECT enabled, (database_name IS NOT NULL) AS is_override
@@ -196,7 +197,7 @@ func (c *Config) EffectiveCapability(ctx context.Context, serverID, databaseName
 // server, ordered for stable display (server-wide defaults first, then
 // per-database overrides, by capability). Intended for the matrix API
 // (ly-xnk.4).
-func (c *Config) ListCapabilityPolicies(ctx context.Context, serverID string) ([]CapabilityPolicy, error) {
+func (c *pgxConfig) ListCapabilityPolicies(ctx context.Context, serverID string) ([]CapabilityPolicy, error) {
 	rows, err := c.ro.Query(ctx,
 		`SELECT server_id, database_name, capability, enabled,
 		        set_by, set_at, reason, audit_chain_id

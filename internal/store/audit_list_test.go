@@ -8,7 +8,7 @@ import (
 	"github.com/dobbo-ca/lynceus/internal/store"
 )
 
-func seedAuditRows(t *testing.T, cfg *store.Config) {
+func seedAuditRows(t *testing.T, cfg store.Config) {
 	t.Helper()
 	ctx := context.Background()
 	rows := []store.AuditEntry{

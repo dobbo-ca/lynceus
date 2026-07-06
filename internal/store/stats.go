@@ -10,28 +10,61 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Stats is typed access to the time-series stats database.
-//
-// The underlying query_stats table is range-partitioned by week.
-// Stats.WriteQueryStats transparently creates the necessary weekly
-// partitions before insert, so the caller never has to.
-type Stats struct {
+// Stats is the reader/writer seam over the time-series stats database.
+type Stats interface {
+	Pool() *pgxpool.Pool
+	WriteQueryStats(ctx context.Context, rows []QueryStat) error
+	TopQueriesByTotalTime(ctx context.Context, since, until time.Time, limit int) ([]TopQuery, error)
+	WaitEventHistogram(ctx context.Context, serverID string, since, until time.Time) ([]WaitEventCount, error)
+	WriteActivityBuckets(ctx context.Context, rows []ActivityBucket) error
+	RecentServerIDs(ctx context.Context, since time.Time) ([]string, error)
+	ThroughputForServers(ctx context.Context, serverIDs []string, since, until time.Time) (Throughput, error)
+	TopQueriesForServers(ctx context.Context, serverIDs []string, since, until time.Time, limit int) ([]TopQuery, error)
+	QPSBucketsForServers(ctx context.Context, serverIDs []string, since, until time.Time) ([]QPSBucket, error)
+	ActivitySummaryForServers(ctx context.Context, serverIDs []string, since, until time.Time) (ActivitySummary, error)
+	WriteQueryPlans(ctx context.Context, rows []QueryPlanRow) error
+	TopPlansByQuery(ctx context.Context, serverID, fingerprint string, since, until time.Time, limit int) ([]QueryPlanRow, error)
+	ListPlanKeys(ctx context.Context, since, until time.Time, limit int) ([]PlanKey, error)
+	WriteInsights(ctx context.Context, rows []InsightRow) error
+	InsightCountForServers(ctx context.Context, serverIDs []string, since, until time.Time) (int, error)
+	TopInsightsForServers(ctx context.Context, serverIDs []string, since, until time.Time, limit int) ([]InsightRow, error)
+	WriteTableStats(ctx context.Context, rows []TableStatRow) error
+	LatestTableStats(ctx context.Context, serverID string, asOf time.Time) ([]TableStatRow, error)
+	WriteIndexStats(ctx context.Context, rows []IndexStatRow) error
+	LatestIndexStats(ctx context.Context, serverID string, asOf time.Time) ([]IndexStatRow, error)
+	WriteFreezeAges(ctx context.Context, rows []FreezeAgeRow) error
+	LatestFreezeAges(ctx context.Context, serverID string, asOf time.Time) ([]FreezeAgeRow, error)
+	WriteConnectionSamples(ctx context.Context, rows []ConnectionSampleRow) error
+	WriteBlockingEdges(ctx context.Context, rows []BlockingEdgeRow) error
+	LatestConnectionSamples(ctx context.Context, serverID string, asOf time.Time) ([]ConnectionSampleRow, error)
+	LatestBlockingEdges(ctx context.Context, serverID string, asOf time.Time) ([]BlockingEdgeRow, error)
+	WriteChecksResults(ctx context.Context, rows []ChecksResultRow) error
+	LatestChecksResults(ctx context.Context, serverID string, since, until time.Time) ([]ChecksResultRow, error)
+	SetMute(ctx context.Context, serverID, checkID, object string, until time.Time, reason string) error
+	ListMutes(ctx context.Context, serverID string) ([]MuteRow, error)
+	WriteLogEvents(ctx context.Context, rows []LogEventRow) error
+}
+
+var _ Stats = (*pgxStats)(nil)
+
+// pgxStats is the pgxpool-backed Stats implementation.
+type pgxStats struct {
 	pool *pgxpool.Pool // primary (read-write): writes, DDL, migrations
 	ro   *pgxpool.Pool // read replica; defaults to pool when not split
 }
 
-// NewStats returns a Stats bound to its primary pool. Standalone reads
+// NewStats returns a pgxStats bound to its primary pool. Standalone reads
 // fall back to the primary until a replica is attached via WithReadPool.
-func NewStats(pool *pgxpool.Pool) *Stats { return &Stats{pool: pool, ro: pool} }
+func NewStats(pool *pgxpool.Pool) *pgxStats { return &pgxStats{pool: pool, ro: pool} }
 
 // Pool returns the primary (read-write) pool. Used by the Checks
 // scheduler to take pg advisory locks. Mirrors Config.Pool().
-func (s *Stats) Pool() *pgxpool.Pool { return s.pool }
+func (s *pgxStats) Pool() *pgxpool.Pool { return s.pool }
 
 // WithReadPool attaches a read-replica pool used to serve standalone
 // reads (TopQueriesByTotalTime). A nil ro is ignored. Returns the
 // receiver for chaining.
-func (s *Stats) WithReadPool(ro *pgxpool.Pool) *Stats {
+func (s *pgxStats) WithReadPool(ro *pgxpool.Pool) *pgxStats {
 	if ro != nil {
 		s.ro = ro
 	}
@@ -41,17 +74,17 @@ func (s *Stats) WithReadPool(ro *pgxpool.Pool) *Stats {
 // QueryStat is one T1 row of per-fingerprint query statistics.
 // DataTier zero is treated as 1 (T1) on insert — see package comment.
 type QueryStat struct {
-	ServerID         string
-	CollectedAt      time.Time
-	Fingerprint      string
-	NormalizedQuery  string
-	DataTier         int16
-	Calls            int64
-	TotalTimeMs      float64
-	MeanTimeMs       float64
-	Rows             int64
-	SharedBlksHit    int64
-	SharedBlksRead   int64
+	ServerID        string
+	CollectedAt     time.Time
+	Fingerprint     string
+	NormalizedQuery string
+	DataTier        int16
+	Calls           int64
+	TotalTimeMs     float64
+	MeanTimeMs      float64
+	Rows            int64
+	SharedBlksHit   int64
+	SharedBlksRead  int64
 }
 
 // queryStatsColumns is the column order written by WriteQueryStats,
@@ -65,7 +98,7 @@ var queryStatsColumns = []string{
 // creating any missing weekly partitions first. COPY routes each row to
 // its weekly partition and is markedly lighter on the storage database
 // than per-row INSERTs (one round-trip, no per-row parse/plan).
-func (s *Stats) WriteQueryStats(ctx context.Context, rows []QueryStat) error {
+func (s *pgxStats) WriteQueryStats(ctx context.Context, rows []QueryStat) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -105,7 +138,7 @@ type TopQuery struct {
 
 // TopQueriesByTotalTime returns up to limit T1 queries in [since, until)
 // ordered by total time descending.
-func (s *Stats) TopQueriesByTotalTime(ctx context.Context, since, until time.Time, limit int) ([]TopQuery, error) {
+func (s *pgxStats) TopQueriesByTotalTime(ctx context.Context, since, until time.Time, limit int) ([]TopQuery, error) {
 	rows, err := s.ro.Query(ctx,
 		`SELECT fingerprint, normalized_query, SUM(calls), SUM(total_time_ms)
 		   FROM query_stats
@@ -133,7 +166,7 @@ func (s *Stats) TopQueriesByTotalTime(ctx context.Context, since, until time.Tim
 
 // EnsureWeeklyPartition creates the partition for ts's ISO week if it
 // does not already exist. Idempotent.
-func (s *Stats) EnsureWeeklyPartition(ctx context.Context, ts time.Time) error {
+func (s *pgxStats) EnsureWeeklyPartition(ctx context.Context, ts time.Time) error {
 	name := partitionName(ts)
 	from, to := isoWeekBounds(ts)
 	_, err := s.pool.Exec(ctx, fmt.Sprintf(
@@ -148,7 +181,7 @@ func (s *Stats) EnsureWeeklyPartition(ctx context.Context, ts time.Time) error {
 
 // DropPartitionsOlderThan drops every weekly partition whose upper
 // bound is at or before cutoff. Returns the number dropped.
-func (s *Stats) DropPartitionsOlderThan(ctx context.Context, cutoff time.Time) (int, error) {
+func (s *pgxStats) DropPartitionsOlderThan(ctx context.Context, cutoff time.Time) (int, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT inhrelid::regclass::text,
 		        pg_get_expr(c.relpartbound, c.oid)
@@ -206,7 +239,9 @@ func isoWeekBounds(ts time.Time) (time.Time, time.Time) {
 
 // parsePartitionUpper extracts the upper-bound date from a partition
 // bound expression such as
-//   FOR VALUES FROM ('2026-05-25') TO ('2026-06-01')
+//
+//	FOR VALUES FROM ('2026-05-25') TO ('2026-06-01')
+//
 // Returns the zero Time if it can't parse.
 func parsePartitionUpper(bound string) time.Time {
 	const marker = "TO ('"
@@ -256,7 +291,7 @@ var activityBucketColumns = []string{
 // protocol, creating any missing weekly partitions first. Mirrors
 // WriteQueryStats: COPY routes each row to its weekly partition and is
 // markedly lighter on the storage DB than per-row INSERTs.
-func (s *Stats) WriteActivityBuckets(ctx context.Context, rows []ActivityBucket) error {
+func (s *pgxStats) WriteActivityBuckets(ctx context.Context, rows []ActivityBucket) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -289,7 +324,7 @@ func (s *Stats) WriteActivityBuckets(ctx context.Context, rows []ActivityBucket)
 // TopActivityBucketsByState returns up to limit buckets in [since, until)
 // for serverID, ordered by bucket_start ascending then state. data_tier =
 // 1 only (T1).
-func (s *Stats) TopActivityBucketsByState(
+func (s *pgxStats) TopActivityBucketsByState(
 	ctx context.Context, serverID string, since, until time.Time, limit int,
 ) ([]ActivityBucket, error) {
 	rows, err := s.pool.Query(ctx,
@@ -336,7 +371,7 @@ type WaitEventCount struct {
 // into per-(wait_event_type, wait_event) totals, busiest first. data_tier = 1
 // only (T1). Active-on-CPU samples (empty wait labels) are preserved as their
 // own row, not dropped.
-func (s *Stats) WaitEventHistogram(
+func (s *pgxStats) WaitEventHistogram(
 	ctx context.Context, serverID string, since, until time.Time,
 ) ([]WaitEventCount, error) {
 	rows, err := s.ro.Query(ctx,
@@ -367,7 +402,7 @@ func (s *Stats) WaitEventHistogram(
 
 // EnsureActivityWeeklyPartition creates the weekly partition for ts on
 // activity_buckets if it does not already exist. Idempotent.
-func (s *Stats) EnsureActivityWeeklyPartition(ctx context.Context, ts time.Time) error {
+func (s *pgxStats) EnsureActivityWeeklyPartition(ctx context.Context, ts time.Time) error {
 	name := activityPartitionName(ts)
 	from, to := isoWeekBounds(ts)
 	_, err := s.pool.Exec(ctx, fmt.Sprintf(

@@ -8,7 +8,7 @@ import (
 	"github.com/dobbo-ca/lynceus/internal/store"
 )
 
-func seedQueryStats(t *testing.T, ctx context.Context, s *store.Stats, now time.Time) {
+func seedQueryStats(t *testing.T, ctx context.Context, s store.Stats, now time.Time) {
 	t.Helper()
 	rows := []store.QueryStat{
 		{ServerID: "srv-a", CollectedAt: now, Fingerprint: "fp-1", NormalizedQuery: "SELECT $1",

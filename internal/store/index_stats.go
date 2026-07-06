@@ -41,7 +41,7 @@ var indexStatsColumns = []string{
 // WriteIndexStats appends a batch of per-index stat rows via the COPY protocol,
 // creating any missing weekly partitions first. Empty input is a no-op.
 // Mirrors WriteTableStats / WriteFreezeAges.
-func (s *Stats) WriteIndexStats(ctx context.Context, rows []IndexStatRow) error {
+func (s *pgxStats) WriteIndexStats(ctx context.Context, rows []IndexStatRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -74,7 +74,7 @@ func (s *Stats) WriteIndexStats(ctx context.Context, rows []IndexStatRow) error 
 
 // EnsureIndexStatsWeeklyPartition creates the weekly partition for ts on
 // index_stats if it does not already exist. Idempotent.
-func (s *Stats) EnsureIndexStatsWeeklyPartition(ctx context.Context, ts time.Time) error {
+func (s *pgxStats) EnsureIndexStatsWeeklyPartition(ctx context.Context, ts time.Time) error {
 	name := indexStatsPartitionName(ts)
 	from, to := isoWeekBounds(ts)
 	_, err := s.pool.Exec(ctx, fmt.Sprintf(
@@ -115,7 +115,7 @@ func scanIndexStatRows(rows pgx.Rows) ([]IndexStatRow, error) {
 // LatestIndexStats returns the most recent index_stats row per fqn for
 // serverID at or before asOf. data_tier = 1 only (T1). Served from the read
 // replica. Mirrors LatestTableStats.
-func (s *Stats) LatestIndexStats(ctx context.Context, serverID string, asOf time.Time) ([]IndexStatRow, error) {
+func (s *pgxStats) LatestIndexStats(ctx context.Context, serverID string, asOf time.Time) ([]IndexStatRow, error) {
 	rows, err := s.ro.Query(ctx,
 		indexStatsSelect+`
 		  WHERE server_id = $1 AND collected_at <= $2 AND data_tier = 1

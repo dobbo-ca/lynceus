@@ -35,7 +35,7 @@ var insightsColumns = []string{
 
 // WriteInsights appends a batch of derived insights via COPY, creating any
 // missing weekly partitions first. Mirrors WriteQueryPlans.
-func (s *Stats) WriteInsights(ctx context.Context, rows []InsightRow) error {
+func (s *pgxStats) WriteInsights(ctx context.Context, rows []InsightRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -66,7 +66,7 @@ func (s *Stats) WriteInsights(ctx context.Context, rows []InsightRow) error {
 
 // InsightCountForServers counts T1 insights for the given server_id set in
 // [since, until). serverIDs is passed as a Postgres array (= ANY($1)).
-func (s *Stats) InsightCountForServers(
+func (s *pgxStats) InsightCountForServers(
 	ctx context.Context, serverIDs []string, since, until time.Time,
 ) (int, error) {
 	var n int
@@ -82,7 +82,7 @@ func (s *Stats) InsightCountForServers(
 
 // TopInsightsForServers returns up to limit T1 insights for the server_id set in
 // [since, until), most recent first.
-func (s *Stats) TopInsightsForServers(
+func (s *pgxStats) TopInsightsForServers(
 	ctx context.Context, serverIDs []string, since, until time.Time, limit int,
 ) ([]InsightRow, error) {
 	rows, err := s.ro.Query(ctx,
@@ -119,7 +119,7 @@ func (s *Stats) TopInsightsForServers(
 
 // EnsureInsightsWeeklyPartition creates the weekly partition for ts on insights
 // if it does not already exist. Idempotent.
-func (s *Stats) EnsureInsightsWeeklyPartition(ctx context.Context, ts time.Time) error {
+func (s *pgxStats) EnsureInsightsWeeklyPartition(ctx context.Context, ts time.Time) error {
 	name := insightsPartitionName(ts)
 	from, to := isoWeekBounds(ts)
 	_, err := s.pool.Exec(ctx, fmt.Sprintf(

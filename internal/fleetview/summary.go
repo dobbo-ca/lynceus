@@ -28,7 +28,7 @@ type ClusterSummary struct {
 // ListClusterSummaries returns one summary per cluster, rolling stats up across
 // each cluster's server_id set (resolved from the config DB).
 func ListClusterSummaries(
-	ctx context.Context, cfg *store.Config, stats *store.Stats, since, until time.Time,
+	ctx context.Context, cfg store.Config, stats store.Stats, since, until time.Time,
 ) ([]ClusterSummary, error) {
 	clusters, err := cfg.ListClusters(ctx)
 	if err != nil {

@@ -33,7 +33,7 @@ type ClusterDetail struct {
 // GetClusterDetail assembles a single cluster's Overview data. found=false (no
 // error) if clusterID is unknown. Mirrors ListClusterSummaries' roll-up.
 func GetClusterDetail(
-	ctx context.Context, cfg *store.Config, stats *store.Stats,
+	ctx context.Context, cfg store.Config, stats store.Stats,
 	clusterID string, since, until time.Time,
 ) (ClusterDetail, bool, error) {
 	clusters, err := cfg.ListClusters(ctx)
@@ -115,7 +115,7 @@ func GetClusterDetail(
 
 // buildInstanceTopos assembles per-instance topology and rolled-up metrics.
 func buildInstanceTopos(
-	ctx context.Context, cfg *store.Config, stats *store.Stats,
+	ctx context.Context, cfg store.Config, stats store.Stats,
 	instances []store.Instance, since, until time.Time,
 ) ([]InstanceTopo, error) {
 	topos := make([]InstanceTopo, 0, len(instances))

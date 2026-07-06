@@ -44,7 +44,7 @@ var blockingEdgesColumns = []string{
 
 // WriteConnectionSamples appends a batch via COPY, creating any missing weekly
 // partitions first. Empty input is a no-op. Mirrors WriteFreezeAges.
-func (s *Stats) WriteConnectionSamples(ctx context.Context, rows []ConnectionSampleRow) error {
+func (s *pgxStats) WriteConnectionSamples(ctx context.Context, rows []ConnectionSampleRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -72,7 +72,7 @@ func (s *Stats) WriteConnectionSamples(ctx context.Context, rows []ConnectionSam
 }
 
 // WriteBlockingEdges appends a batch via COPY, creating partitions first.
-func (s *Stats) WriteBlockingEdges(ctx context.Context, rows []BlockingEdgeRow) error {
+func (s *pgxStats) WriteBlockingEdges(ctx context.Context, rows []BlockingEdgeRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -100,7 +100,7 @@ func (s *Stats) WriteBlockingEdges(ctx context.Context, rows []BlockingEdgeRow) 
 
 // ensureConnWeeklyPartition creates the weekly partition `name` of `parent` for
 // ts if absent. Idempotent. Shared by the two connections tables.
-func (s *Stats) ensureConnWeeklyPartition(ctx context.Context, parent, name string, ts time.Time) error {
+func (s *pgxStats) ensureConnWeeklyPartition(ctx context.Context, parent, name string, ts time.Time) error {
 	from, to := isoWeekBounds(ts)
 	_, err := s.pool.Exec(ctx, fmt.Sprintf(
 		`CREATE TABLE IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM ('%s') TO ('%s')`,
@@ -126,7 +126,7 @@ const connectionSamplesSelect = `SELECT server_id, observed_at, pid, state,
 // LatestConnectionSamples returns the most-recent observation batch (all rows
 // sharing the max observed_at) for serverID at or before asOf. Served from the
 // read replica. data_tier = 1 only (T1).
-func (s *Stats) LatestConnectionSamples(ctx context.Context, serverID string, asOf time.Time) ([]ConnectionSampleRow, error) {
+func (s *pgxStats) LatestConnectionSamples(ctx context.Context, serverID string, asOf time.Time) ([]ConnectionSampleRow, error) {
 	rows, err := s.ro.Query(ctx,
 		connectionSamplesSelect+`
 		  WHERE server_id = $1 AND data_tier = 1
@@ -157,7 +157,7 @@ const blockingEdgesSelect = `SELECT server_id, observed_at, blocked_pid, blocker
 
 // LatestBlockingEdges returns the most-recent blocking batch for serverID at or
 // before asOf. data_tier = 1 only (T1).
-func (s *Stats) LatestBlockingEdges(ctx context.Context, serverID string, asOf time.Time) ([]BlockingEdgeRow, error) {
+func (s *pgxStats) LatestBlockingEdges(ctx context.Context, serverID string, asOf time.Time) ([]BlockingEdgeRow, error) {
 	rows, err := s.ro.Query(ctx,
 		blockingEdgesSelect+`
 		  WHERE server_id = $1 AND data_tier = 1

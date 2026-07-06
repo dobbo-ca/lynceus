@@ -45,7 +45,7 @@ func newDB(t *testing.T) *pgxpool.Pool {
 // aggregator — which takes a Config and a Stats backed by different pools — is
 // tested against that same split. The config pool is returned too, for seeding
 // the servers table directly.
-func newStores(t *testing.T) (*store.Config, *store.Stats, *pgxpool.Pool) {
+func newStores(t *testing.T) (store.Config, store.Stats, *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
 	configPool := newDB(t)

@@ -30,7 +30,7 @@ var checksResultsColumns = []string{
 
 // WriteChecksResults bulk-inserts results, creating weekly partitions as
 // needed. Empty input is a no-op.
-func (s *Stats) WriteChecksResults(ctx context.Context, rows []ChecksResultRow) error {
+func (s *pgxStats) WriteChecksResults(ctx context.Context, rows []ChecksResultRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -60,7 +60,7 @@ func (s *Stats) WriteChecksResults(ctx context.Context, rows []ChecksResultRow) 
 
 // EnsureChecksResultsWeeklyPartition creates the weekly partition for ts on
 // checks_results if it does not already exist. Idempotent.
-func (s *Stats) EnsureChecksResultsWeeklyPartition(ctx context.Context, ts time.Time) error {
+func (s *pgxStats) EnsureChecksResultsWeeklyPartition(ctx context.Context, ts time.Time) error {
 	name := checksResultsPartitionName(ts)
 	from, to := isoWeekBounds(ts)
 	_, err := s.pool.Exec(ctx, fmt.Sprintf(
@@ -80,7 +80,7 @@ func checksResultsPartitionName(ts time.Time) string {
 
 // LatestChecksResults returns the most recent result per (check_id, object)
 // for server in [since, until). T1 only.
-func (s *Stats) LatestChecksResults(ctx context.Context, serverID string, since, until time.Time) ([]ChecksResultRow, error) {
+func (s *pgxStats) LatestChecksResults(ctx context.Context, serverID string, since, until time.Time) ([]ChecksResultRow, error) {
 	rows, err := s.ro.Query(ctx,
 		`SELECT server_id, evaluated_at, check_id, category, severity, status, object, detail, muted, data_tier
 		   FROM checks_results
@@ -117,7 +117,7 @@ type MuteRow struct {
 }
 
 // SetMute upserts a mute. object="" mutes every object of check on server.
-func (s *Stats) SetMute(ctx context.Context, serverID, checkID, object string, until time.Time, reason string) error {
+func (s *pgxStats) SetMute(ctx context.Context, serverID, checkID, object string, until time.Time, reason string) error {
 	_, err := s.pool.Exec(ctx,
 		`INSERT INTO check_mutes (server_id, check_id, object, muted_until, reason)
 		 VALUES ($1,$2,$3,$4,$5)
@@ -128,7 +128,7 @@ func (s *Stats) SetMute(ctx context.Context, serverID, checkID, object string, u
 }
 
 // ClearMute deletes a mute.
-func (s *Stats) ClearMute(ctx context.Context, serverID, checkID, object string) error {
+func (s *pgxStats) ClearMute(ctx context.Context, serverID, checkID, object string) error {
 	_, err := s.pool.Exec(ctx,
 		`DELETE FROM check_mutes WHERE server_id=$1 AND check_id=$2 AND object=$3`,
 		serverID, checkID, object)
@@ -136,7 +136,7 @@ func (s *Stats) ClearMute(ctx context.Context, serverID, checkID, object string)
 }
 
 // ListMutes returns active (non-expired) mutes for server.
-func (s *Stats) ListMutes(ctx context.Context, serverID string) ([]MuteRow, error) {
+func (s *pgxStats) ListMutes(ctx context.Context, serverID string) ([]MuteRow, error) {
 	rows, err := s.ro.Query(ctx,
 		`SELECT server_id, check_id, object, muted_until, reason
 		   FROM check_mutes WHERE server_id=$1 AND muted_until > now()`, serverID)

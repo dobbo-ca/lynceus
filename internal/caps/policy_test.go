@@ -47,7 +47,7 @@ func newConfigPool(t *testing.T) *pgxpool.Pool {
 // configResolver adapts *store.Config to caps.PolicyResolver.
 // It trims the PolicySource return value that EffectiveCapability
 // exposes — Allowed only needs enabled + found.
-type configResolver struct{ c *store.Config }
+type configResolver struct{ c store.Config }
 
 func (r configResolver) EffectiveCapabilityEnabled(ctx context.Context, serverID, databaseName, capability string) (bool, bool, error) {
 	enabled, _, found, err := r.c.EffectiveCapability(ctx, serverID, databaseName, capability)

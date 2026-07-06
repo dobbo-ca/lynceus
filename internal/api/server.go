@@ -21,15 +21,15 @@ type Config struct {
 // Server bundles routes and dependencies.
 type Server struct {
 	cfg   Config
-	stats *store.Stats
-	conf  *store.Config
+	stats store.Stats
+	conf  store.Config
 	disc  *store.DiscoveredCapabilities
 	mux   *http.ServeMux
 }
 
 // NewServer returns a fully wired Server. stats is the stats-DB store;
 // conf is the config/metadata-DB store (used by the audit-log viewer).
-func NewServer(cfg Config, stats *store.Stats, conf *store.Config) *Server {
+func NewServer(cfg Config, stats store.Stats, conf store.Config) *Server {
 	s := &Server{
 		cfg:   cfg,
 		stats: stats,

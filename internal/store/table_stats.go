@@ -70,7 +70,7 @@ func nullTime(t time.Time) any {
 // protocol, creating any missing weekly partitions first. Mirrors
 // WriteActivityBuckets / WriteQueryPlans: COPY routes each row to its
 // weekly partition and is lighter on the storage DB than per-row INSERTs.
-func (s *Stats) WriteTableStats(ctx context.Context, rows []TableStatRow) error {
+func (s *pgxStats) WriteTableStats(ctx context.Context, rows []TableStatRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -107,7 +107,7 @@ func (s *Stats) WriteTableStats(ctx context.Context, rows []TableStatRow) error 
 
 // EnsureTableStatsWeeklyPartition creates the weekly partition for ts on
 // table_stats if it does not already exist. Idempotent.
-func (s *Stats) EnsureTableStatsWeeklyPartition(ctx context.Context, ts time.Time) error {
+func (s *pgxStats) EnsureTableStatsWeeklyPartition(ctx context.Context, ts time.Time) error {
 	name := tableStatsPartitionName(ts)
 	from, to := isoWeekBounds(ts)
 	_, err := s.pool.Exec(ctx, fmt.Sprintf(
@@ -140,7 +140,7 @@ func scanTableStatRows(rows pgx.Rows) ([]TableStatRow, error) {
 	var out []TableStatRow
 	for rows.Next() {
 		var (
-			r              TableStatRow
+			r                TableStatRow
 			lv, lav, la, laa *time.Time
 		)
 		if err := rows.Scan(
@@ -173,7 +173,7 @@ func scanTableStatRows(rows pgx.Rows) ([]TableStatRow, error) {
 // LatestTableStats returns the most recent table_stats row per fqn for
 // serverID at or before asOf. data_tier = 1 only (T1). Served from the
 // read replica.
-func (s *Stats) LatestTableStats(ctx context.Context, serverID string, asOf time.Time) ([]TableStatRow, error) {
+func (s *pgxStats) LatestTableStats(ctx context.Context, serverID string, asOf time.Time) ([]TableStatRow, error) {
 	rows, err := s.ro.Query(ctx,
 		tableStatsSelect+`
 		  WHERE server_id = $1 AND collected_at <= $2 AND data_tier = 1
@@ -192,7 +192,7 @@ func (s *Stats) LatestTableStats(ctx context.Context, serverID string, asOf time
 
 // TableSizeSeries returns every table_stats row for (serverID, fqn) captured
 // in [since, until), oldest first — the growth series. data_tier = 1 only.
-func (s *Stats) TableSizeSeries(ctx context.Context, serverID, fqn string, since, until time.Time) ([]TableStatRow, error) {
+func (s *pgxStats) TableSizeSeries(ctx context.Context, serverID, fqn string, since, until time.Time) ([]TableStatRow, error) {
 	rows, err := s.ro.Query(ctx,
 		tableStatsSelect+`
 		  WHERE server_id = $1 AND fqn = $2
