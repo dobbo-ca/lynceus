@@ -25,6 +25,7 @@ type Stats interface {
 	WriteQueryPlans(ctx context.Context, rows []QueryPlanRow) error
 	TopPlansByQuery(ctx context.Context, serverID, fingerprint string, since, until time.Time, limit int) ([]QueryPlanRow, error)
 	ListPlanKeys(ctx context.Context, since, until time.Time, limit int) ([]PlanKey, error)
+	ReadQueryStatsTier2(ctx context.Context, serverID string, since, until time.Time, limit int) ([]QueryStat, error)
 	WriteInsights(ctx context.Context, rows []InsightRow) error
 	InsightCountForServers(ctx context.Context, serverIDs []string, since, until time.Time) (int, error)
 	TopInsightsForServers(ctx context.Context, serverIDs []string, since, until time.Time, limit int) ([]InsightRow, error)

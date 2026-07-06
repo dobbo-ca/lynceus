@@ -27,6 +27,7 @@ type Config interface {
 	SetCapabilityPolicy(ctx context.Context, in SetCapabilityPolicyInput) (CapabilityPolicy, error)
 	EffectiveCapability(ctx context.Context, serverID, databaseName, capability string) (enabled bool, source PolicySource, found bool, err error)
 	ListCapabilityPolicies(ctx context.Context, serverID string) ([]CapabilityPolicy, error)
+	ServerT2Enabled(ctx context.Context, serverID string) (enabled, found bool, err error)
 }
 
 var _ Config = (*pgxConfig)(nil)
