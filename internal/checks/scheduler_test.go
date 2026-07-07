@@ -18,7 +18,7 @@ import (
 // so RecentServerIDs finds it. Mirrors internal/store's newPool helper
 // (duplicated minimally here since that helper lives in package store_test
 // and is not importable from this package).
-func newSchedulerTestStore(t *testing.T) *store.Stats {
+func newSchedulerTestStore(t *testing.T) store.Stats {
 	t.Helper()
 	ctx := context.Background()
 

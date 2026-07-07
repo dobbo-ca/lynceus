@@ -22,7 +22,7 @@ type QPSBucket struct {
 
 // ThroughputForServers sums calls + total_time_ms for the server_id set in
 // [since, until). Used to derive combined q/s and call-weighted avg latency.
-func (s *Stats) ThroughputForServers(
+func (s *pgxStats) ThroughputForServers(
 	ctx context.Context, serverIDs []string, since, until time.Time,
 ) (Throughput, error) {
 	var t Throughput
@@ -39,7 +39,7 @@ func (s *Stats) ThroughputForServers(
 
 // TopQueriesForServers is TopQueriesByTotalTime scoped to a server_id set —
 // the per-cluster variant. Ordered by total time descending.
-func (s *Stats) TopQueriesForServers(
+func (s *pgxStats) TopQueriesForServers(
 	ctx context.Context, serverIDs []string, since, until time.Time, limit int,
 ) ([]TopQuery, error) {
 	rows, err := s.ro.Query(ctx,
@@ -71,7 +71,7 @@ func (s *Stats) TopQueriesForServers(
 
 // QPSBucketsForServers returns hourly buckets of summed calls for the server_id
 // set in [since, until), oldest first — the data behind a q/s sparkline.
-func (s *Stats) QPSBucketsForServers(
+func (s *pgxStats) QPSBucketsForServers(
 	ctx context.Context, serverIDs []string, since, until time.Time,
 ) ([]QPSBucket, error) {
 	rows, err := s.ro.Query(ctx,
@@ -110,7 +110,7 @@ type ActivitySummary struct {
 
 // ActivitySummaryForServers reads the latest active-connection peak and the
 // top wait event for the server_id set in [since, until).
-func (s *Stats) ActivitySummaryForServers(
+func (s *pgxStats) ActivitySummaryForServers(
 	ctx context.Context, serverIDs []string, since, until time.Time,
 ) (ActivitySummary, error) {
 	var a ActivitySummary

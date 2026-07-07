@@ -42,7 +42,7 @@ var logEventColumns = []string{
 // protocol, creating any missing weekly partitions first. Mirrors
 // WriteQueryPlans / WriteActivityBuckets: COPY routes each row to its weekly
 // partition and is lighter on the storage DB than per-row INSERTs.
-func (s *Stats) WriteLogEvents(ctx context.Context, rows []LogEventRow) error {
+func (s *pgxStats) WriteLogEvents(ctx context.Context, rows []LogEventRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -75,7 +75,7 @@ func (s *Stats) WriteLogEvents(ctx context.Context, rows []LogEventRow) error {
 
 // EnsureLogEventsWeeklyPartition creates the weekly partition for ts on
 // log_events if it does not already exist. Idempotent.
-func (s *Stats) EnsureLogEventsWeeklyPartition(ctx context.Context, ts time.Time) error {
+func (s *pgxStats) EnsureLogEventsWeeklyPartition(ctx context.Context, ts time.Time) error {
 	name := logEventsPartitionName(ts)
 	from, to := isoWeekBounds(ts)
 	_, err := s.pool.Exec(ctx, fmt.Sprintf(

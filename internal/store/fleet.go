@@ -38,7 +38,7 @@ type ServerStream struct {
 }
 
 // CreateCluster inserts a cluster with a generated id and returns it.
-func (c *Config) CreateCluster(ctx context.Context, name string) (Cluster, error) {
+func (c *pgxConfig) CreateCluster(ctx context.Context, name string) (Cluster, error) {
 	cl := Cluster{ID: uuid.NewString(), Name: name}
 	err := c.pool.QueryRow(ctx,
 		`INSERT INTO cluster (id, name) VALUES ($1, $2) RETURNING created_at`,
@@ -49,7 +49,7 @@ func (c *Config) CreateCluster(ctx context.Context, name string) (Cluster, error
 
 // CreateInstance inserts an instance under clusterID with a generated id and
 // returns it (with the DB-defaulted role).
-func (c *Config) CreateInstance(ctx context.Context, clusterID, name string) (Instance, error) {
+func (c *pgxConfig) CreateInstance(ctx context.Context, clusterID, name string) (Instance, error) {
 	in := Instance{ID: uuid.NewString(), ClusterID: clusterID, Name: name}
 	err := c.pool.QueryRow(ctx,
 		`INSERT INTO instance (id, cluster_id, name) VALUES ($1, $2, $3)
@@ -60,14 +60,14 @@ func (c *Config) CreateInstance(ctx context.Context, clusterID, name string) (In
 }
 
 // AssignServerToInstance links a server stream to an instance.
-func (c *Config) AssignServerToInstance(ctx context.Context, serverID, instanceID string) error {
+func (c *pgxConfig) AssignServerToInstance(ctx context.Context, serverID, instanceID string) error {
 	_, err := c.pool.Exec(ctx,
 		`UPDATE servers SET instance_id = $2 WHERE id = $1`, serverID, instanceID)
 	return err
 }
 
 // ListClusters returns all clusters ordered by name.
-func (c *Config) ListClusters(ctx context.Context) ([]Cluster, error) {
+func (c *pgxConfig) ListClusters(ctx context.Context) ([]Cluster, error) {
 	rows, err := c.ro.Query(ctx, `SELECT id, name, created_at FROM cluster ORDER BY name, id`)
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func (c *Config) ListClusters(ctx context.Context) ([]Cluster, error) {
 }
 
 // ListInstances returns the instances under clusterID ordered by name.
-func (c *Config) ListInstances(ctx context.Context, clusterID string) ([]Instance, error) {
+func (c *pgxConfig) ListInstances(ctx context.Context, clusterID string) ([]Instance, error) {
 	rows, err := c.ro.Query(ctx,
 		`SELECT id, cluster_id, name, role, created_at FROM instance
 		  WHERE cluster_id = $1 ORDER BY name, id`, clusterID)
@@ -116,7 +116,7 @@ func scanServerStream(row pgx.Row) (ServerStream, error) {
 
 // ListServerStreams returns the server streams (monitored databases) under
 // instanceID ordered by id.
-func (c *Config) ListServerStreams(ctx context.Context, instanceID string) ([]ServerStream, error) {
+func (c *pgxConfig) ListServerStreams(ctx context.Context, instanceID string) ([]ServerStream, error) {
 	rows, err := c.ro.Query(ctx,
 		`SELECT `+serverStreamCols+` FROM servers WHERE instance_id = $1 ORDER BY id`, instanceID)
 	if err != nil {
@@ -138,7 +138,7 @@ func (c *Config) ListServerStreams(ctx context.Context, instanceID string) ([]Se
 // The inner joins require a linked instance, so an unknown serverID and a
 // server with a NULL instance_id (not yet assigned) both surface as
 // pgx.ErrNoRows; callers that need to tell those apart must query servers first.
-func (c *Config) ResolveServer(ctx context.Context, serverID string) (ServerStream, Instance, Cluster, error) {
+func (c *pgxConfig) ResolveServer(ctx context.Context, serverID string) (ServerStream, Instance, Cluster, error) {
 	var (
 		s  ServerStream
 		in Instance
@@ -162,21 +162,21 @@ func (c *Config) ResolveServer(ctx context.Context, serverID string) (ServerStre
 
 // ServerIDsForInstance returns the server_id stream keys under instanceID — the
 // set to read from the (unchanged) stats store to roll up an instance.
-func (c *Config) ServerIDsForInstance(ctx context.Context, instanceID string) ([]string, error) {
+func (c *pgxConfig) ServerIDsForInstance(ctx context.Context, instanceID string) ([]string, error) {
 	return c.scanServerIDs(ctx,
 		`SELECT id FROM servers WHERE instance_id = $1 ORDER BY id`, instanceID)
 }
 
 // ServerIDsForCluster returns the server_id stream keys across every instance in
 // clusterID — the set to read from the stats store to roll up a cluster.
-func (c *Config) ServerIDsForCluster(ctx context.Context, clusterID string) ([]string, error) {
+func (c *pgxConfig) ServerIDsForCluster(ctx context.Context, clusterID string) ([]string, error) {
 	return c.scanServerIDs(ctx,
 		`SELECT s.id FROM servers s
 		   JOIN instance i ON i.id = s.instance_id
 		  WHERE i.cluster_id = $1 ORDER BY s.id`, clusterID)
 }
 
-func (c *Config) scanServerIDs(ctx context.Context, q string, arg string) ([]string, error) {
+func (c *pgxConfig) scanServerIDs(ctx context.Context, q string, arg string) ([]string, error) {
 	rows, err := c.ro.Query(ctx, q, arg)
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func (c *Config) scanServerIDs(ctx context.Context, q string, arg string) ([]str
 // single-stream deployments become a cluster-of-one / instance-of-one with no
 // behavior change. Idempotent: only NULL-instance_id rows are processed, so a
 // re-run creates nothing. Intended to run alongside ApplyConfigMigrations.
-func (c *Config) BackfillFleet(ctx context.Context) error {
+func (c *pgxConfig) BackfillFleet(ctx context.Context) error {
 	rows, err := c.pool.Query(ctx,
 		`SELECT id, name FROM servers WHERE instance_id IS NULL ORDER BY id`)
 	if err != nil {

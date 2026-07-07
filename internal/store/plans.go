@@ -31,7 +31,7 @@ var queryPlansColumns = []string{
 // creating any missing weekly partitions first. Mirrors WriteQueryStats /
 // WriteActivityBuckets: COPY routes each row to its weekly partition and is
 // lighter on the storage DB than per-row INSERTs.
-func (s *Stats) WriteQueryPlans(ctx context.Context, rows []QueryPlanRow) error {
+func (s *pgxStats) WriteQueryPlans(ctx context.Context, rows []QueryPlanRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -66,7 +66,7 @@ func (s *Stats) WriteQueryPlans(ctx context.Context, rows []QueryPlanRow) error 
 
 // TopPlansByQuery returns up to limit plans for (serverID, fingerprint)
 // captured in [since, until), most recent first. data_tier = 1 only (T1).
-func (s *Stats) TopPlansByQuery(
+func (s *pgxStats) TopPlansByQuery(
 	ctx context.Context, serverID, fingerprint string, since, until time.Time, limit int,
 ) ([]QueryPlanRow, error) {
 	rows, err := s.ro.Query(ctx,
@@ -119,7 +119,7 @@ func (s *Stats) TopPlansByQuery(
 
 // EnsurePlansWeeklyPartition creates the weekly partition for ts on
 // query_plans if it does not already exist. Idempotent.
-func (s *Stats) EnsurePlansWeeklyPartition(ctx context.Context, ts time.Time) error {
+func (s *pgxStats) EnsurePlansWeeklyPartition(ctx context.Context, ts time.Time) error {
 	name := plansPartitionName(ts)
 	from, to := isoWeekBounds(ts)
 	_, err := s.pool.Exec(ctx, fmt.Sprintf(
@@ -149,7 +149,7 @@ type PlanKey struct {
 // at least one plan captured in [since, until), most recent server/fingerprint
 // order, up to limit. data_tier = 1 only (T1). Runs on the read replica,
 // exactly like TopPlansByQuery (plans.go:72).
-func (s *Stats) ListPlanKeys(
+func (s *pgxStats) ListPlanKeys(
 	ctx context.Context, since, until time.Time, limit int,
 ) ([]PlanKey, error) {
 	rows, err := s.ro.Query(ctx,

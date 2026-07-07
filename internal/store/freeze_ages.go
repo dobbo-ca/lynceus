@@ -36,7 +36,7 @@ var freezeAgesColumns = []string{
 // WriteFreezeAges appends a batch of freeze-age rows via the COPY protocol,
 // creating any missing weekly partitions first. Empty input is a no-op.
 // Mirrors WriteTableStats.
-func (s *Stats) WriteFreezeAges(ctx context.Context, rows []FreezeAgeRow) error {
+func (s *pgxStats) WriteFreezeAges(ctx context.Context, rows []FreezeAgeRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -68,7 +68,7 @@ func (s *Stats) WriteFreezeAges(ctx context.Context, rows []FreezeAgeRow) error 
 
 // EnsureFreezeAgesWeeklyPartition creates the weekly partition for ts on
 // freeze_ages if it does not already exist. Idempotent.
-func (s *Stats) EnsureFreezeAgesWeeklyPartition(ctx context.Context, ts time.Time) error {
+func (s *pgxStats) EnsureFreezeAgesWeeklyPartition(ctx context.Context, ts time.Time) error {
 	name := freezeAgesPartitionName(ts)
 	from, to := isoWeekBounds(ts)
 	_, err := s.pool.Exec(ctx, fmt.Sprintf(
@@ -111,7 +111,7 @@ func scanFreezeAgeRows(rows pgx.Rows) ([]FreezeAgeRow, error) {
 // LatestFreezeAges returns the most recent freeze_ages row per fqn for
 // serverID at or before asOf. data_tier = 1 only (T1). Served from the read
 // replica. Mirrors LatestTableStats.
-func (s *Stats) LatestFreezeAges(ctx context.Context, serverID string, asOf time.Time) ([]FreezeAgeRow, error) {
+func (s *pgxStats) LatestFreezeAges(ctx context.Context, serverID string, asOf time.Time) ([]FreezeAgeRow, error) {
 	rows, err := s.ro.Query(ctx,
 		freezeAgesSelect+`
 		  WHERE server_id = $1 AND collected_at <= $2 AND data_tier = 1

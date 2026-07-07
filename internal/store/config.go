@@ -11,20 +11,41 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Config is typed access to the config/metadata database.
-type Config struct {
+// Config is the reader/writer seam over the config/metadata database.
+type Config interface {
+	Pool() *pgxpool.Pool
+	ListAudit(ctx context.Context, f AuditFilter) ([]AuditRecord, error)
+	AppendAuditReturning(ctx context.Context, e AuditEntry) (AuditRecord, error)
+	CreateCluster(ctx context.Context, name string) (Cluster, error)
+	CreateInstance(ctx context.Context, clusterID, name string) (Instance, error)
+	AssignServerToInstance(ctx context.Context, serverID, instanceID string) error
+	ListClusters(ctx context.Context) ([]Cluster, error)
+	ListInstances(ctx context.Context, clusterID string) ([]Instance, error)
+	ListServerStreams(ctx context.Context, instanceID string) ([]ServerStream, error)
+	ServerIDsForInstance(ctx context.Context, instanceID string) ([]string, error)
+	ServerIDsForCluster(ctx context.Context, clusterID string) ([]string, error)
+	SetCapabilityPolicy(ctx context.Context, in SetCapabilityPolicyInput) (CapabilityPolicy, error)
+	EffectiveCapability(ctx context.Context, serverID, databaseName, capability string) (enabled bool, source PolicySource, found bool, err error)
+	ListCapabilityPolicies(ctx context.Context, serverID string) ([]CapabilityPolicy, error)
+	ServerT2Enabled(ctx context.Context, serverID string) (enabled, found bool, err error)
+}
+
+var _ Config = (*pgxConfig)(nil)
+
+// pgxConfig is the pgxpool-backed Config implementation.
+type pgxConfig struct {
 	pool *pgxpool.Pool // primary (read-write): writes + read-your-writes reads
 	ro   *pgxpool.Pool // read replica; defaults to pool when not split
 }
 
-// NewConfig returns a Config bound to its primary pool. Standalone reads
+// NewConfig returns a pgxConfig bound to its primary pool. Standalone reads
 // fall back to the primary until a replica is attached via WithReadPool.
-func NewConfig(pool *pgxpool.Pool) *Config { return &Config{pool: pool, ro: pool} }
+func NewConfig(pool *pgxpool.Pool) *pgxConfig { return &pgxConfig{pool: pool, ro: pool} }
 
 // WithReadPool attaches a read-replica pool used to serve standalone
 // reads (ListAudit, VerifyChain, capability-policy getters). A nil ro is
 // ignored. Returns the receiver for chaining.
-func (c *Config) WithReadPool(ro *pgxpool.Pool) *Config {
+func (c *pgxConfig) WithReadPool(ro *pgxpool.Pool) *pgxConfig {
 	if ro != nil {
 		c.ro = ro
 	}
@@ -34,7 +55,7 @@ func (c *Config) WithReadPool(ro *pgxpool.Pool) *Config {
 // Pool returns the primary pool. Used by callers that need to construct
 // a sibling store (e.g. DiscoveredCapabilities) over the same config DB
 // connection without threading a second pool through their constructor.
-func (c *Config) Pool() *pgxpool.Pool { return c.pool }
+func (c *pgxConfig) Pool() *pgxpool.Pool { return c.pool }
 
 // auditLockKey is the bigint advisory-lock key used to serialize all
 // audit appenders across the cluster. Treat it as a pinned constant —
@@ -86,8 +107,9 @@ type AuditFilter struct {
 // (id DESC). It is read-only and never touches the hash chain. The
 // projection mirrors VerifyChain so callers get fully-populated
 // AuditRecords (including the chain hashes, for display).
+//
 //nolint:gocritic // hugeParam: cold read-path API; AuditFilter is a caller-owned value struct
-func (c *Config) ListAudit(ctx context.Context, f AuditFilter) ([]AuditRecord, error) {
+func (c *pgxConfig) ListAudit(ctx context.Context, f AuditFilter) ([]AuditRecord, error) {
 	limit := f.Limit
 	if limit <= 0 || limit > 1000 {
 		limit = 200
@@ -155,13 +177,39 @@ func (c *Config) ListAudit(ctx context.Context, f AuditFilter) ([]AuditRecord, e
 // holds an advisory lock so concurrent appenders are serialized cluster-
 // wide. The signature is preserved from M1 for backwards compatibility;
 // callers needing the assigned id/hash use AppendAuditReturning instead.
-func (c *Config) AppendAudit(ctx context.Context, e AuditEntry) error {
+func (c *pgxConfig) AppendAudit(ctx context.Context, e AuditEntry) error {
 	_, err := c.AppendAuditReturning(ctx, e)
 	return err
 }
 
 // AppendAuditReturning appends and returns the persisted record.
-func (c *Config) AppendAuditReturning(ctx context.Context, e AuditEntry) (AuditRecord, error) {
+func (c *pgxConfig) AppendAuditReturning(ctx context.Context, e AuditEntry) (AuditRecord, error) {
+	tx, err := c.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return AuditRecord{}, fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", auditLockKey); err != nil {
+		return AuditRecord{}, fmt.Errorf("advisory lock: %w", err)
+	}
+
+	rec, err := appendAuditTx(ctx, tx, e)
+	if err != nil {
+		return AuditRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return AuditRecord{}, fmt.Errorf("commit: %w", err)
+	}
+	return rec, nil
+}
+
+// appendAuditTx appends one audit row using a caller-supplied tx that
+// MUST already hold the auditLockKey advisory lock. It does NOT lock or
+// commit — the caller owns both, so several mutations can share one audit
+// append inside a single transaction (e.g. ApplyCapabilityPoliciesBatch).
+func appendAuditTx(ctx context.Context, tx pgx.Tx, e AuditEntry) (AuditRecord, error) {
 	// Canonicalize the detail JSONB sub-document, if any.
 	var detail []byte
 	if e.Detail != nil {
@@ -176,20 +224,10 @@ func (c *Config) AppendAuditReturning(ctx context.Context, e AuditEntry) (AuditR
 		detail = canon
 	}
 
-	tx, err := c.pool.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return AuditRecord{}, fmt.Errorf("begin: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", auditLockKey); err != nil {
-		return AuditRecord{}, fmt.Errorf("advisory lock: %w", err)
-	}
-
 	// Read the tail row's row_hash. nextval() gives us the id that the
 	// pending INSERT will assign, while staying inside the lock.
 	var prev []byte
-	err = tx.QueryRow(ctx,
+	err := tx.QueryRow(ctx,
 		`SELECT row_hash FROM audit_log ORDER BY id DESC LIMIT 1`,
 	).Scan(&prev)
 	if err == pgx.ErrNoRows {
@@ -223,10 +261,6 @@ func (c *Config) AppendAuditReturning(ctx context.Context, e AuditEntry) (AuditR
 		return AuditRecord{}, fmt.Errorf("insert: %w", err)
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return AuditRecord{}, fmt.Errorf("commit: %w", err)
-	}
-
 	return AuditRecord{
 		ID: nextID, Actor: e.Actor, Action: e.Action, ServerID: e.ServerID,
 		DataTier: e.DataTier, Detail: detail, At: at,
@@ -247,7 +281,7 @@ func (c *Config) AppendAuditReturning(ctx context.Context, e AuditEntry) (AuditR
 // validates only the rows inside the window AND only checks that they
 // chain to each other. To validate the chain anchors to genesis you must
 // call with since == time.Time{} (i.e. scan from the start).
-func (c *Config) VerifyChain(ctx context.Context, since, until time.Time) (int, string, error) {
+func (c *pgxConfig) VerifyChain(ctx context.Context, since, until time.Time) (int, string, error) {
 	var (
 		q    string
 		args []any

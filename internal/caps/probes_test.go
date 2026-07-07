@@ -113,8 +113,11 @@ func TestProbeExtensions_pgStatStatementsInstalled(t *testing.T) {
 	if !out[caps.PgStatStatements].Available {
 		t.Errorf("PgStatStatements expected Available, got %+v", out[caps.PgStatStatements])
 	}
-	if out[caps.PgStatStatements].Reason == "" {
-		t.Error("PgStatStatements Available=true must include extversion in Reason")
+	if out[caps.PgStatStatements].Reason != caps.ReasonInstalled {
+		t.Errorf("PgStatStatements Reason = %q, want %q", out[caps.PgStatStatements].Reason, caps.ReasonInstalled)
+	}
+	if out[caps.PgStatStatements].Detail == "" {
+		t.Error("PgStatStatements Available=true must include extversion in Detail")
 	}
 
 	for _, c := range []caps.Capability{
@@ -123,8 +126,8 @@ func TestProbeExtensions_pgStatStatementsInstalled(t *testing.T) {
 		if out[c].Available {
 			t.Errorf("%s expected Available=false (not installed), got %+v", c, out[c])
 		}
-		if !strings.Contains(out[c].Reason, "not installed") {
-			t.Errorf("%s Reason should explain absence, got %q", c, out[c].Reason)
+		if out[c].Reason != caps.ReasonNotInstalled {
+			t.Errorf("%s Reason = %q, want %q", c, out[c].Reason, caps.ReasonNotInstalled)
 		}
 	}
 }
@@ -151,8 +154,11 @@ func TestProbeServerVersion_picksUpVersionNum(t *testing.T) {
 	if !st.Available {
 		t.Fatalf("ServerVersion expected Available, got %+v", st)
 	}
-	if !strings.HasPrefix(st.Reason, "server_version_num=") {
-		t.Errorf("Reason missing prefix: %q", st.Reason)
+	if st.Reason != caps.ReasonVersionOK {
+		t.Errorf("Reason = %q, want %q", st.Reason, caps.ReasonVersionOK)
+	}
+	if !strings.HasPrefix(st.Detail, "server_version_num=") {
+		t.Errorf("Detail missing prefix: %q", st.Detail)
 	}
 }
 
@@ -164,11 +170,14 @@ func TestProbeRolePermissions_reportsPgMonitorGrant(t *testing.T) {
 	if !st.Available {
 		t.Errorf("RolePermissions expected Available (superuser implies pg_monitor), got %+v", st)
 	}
-	if !strings.Contains(st.Reason, "rolsuper=true") {
-		t.Errorf("Reason should mention rolsuper=true for superuser, got %q", st.Reason)
+	if st.Reason != caps.ReasonRoleOK {
+		t.Errorf("Reason = %q, want %q", st.Reason, caps.ReasonRoleOK)
 	}
-	if !strings.Contains(st.Reason, "pg_monitor=true") {
-		t.Errorf("Reason should mention pg_monitor=true, got %q", st.Reason)
+	if !strings.Contains(st.Detail, "rolsuper=true") {
+		t.Errorf("Detail should mention rolsuper=true for superuser, got %q", st.Detail)
+	}
+	if !strings.Contains(st.Detail, "pg_monitor=true") {
+		t.Errorf("Detail should mention pg_monitor=true, got %q", st.Detail)
 	}
 }
 
@@ -197,11 +206,14 @@ func TestProbeLogDestination_pickupValueAndCollector(t *testing.T) {
 	if !st.Available {
 		t.Errorf("LogDestination expected Available with csvlog+collector, got %+v", st)
 	}
-	if !strings.Contains(st.Reason, "dest=csvlog,stderr") {
-		t.Errorf("Reason missing dest value: %q", st.Reason)
+	if st.Reason != caps.ReasonLogReachable {
+		t.Errorf("Reason = %q, want %q", st.Reason, caps.ReasonLogReachable)
 	}
-	if !strings.Contains(st.Reason, "collector=true") {
-		t.Errorf("Reason missing collector=true: %q", st.Reason)
+	if !strings.Contains(st.Detail, "dest=csvlog,stderr") {
+		t.Errorf("Detail missing dest value: %q", st.Detail)
+	}
+	if !strings.Contains(st.Detail, "collector=true") {
+		t.Errorf("Detail missing collector=true: %q", st.Detail)
 	}
 }
 
@@ -213,6 +225,9 @@ func TestProbeLogDestination_stderrOnlyIsUnavailable(t *testing.T) {
 	if st.Available {
 		t.Errorf("LogDestination should be unavailable with bare stderr, got %+v", st)
 	}
+	if st.Reason != caps.ReasonLogUnreachable {
+		t.Errorf("Reason = %q, want %q", st.Reason, caps.ReasonLogUnreachable)
+	}
 }
 
 func TestProbeAutoExplain_disabledWithoutPreload(t *testing.T) {
@@ -223,8 +238,11 @@ func TestProbeAutoExplain_disabledWithoutPreload(t *testing.T) {
 	if st.Available {
 		t.Errorf("AutoExplain should be unavailable without preload, got %+v", st)
 	}
-	if !strings.Contains(st.Reason, "not in shared_preload_libraries") {
-		t.Errorf("Reason should explain preload absence, got %q", st.Reason)
+	if st.Reason != caps.ReasonNotPreloaded {
+		t.Errorf("Reason = %q, want %q", st.Reason, caps.ReasonNotPreloaded)
+	}
+	if !strings.Contains(st.Detail, "not in shared_preload_libraries") {
+		t.Errorf("Detail should explain preload absence, got %q", st.Detail)
 	}
 }
 
@@ -240,8 +258,11 @@ func TestProbeAutoExplain_enabledWhenPreloadAndThreshold(t *testing.T) {
 	if !st.Available {
 		t.Errorf("AutoExplain expected Available with preload+threshold, got %+v", st)
 	}
-	if !strings.Contains(st.Reason, "log_min_duration=0") {
-		t.Errorf("Reason should include threshold, got %q", st.Reason)
+	if st.Reason != caps.ReasonInstalled {
+		t.Errorf("Reason = %q, want %q", st.Reason, caps.ReasonInstalled)
+	}
+	if !strings.Contains(st.Detail, "log_min_duration=0") {
+		t.Errorf("Detail should include threshold, got %q", st.Detail)
 	}
 }
 

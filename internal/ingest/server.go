@@ -40,7 +40,7 @@ type Config struct {
 // Server is the websocket receiver.
 type Server struct {
 	cfg           Config
-	stats         *store.Stats
+	stats         store.Stats
 	schemaObjects *store.SchemaObjects
 	pool          *pgxpool.Pool
 
@@ -50,7 +50,7 @@ type Server struct {
 
 // NewServer returns a Server. pool is the stats-DB pool (used for the
 // DLQ table and the schema_objects upsert); stats is the typed writer.
-func NewServer(cfg Config, stats *store.Stats, pool *pgxpool.Pool) *Server {
+func NewServer(cfg Config, stats store.Stats, pool *pgxpool.Pool) *Server {
 	if cfg.ReadTimeout == 0 {
 		cfg.ReadTimeout = 30 * time.Second
 	}
