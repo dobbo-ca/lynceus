@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -92,34 +93,67 @@ func main() {
 	tableStatsReader := collector.NewTableStatsReader(pool, filter, gate, db)
 	freezeReader := collector.NewFreezeAgeReader(pool, filter, gate, db)
 	indexStatsReader := collector.NewIndexStatsReader(pool, filter, gate, db)
+	xminReader := collector.NewXminHorizonReader(pool, gate, db)
 
 	// Existing path: full snapshot (query stats + schema inventory + table stats) every
 	// cfg.interval (~10m). The collector is outbound-only: the inventory
 	// ships first-seen-less; the ingestion server resolves + persists
 	// first-seen against the stats DB.
 	runFull := func() {
-		stats, err := reader.Read(ctx)
-		if err != nil {
-			log.Printf("read query stats: %v", err)
+		// The six catalog readers are independent whole-reader calls; run them
+		// concurrently under a bounded query budget so peak load on the
+		// monitored Postgres is capped (never more than cfg.queryBudget
+		// readers issuing queries at once). A failing reader never aborts a
+		// sibling — each result var is assembled after the join below.
+		var (
+			stats        []*lynceusv1.QueryStat
+			objs         []*lynceusv1.SchemaObject
+			tableStats   []*lynceusv1.TableStat
+			freezeAges   []*lynceusv1.FreezeAge
+			indexStats   []*lynceusv1.IndexStat
+			xminHorizons []*lynceusv1.XminHorizon
+		)
+		tasks := []collector.Task{
+			{Name: "read query stats", Run: func(ctx context.Context) error {
+				var e error
+				stats, e = reader.Read(ctx)
+				return e
+			}},
+			{Name: "read schema inventory", Run: func(ctx context.Context) error {
+				var e error
+				objs, e = inventory.Read(ctx)
+				return e
+			}},
+			{Name: "table stats read", Run: func(ctx context.Context) error {
+				var e error
+				tableStats, e = tableStatsReader.Read(ctx, cfg.serverID)
+				return e
+			}},
+			{Name: "freeze age read", Run: func(ctx context.Context) error {
+				var e error
+				freezeAges, e = freezeReader.Read(ctx, cfg.serverID)
+				return e
+			}},
+			{Name: "index stats read", Run: func(ctx context.Context) error {
+				var e error
+				indexStats, e = indexStatsReader.Read(ctx, cfg.serverID)
+				return e
+			}},
+			{Name: "xmin horizon read", Run: func(ctx context.Context) error {
+				var e error
+				xminHorizons, e = xminReader.Read(ctx)
+				return e
+			}},
+		}
+		errs := collector.RunBounded(ctx, cfg.queryBudget, tasks)
+		for i, err := range errs {
+			if err != nil {
+				log.Printf("collector: %s: %v", tasks[i].Name, err)
+			}
+		}
+		// Preserve today's gate: a query-stats failure skips the ship.
+		if errs[0] != nil {
 			return
-		}
-		objs, err := inventory.Read(ctx)
-		if err != nil {
-			// Non-fatal: ship the query stats we have.
-			log.Printf("read schema inventory: %v", err)
-			objs = nil
-		}
-		tableStats, err := tableStatsReader.Read(ctx, cfg.serverID)
-		if err != nil {
-			log.Printf("collector: table stats read: %v", err)
-		}
-		freezeAges, err := freezeReader.Read(ctx, cfg.serverID)
-		if err != nil {
-			log.Printf("collector: freeze age read: %v", err)
-		}
-		indexStats, err := indexStatsReader.Read(ctx, cfg.serverID)
-		if err != nil {
-			log.Printf("collector: index stats read: %v", err)
 		}
 		snap := &lynceusv1.Snapshot{
 			ServerId:        cfg.serverID,
@@ -129,12 +163,13 @@ func main() {
 			TableStats:      tableStats,
 			FreezeAges:      freezeAges,
 			IndexStats:      indexStats,
+			XminHorizons:    xminHorizons,
 		}
 		if err := shipper.Send(ctx, snap); err != nil {
 			log.Printf("ship full: %v", err)
 			return
 		}
-		log.Printf("shipped %d query_stats, %d schema_objects, %d table_stats, %d freeze_ages, %d index_stats", len(stats), len(objs), len(tableStats), len(freezeAges), len(indexStats))
+		log.Printf("shipped %d query_stats, %d schema_objects, %d table_stats, %d freeze_ages, %d index_stats, %d xmin_horizons", len(stats), len(objs), len(tableStats), len(freezeAges), len(indexStats), len(xminHorizons))
 	}
 
 	// Sample pg_stat_activity into the aggregator on the activity cadence.
@@ -307,6 +342,7 @@ type config struct {
 	interval            time.Duration // full snapshot cadence
 	activityInterval    time.Duration // pg_stat_activity sample cadence (~10s)
 	activityFlush       time.Duration // bucket flush cadence (60s)
+	queryBudget         int           // LYNCEUS_QUERY_BUDGET; max concurrent readers per full cycle
 
 	logSourcePath   string        // LYNCEUS_LOG_SOURCE_PATH; "" disables log ingestion
 	logSourceFormat string        // LYNCEUS_LOG_FORMAT: "csv" | "stderr" (default stderr)
@@ -327,6 +363,7 @@ func loadConfig() config {
 		interval:            10 * time.Minute,
 		activityInterval:    10 * time.Second,
 		activityFlush:       60 * time.Second,
+		queryBudget:         3,
 		logSourcePath:       os.Getenv("LYNCEUS_LOG_SOURCE_PATH"),
 		logSourceFormat:     os.Getenv("LYNCEUS_LOG_FORMAT"),
 		logStderrPrefix:     os.Getenv("LYNCEUS_LOG_STDERR_PREFIX"),
@@ -351,6 +388,11 @@ func loadConfig() config {
 	if v := os.Getenv("LYNCEUS_LOG_TAIL_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			c.logTailInterval = d
+		}
+	}
+	if v := os.Getenv("LYNCEUS_QUERY_BUDGET"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			c.queryBudget = n
 		}
 	}
 	if c.serverID == "" || c.pgDSN == "" || c.ingestURL == "" {

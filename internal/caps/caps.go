@@ -46,6 +46,9 @@ const (
 	// IndexStats gates the per-index scan/validity reader feeding the Schema
 	// checks (ly-u4t.23): invalid indexes + unused indexes.
 	IndexStats Capability = "index_stats"
+	// XminHorizon gates the cluster-global oldest-xmin reader feeding the
+	// "blocked by xmin horizon" vacuum check (ly-32k).
+	XminHorizon Capability = "xmin_horizon"
 )
 
 // Declared returns every capability the package knows how to probe.
@@ -66,6 +69,7 @@ func Declared() []Capability {
 		TableSize,
 		FreezeAge,
 		IndexStats,
+		XminHorizon,
 	}
 }
 

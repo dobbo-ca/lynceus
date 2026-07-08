@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -35,6 +36,8 @@ type Stats interface {
 	LatestIndexStats(ctx context.Context, serverID string, asOf time.Time) ([]IndexStatRow, error)
 	WriteFreezeAges(ctx context.Context, rows []FreezeAgeRow) error
 	LatestFreezeAges(ctx context.Context, serverID string, asOf time.Time) ([]FreezeAgeRow, error)
+	WriteXminHorizons(ctx context.Context, rows []XminHorizonRow) error
+	LatestXminHorizon(ctx context.Context, serverID string, asOf time.Time) (XminHorizonRow, bool, error)
 	WriteConnectionSamples(ctx context.Context, rows []ConnectionSampleRow) error
 	WriteBlockingEdges(ctx context.Context, rows []BlockingEdgeRow) error
 	LatestConnectionSamples(ctx context.Context, serverID string, asOf time.Time) ([]ConnectionSampleRow, error)
@@ -52,6 +55,12 @@ var _ Stats = (*pgxStats)(nil)
 type pgxStats struct {
 	pool *pgxpool.Pool // primary (read-write): writes, DDL, migrations
 	ro   *pgxpool.Pool // read replica; defaults to pool when not split
+	// ensured is a per-process cache of weekly partition names already
+	// created, so the hot write path skips the CREATE TABLE IF NOT EXISTS
+	// round-trip. Both Ensure* funcs share it; keying by full name means
+	// query_stats_* and activity_buckets_* never collide. Concurrency-safe
+	// for the shared pool. DropPartitionsOlderThan evicts dropped names.
+	ensured sync.Map
 }
 
 // NewStats returns a pgxStats bound to its primary pool. Standalone reads
@@ -169,6 +178,9 @@ func (s *pgxStats) TopQueriesByTotalTime(ctx context.Context, since, until time.
 // does not already exist. Idempotent.
 func (s *pgxStats) EnsureWeeklyPartition(ctx context.Context, ts time.Time) error {
 	name := partitionName(ts)
+	if _, ok := s.ensured.Load(name); ok {
+		return nil
+	}
 	from, to := isoWeekBounds(ts)
 	_, err := s.pool.Exec(ctx, fmt.Sprintf(
 		`CREATE TABLE IF NOT EXISTS %s PARTITION OF query_stats
@@ -177,7 +189,11 @@ func (s *pgxStats) EnsureWeeklyPartition(ctx context.Context, ts time.Time) erro
 		from.Format("2006-01-02"),
 		to.Format("2006-01-02"),
 	))
-	return err
+	if err != nil {
+		return err
+	}
+	s.ensured.Store(name, struct{}{})
+	return nil
 }
 
 // DropPartitionsOlderThan drops every weekly partition whose upper
@@ -215,6 +231,7 @@ func (s *pgxStats) DropPartitionsOlderThan(ctx context.Context, cutoff time.Time
 			if _, err := s.pool.Exec(ctx, "DROP TABLE "+p.name); err != nil {
 				return dropped, err
 			}
+			s.ensured.Delete(p.name)
 			dropped++
 		}
 	}
@@ -405,6 +422,9 @@ func (s *pgxStats) WaitEventHistogram(
 // activity_buckets if it does not already exist. Idempotent.
 func (s *pgxStats) EnsureActivityWeeklyPartition(ctx context.Context, ts time.Time) error {
 	name := activityPartitionName(ts)
+	if _, ok := s.ensured.Load(name); ok {
+		return nil
+	}
 	from, to := isoWeekBounds(ts)
 	_, err := s.pool.Exec(ctx, fmt.Sprintf(
 		`CREATE TABLE IF NOT EXISTS %s PARTITION OF activity_buckets
@@ -413,7 +433,11 @@ func (s *pgxStats) EnsureActivityWeeklyPartition(ctx context.Context, ts time.Ti
 		from.Format("2006-01-02"),
 		to.Format("2006-01-02"),
 	))
-	return err
+	if err != nil {
+		return err
+	}
+	s.ensured.Store(name, struct{}{})
+	return nil
 }
 
 func activityPartitionName(ts time.Time) string {

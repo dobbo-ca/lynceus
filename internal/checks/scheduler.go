@@ -163,6 +163,12 @@ func (sc *Scheduler) assembleInput(ctx context.Context, serverID string, now tim
 		})
 	}
 
+	if xh, ok, err := sc.stats.LatestXminHorizon(ctx, serverID, now); err != nil {
+		return in, err
+	} else if ok {
+		in.XminHorizon = &XminInfo{OldestXminAge: xh.OldestXminAge, HolderKind: xh.HolderKind}
+	}
+
 	conns, err := sc.stats.LatestConnectionSamples(ctx, serverID, now)
 	if err != nil {
 		return in, err

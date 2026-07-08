@@ -57,6 +57,8 @@ type Input struct {
 	Blocking    []BlockEdge // populated by the scheduler (ly-u4t.22)
 
 	Indexes []IndexInfo // populated by the scheduler (ly-u4t.23)
+
+	XminHorizon *XminInfo // cluster-global oldest-xmin, nil when absent (ly-32k)
 }
 
 // TableInfo is the check-local projection of store.TableStatRow.
@@ -76,6 +78,14 @@ type FreezeInfo struct {
 	XIDAge                 int64  // age(relfrozenxid) / age(datfrozenxid)
 	MXIDAge                int64  // mxid_age(relminmxid) / mxid_age(datminmxid)
 	AutovacuumFreezeMaxAge int64  // server setting (count)
+}
+
+// XminInfo is the check-local projection of store.XminHorizonRow: the
+// cluster-global oldest-xmin age plus its holder kind (ly-32k). Counts + a
+// bounded label only — T1.
+type XminInfo struct {
+	OldestXminAge int64
+	HolderKind    string // "backend" | "replication_slot" | "prepared_xact"
 }
 
 // ConnInfo is the check-local projection of store.ConnectionSampleRow.
