@@ -191,6 +191,18 @@ func (sc *Scheduler) assembleInput(ctx context.Context, serverID string, now tim
 		})
 	}
 
+	settings, err := sc.stats.LatestSettings(ctx, serverID, now)
+	if err != nil {
+		return in, err
+	}
+	for i := range settings {
+		st := &settings[i]
+		in.Settings = append(in.Settings, SettingInfo{
+			Name: st.Name, Value: st.Value, Unit: st.Unit, Source: st.Source,
+			PendingRestart: st.PendingRestart,
+		})
+	}
+
 	idxStats, err := sc.stats.LatestIndexStats(ctx, serverID, now)
 	if err != nil {
 		return in, err

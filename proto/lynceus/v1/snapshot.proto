@@ -85,6 +85,15 @@ message Snapshot {
   // non-negative age COUNT plus a fixed holder_kind label, NEVER a slot name,
   // gid, or query text. Feeds the "blocked by xmin horizon" vacuum check.
   repeated XminHorizon xmin_horizons = 13;
+
+  // Curated pg_settings tuning GUCs feeding the Settings checks (ly-u4t.24)
+  // and Config advisor (ly-u4t.18). Each element is a lynceus.v1.Setting.
+  // The wire `value` field is a literal-CAPABLE string; it is T1-safe ONLY
+  // because the collector SettingsReader selects a curated allowlist of
+  // numeric/bool/enum GUCs by name (WHERE name = ANY(allowlist)) and NEVER
+  // `SELECT * FROM pg_settings`. The redaction boundary is the reader's
+  // allowlist, never this proto. See contract_test.go + settings_reader.go.
+  repeated Setting settings = 14;
 }
 
 // QueryStat is one row of per-fingerprint query statistics, derived
@@ -298,4 +307,26 @@ message FreezeAge {
 message XminHorizon {
   int64 oldest_xmin_age = 1; // age(oldest pinned xid) in transactions [COUNT]
   string holder_kind = 2;    // "backend" | "replication_slot" | "prepared_xact"
+}
+
+// Setting is one curated pg_settings tuning GUC feeding the Settings checks
+// (ly-u4t.24) and the Config advisor (ly-u4t.18).
+//
+// PRIVACY: values are literal-free ONLY because the collector selects a
+// curated allowlist of numeric/bool/enum GUCs by name — the wire field
+// `value` is a string and is literal-CAPABLE (some pg_settings values are
+// free-form text: log_line_prefix, search_path, archive_command, *_file
+// paths, primary_conninfo with host+credentials). The redaction boundary is
+// the reader's `WHERE name = ANY(allowlist)`, NEVER this proto. For an
+// allowlisted name, value is a number (memory blocks/kB, counts, costs,
+// timeouts), a boolean, or a bounded planner/durability enum keyword; unit
+// and source are closed Postgres vocabularies; pending_restart is a bool.
+// Deliberately OMITTED: short_desc/extra_desc (English prose), boot_val/
+// reset_val, and any *_file/path/text GUC value.
+message Setting {
+  string name            = 1; // pg_settings.name — ONLY from the fixed collector allowlist
+  string value           = 2; // pg_settings.setting — number/bool/bounded-enum for allowlisted names
+  string unit            = 3; // pg_settings.unit — "8kB"|"kB"|"MB"|"ms"|"s"|"" (closed Postgres vocab)
+  string source          = 4; // pg_settings.source — bounded enum: default|configuration file|override|...
+  bool   pending_restart = 5; // pg_settings.pending_restart
 }

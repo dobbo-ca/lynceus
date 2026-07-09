@@ -1,0 +1,44 @@
+package web
+
+// ConfigAdvisorRow is the view-model for one config-tuning recommendation.
+// Identifiers + bounded-config values + package-authored guidance only — no
+// monitored-DB literal.
+type ConfigAdvisorRow struct {
+	Setting   string
+	Category  string
+	Severity  string
+	Current   string
+	Suggested string
+	Detail    string
+}
+
+templ ConfigAdvisorPage(rows []ConfigAdvisorRow) {
+	@Layout("Lynceus — config advisor", "settings-derived tuning recommendations (memory / durability / autovacuum / planner)") {
+		<p hx-get="/partial/config-advisor" hx-trigger="every 30s" hx-target="#config-table" hx-swap="outerHTML"></p>
+		@ConfigAdvisorTable(rows)
+	}
+}
+
+templ ConfigAdvisorTable(rows []ConfigAdvisorRow) {
+	<div id="config-table">
+		if len(rows) == 0 {
+			<p class="empty">No config findings — settings look well-tuned.</p>
+		} else {
+			<table>
+				<thead><tr><th>Severity</th><th>Category</th><th>Setting</th><th>Current</th><th>Suggested</th><th>Detail</th></tr></thead>
+				<tbody>
+					for _, r := range rows {
+						<tr>
+							<td><code>{ r.Severity }</code></td>
+							<td><code>{ r.Category }</code></td>
+							<td><code>{ r.Setting }</code></td>
+							<td><code>{ r.Current }</code></td>
+							<td>{ r.Suggested }</td>
+							<td>{ r.Detail }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}

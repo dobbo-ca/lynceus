@@ -153,7 +153,15 @@ type Snapshot struct {
 	// xact, which bounds what VACUUM can reclaim. See XminHorizon — T1, a
 	// non-negative age COUNT plus a fixed holder_kind label, NEVER a slot name,
 	// gid, or query text. Feeds the "blocked by xmin horizon" vacuum check.
-	XminHorizons  []*XminHorizon `protobuf:"bytes,13,rep,name=xmin_horizons,json=xminHorizons,proto3" json:"xmin_horizons,omitempty"`
+	XminHorizons []*XminHorizon `protobuf:"bytes,13,rep,name=xmin_horizons,json=xminHorizons,proto3" json:"xmin_horizons,omitempty"`
+	// Curated pg_settings tuning GUCs feeding the Settings checks (ly-u4t.24)
+	// and Config advisor (ly-u4t.18). Each element is a lynceus.v1.Setting.
+	// The wire `value` field is a literal-CAPABLE string; it is T1-safe ONLY
+	// because the collector SettingsReader selects a curated allowlist of
+	// numeric/bool/enum GUCs by name (WHERE name = ANY(allowlist)) and NEVER
+	// `SELECT * FROM pg_settings`. The redaction boundary is the reader's
+	// allowlist, never this proto. See contract_test.go + settings_reader.go.
+	Settings      []*Setting `protobuf:"bytes,14,rep,name=settings,proto3" json:"settings,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -275,6 +283,13 @@ func (x *Snapshot) GetIndexStats() []*IndexStat {
 func (x *Snapshot) GetXminHorizons() []*XminHorizon {
 	if x != nil {
 		return x.XminHorizons
+	}
+	return nil
+}
+
+func (x *Snapshot) GetSettings() []*Setting {
+	if x != nil {
+		return x.Settings
 	}
 	return nil
 }
@@ -1335,12 +1350,102 @@ func (x *XminHorizon) GetHolderKind() string {
 	return ""
 }
 
+// Setting is one curated pg_settings tuning GUC feeding the Settings checks
+// (ly-u4t.24) and the Config advisor (ly-u4t.18).
+//
+// PRIVACY: values are literal-free ONLY because the collector selects a
+// curated allowlist of numeric/bool/enum GUCs by name — the wire field
+// `value` is a string and is literal-CAPABLE (some pg_settings values are
+// free-form text: log_line_prefix, search_path, archive_command, *_file
+// paths, primary_conninfo with host+credentials). The redaction boundary is
+// the reader's `WHERE name = ANY(allowlist)`, NEVER this proto. For an
+// allowlisted name, value is a number (memory blocks/kB, counts, costs,
+// timeouts), a boolean, or a bounded planner/durability enum keyword; unit
+// and source are closed Postgres vocabularies; pending_restart is a bool.
+// Deliberately OMITTED: short_desc/extra_desc (English prose), boot_val/
+// reset_val, and any *_file/path/text GUC value.
+type Setting struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Name           string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`                                            // pg_settings.name — ONLY from the fixed collector allowlist
+	Value          string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`                                          // pg_settings.setting — number/bool/bounded-enum for allowlisted names
+	Unit           string                 `protobuf:"bytes,3,opt,name=unit,proto3" json:"unit,omitempty"`                                            // pg_settings.unit — "8kB"|"kB"|"MB"|"ms"|"s"|"" (closed Postgres vocab)
+	Source         string                 `protobuf:"bytes,4,opt,name=source,proto3" json:"source,omitempty"`                                        // pg_settings.source — bounded enum: default|configuration file|override|...
+	PendingRestart bool                   `protobuf:"varint,5,opt,name=pending_restart,json=pendingRestart,proto3" json:"pending_restart,omitempty"` // pg_settings.pending_restart
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *Setting) Reset() {
+	*x = Setting{}
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Setting) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Setting) ProtoMessage() {}
+
+func (x *Setting) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_lynceus_v1_snapshot_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Setting.ProtoReflect.Descriptor instead.
+func (*Setting) Descriptor() ([]byte, []int) {
+	return file_proto_lynceus_v1_snapshot_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *Setting) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Setting) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *Setting) GetUnit() string {
+	if x != nil {
+		return x.Unit
+	}
+	return ""
+}
+
+func (x *Setting) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *Setting) GetPendingRestart() bool {
+	if x != nil {
+		return x.PendingRestart
+	}
+	return false
+}
+
 var File_proto_lynceus_v1_snapshot_proto protoreflect.FileDescriptor
 
 const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\n" +
 	"\x1fproto/lynceus/v1/snapshot.proto\x12\n" +
-	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\x1a proto/lynceus/v1/log_event.proto\"\xf4\x05\n" +
+	"lynceus.v1\x1a\x1bproto/lynceus/v1/plan.proto\x1a proto/lynceus/v1/log_event.proto\"\xa5\x06\n" +
 	"\bSnapshot\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12*\n" +
 	"\x11collected_at_unix\x18\x02 \x01(\x03R\x0fcollectedAtUnix\x126\n" +
@@ -1361,7 +1466,8 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\x0eblocking_edges\x18\v \x03(\v2\x18.lynceus.v1.BlockingEdgeR\rblockingEdges\x126\n" +
 	"\vindex_stats\x18\f \x03(\v2\x15.lynceus.v1.IndexStatR\n" +
 	"indexStats\x12<\n" +
-	"\rxmin_horizons\x18\r \x03(\v2\x17.lynceus.v1.XminHorizonR\fxminHorizons\"\x9a\x02\n" +
+	"\rxmin_horizons\x18\r \x03(\v2\x17.lynceus.v1.XminHorizonR\fxminHorizons\x12/\n" +
+	"\bsettings\x18\x0e \x03(\v2\x13.lynceus.v1.SettingR\bsettings\"\x9a\x02\n" +
 	"\tQueryStat\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12)\n" +
 	"\x10normalized_query\x18\x02 \x01(\tR\x0fnormalizedQuery\x12\x14\n" +
@@ -1469,7 +1575,13 @@ const file_proto_lynceus_v1_snapshot_proto_rawDesc = "" +
 	"\vXminHorizon\x12&\n" +
 	"\x0foldest_xmin_age\x18\x01 \x01(\x03R\roldestXminAge\x12\x1f\n" +
 	"\vholder_kind\x18\x02 \x01(\tR\n" +
-	"holderKind*\xb9\x01\n" +
+	"holderKind\"\x88\x01\n" +
+	"\aSetting\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\x12\x12\n" +
+	"\x04unit\x18\x03 \x01(\tR\x04unit\x12\x16\n" +
+	"\x06source\x18\x04 \x01(\tR\x06source\x12'\n" +
+	"\x0fpending_restart\x18\x05 \x01(\bR\x0ependingRestart*\xb9\x01\n" +
 	"\n" +
 	"ObjectKind\x12\x1b\n" +
 	"\x17OBJECT_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
@@ -1493,7 +1605,7 @@ func file_proto_lynceus_v1_snapshot_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_lynceus_v1_snapshot_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_proto_lynceus_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_proto_lynceus_v1_snapshot_proto_goTypes = []any{
 	(ObjectKind)(0),          // 0: lynceus.v1.ObjectKind
 	(*Snapshot)(nil),         // 1: lynceus.v1.Snapshot
@@ -1506,27 +1618,29 @@ var file_proto_lynceus_v1_snapshot_proto_goTypes = []any{
 	(*IndexStat)(nil),        // 8: lynceus.v1.IndexStat
 	(*FreezeAge)(nil),        // 9: lynceus.v1.FreezeAge
 	(*XminHorizon)(nil),      // 10: lynceus.v1.XminHorizon
-	(*QueryPlan)(nil),        // 11: lynceus.v1.QueryPlan
-	(*LogEvent)(nil),         // 12: lynceus.v1.LogEvent
+	(*Setting)(nil),          // 11: lynceus.v1.Setting
+	(*QueryPlan)(nil),        // 12: lynceus.v1.QueryPlan
+	(*LogEvent)(nil),         // 13: lynceus.v1.LogEvent
 }
 var file_proto_lynceus_v1_snapshot_proto_depIdxs = []int32{
 	2,  // 0: lynceus.v1.Snapshot.query_stats:type_name -> lynceus.v1.QueryStat
 	3,  // 1: lynceus.v1.Snapshot.activity_buckets:type_name -> lynceus.v1.ActivityBucket
-	11, // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
+	12, // 2: lynceus.v1.Snapshot.query_plans:type_name -> lynceus.v1.QueryPlan
 	6,  // 3: lynceus.v1.Snapshot.schema_objects:type_name -> lynceus.v1.SchemaObject
 	7,  // 4: lynceus.v1.Snapshot.table_stats:type_name -> lynceus.v1.TableStat
-	12, // 5: lynceus.v1.Snapshot.log_events:type_name -> lynceus.v1.LogEvent
+	13, // 5: lynceus.v1.Snapshot.log_events:type_name -> lynceus.v1.LogEvent
 	9,  // 6: lynceus.v1.Snapshot.freeze_ages:type_name -> lynceus.v1.FreezeAge
 	4,  // 7: lynceus.v1.Snapshot.connection_samples:type_name -> lynceus.v1.ConnectionSample
 	5,  // 8: lynceus.v1.Snapshot.blocking_edges:type_name -> lynceus.v1.BlockingEdge
 	8,  // 9: lynceus.v1.Snapshot.index_stats:type_name -> lynceus.v1.IndexStat
 	10, // 10: lynceus.v1.Snapshot.xmin_horizons:type_name -> lynceus.v1.XminHorizon
-	0,  // 11: lynceus.v1.SchemaObject.kind:type_name -> lynceus.v1.ObjectKind
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	11, // 11: lynceus.v1.Snapshot.settings:type_name -> lynceus.v1.Setting
+	0,  // 12: lynceus.v1.SchemaObject.kind:type_name -> lynceus.v1.ObjectKind
+	13, // [13:13] is the sub-list for method output_type
+	13, // [13:13] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_proto_lynceus_v1_snapshot_proto_init() }
@@ -1542,7 +1656,7 @@ func file_proto_lynceus_v1_snapshot_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_lynceus_v1_snapshot_proto_rawDesc), len(file_proto_lynceus_v1_snapshot_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   10,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

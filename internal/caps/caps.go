@@ -49,6 +49,11 @@ const (
 	// XminHorizon gates the cluster-global oldest-xmin reader feeding the
 	// "blocked by xmin horizon" vacuum check (ly-32k).
 	XminHorizon Capability = "xmin_horizon"
+	// Settings gates the pg_settings tuning-config reader (ly-u4t.24 /
+	// ly-u4t.18). Like the other gated-but-unprobed catalog readers it has no
+	// probe: the Gate is fail-open (absent key => Allowed==true), so the
+	// reader is default-enabled and the operator can disable it via policy.
+	Settings Capability = "settings"
 )
 
 // Declared returns every capability the package knows how to probe.
@@ -70,6 +75,7 @@ func Declared() []Capability {
 		FreezeAge,
 		IndexStats,
 		XminHorizon,
+		Settings,
 	}
 }
 

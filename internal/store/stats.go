@@ -38,6 +38,8 @@ type Stats interface {
 	LatestFreezeAges(ctx context.Context, serverID string, asOf time.Time) ([]FreezeAgeRow, error)
 	WriteXminHorizons(ctx context.Context, rows []XminHorizonRow) error
 	LatestXminHorizon(ctx context.Context, serverID string, asOf time.Time) (XminHorizonRow, bool, error)
+	WriteSettings(ctx context.Context, rows []SettingRow) error
+	LatestSettings(ctx context.Context, serverID string, asOf time.Time) ([]SettingRow, error)
 	WriteConnectionSamples(ctx context.Context, rows []ConnectionSampleRow) error
 	WriteBlockingEdges(ctx context.Context, rows []BlockingEdgeRow) error
 	LatestConnectionSamples(ctx context.Context, serverID string, asOf time.Time) ([]ConnectionSampleRow, error)
