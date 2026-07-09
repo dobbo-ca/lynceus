@@ -65,6 +65,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /partial/index-advisor", s.handleIndexAdvisorPartial)
 	s.mux.HandleFunc("GET /vacuum-advisor", s.handleVacuumAdvisorPage)
 	s.mux.HandleFunc("GET /partial/vacuum-advisor", s.handleVacuumAdvisorPartial)
+	s.mux.HandleFunc("GET /config-advisor", s.handleConfigAdvisorPage)
+	s.mux.HandleFunc("GET /partial/config-advisor", s.handleConfigAdvisorPartial)
 	s.mux.HandleFunc("GET /waits", s.handleWaitsPage)
 	s.mux.HandleFunc("GET /partial/waits", s.handleWaitsPartial)
 	s.mux.HandleFunc("GET /checks", s.handleChecksPage)

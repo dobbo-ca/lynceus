@@ -361,6 +361,7 @@ func TestSnapshotCarriesLogEvents(t *testing.T) {
 		"blocking_edges":     {},
 		"index_stats":        {},
 		"xmin_horizons":      {},
+		"settings":           {},
 	}
 	assertOnlyAllowed(t, (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields(), allowed, "Snapshot")
 
@@ -437,5 +438,63 @@ func TestSnapshotCarriesIndexStats(t *testing.T) {
 	}
 	if got := f.Message(); got == nil || got.Name() != "IndexStat" {
 		t.Fatalf("index_stats must be repeated IndexStat, got %v", got)
+	}
+}
+
+// TestSettingHasOnlyConfigFields enforces the T1 privacy guarantee for the
+// pg_settings tuning-config message (ly-u4t.24 / ly-u4t.18). Setting must
+// carry only a GUC name, its value, unit, source, and pending_restart — the
+// fixed shape the config checks and advisor need.
+//
+// UNLIKE the other T1 messages, the `value` field is deliberately a bounded
+// string that is *literal-CAPABLE*: some GUCs (log_line_prefix, search_path,
+// archive_command, *_file paths, primary_conninfo) carry free-form text that
+// would leak infra detail / credentials. The real redaction boundary is NOT
+// this proto — it is the collector SettingsReader's curated allowlist selected
+// by name (`WHERE name = ANY(allowlist)`), which only ever ships GUCs whose
+// value is a number, a bool, or a bounded planner/durability enum keyword.
+// This allowlist pins the field SET so nobody can add a raw_config_line /
+// short_desc field or otherwise widen the message beyond {name,value,unit,
+// source,pending_restart}.
+func TestSettingHasOnlyConfigFields(t *testing.T) {
+	allowed := map[string]struct{}{
+		"name": {}, "value": {}, "unit": {}, "source": {}, "pending_restart": {},
+	}
+	assertOnlyAllowed(t, (&lynceusv1.Setting{}).ProtoReflect().Descriptor().Fields(), allowed, "Setting")
+}
+
+// TestSettingScalarFieldShapes guards against a bytes/nested-message swap that
+// could smuggle unstructured content: name/value/unit/source must stay plain
+// strings.
+func TestSettingScalarFieldShapes(t *testing.T) {
+	fields := (&lynceusv1.Setting{}).ProtoReflect().Descriptor().Fields()
+	for _, fn := range []string{"name", "value", "unit", "source"} {
+		f := fields.ByName(protoreflect.Name(fn))
+		if f == nil {
+			t.Fatalf("field %q missing from Setting", fn)
+		}
+		if got := f.Kind().String(); got != "string" {
+			t.Fatalf("Setting.%s must be string kind, got %s", fn, got)
+		}
+	}
+}
+
+// TestSnapshotCarriesSettings verifies the settings field exists on the
+// Snapshot wrapper as a repeated Setting at field number 14 (renumbered from
+// 13 to clear #35's xmin_horizons, which took 13 first).
+func TestSnapshotCarriesSettings(t *testing.T) {
+	fields := (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields()
+	f := fields.ByName("settings")
+	if f == nil {
+		t.Fatal("settings field missing from Snapshot")
+	}
+	if f.Number() != 14 {
+		t.Fatalf("settings field number = %d, want 14", f.Number())
+	}
+	if !f.IsList() {
+		t.Fatal("settings must be a repeated field")
+	}
+	if got := f.Message(); got == nil || got.Name() != "Setting" {
+		t.Fatalf("settings must be repeated Setting, got %v", got)
 	}
 }

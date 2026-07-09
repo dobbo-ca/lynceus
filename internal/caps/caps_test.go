@@ -27,6 +27,7 @@ func TestDeclared_listsAllKnownCapabilities(t *testing.T) {
 		caps.FreezeAge,
 		caps.IndexStats,
 		caps.XminHorizon,
+		caps.Settings,
 	}
 	got := append([]caps.Capability(nil), caps.Declared()...)
 	sort.Slice(got, func(i, j int) bool { return string(got[i]) < string(got[j]) })

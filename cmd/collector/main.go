@@ -94,6 +94,7 @@ func main() {
 	freezeReader := collector.NewFreezeAgeReader(pool, filter, gate, db)
 	indexStatsReader := collector.NewIndexStatsReader(pool, filter, gate, db)
 	xminReader := collector.NewXminHorizonReader(pool, gate, db)
+	settingsReader := collector.NewSettingsReader(pool, gate, db)
 
 	// Existing path: full snapshot (query stats + schema inventory + table stats) every
 	// cfg.interval (~10m). The collector is outbound-only: the inventory
@@ -112,6 +113,7 @@ func main() {
 			freezeAges   []*lynceusv1.FreezeAge
 			indexStats   []*lynceusv1.IndexStat
 			xminHorizons []*lynceusv1.XminHorizon
+			settings     []*lynceusv1.Setting
 		)
 		tasks := []collector.Task{
 			{Name: "read query stats", Run: func(ctx context.Context) error {
@@ -144,6 +146,11 @@ func main() {
 				xminHorizons, e = xminReader.Read(ctx)
 				return e
 			}},
+			{Name: "settings read", Run: func(ctx context.Context) error {
+				var e error
+				settings, e = settingsReader.Read(ctx, cfg.serverID)
+				return e
+			}},
 		}
 		errs := collector.RunBounded(ctx, cfg.queryBudget, tasks)
 		for i, err := range errs {
@@ -164,12 +171,13 @@ func main() {
 			FreezeAges:      freezeAges,
 			IndexStats:      indexStats,
 			XminHorizons:    xminHorizons,
+			Settings:        settings,
 		}
 		if err := shipper.Send(ctx, snap); err != nil {
 			log.Printf("ship full: %v", err)
 			return
 		}
-		log.Printf("shipped %d query_stats, %d schema_objects, %d table_stats, %d freeze_ages, %d index_stats, %d xmin_horizons", len(stats), len(objs), len(tableStats), len(freezeAges), len(indexStats), len(xminHorizons))
+		log.Printf("shipped %d query_stats, %d schema_objects, %d table_stats, %d freeze_ages, %d index_stats, %d xmin_horizons, %d settings", len(stats), len(objs), len(tableStats), len(freezeAges), len(indexStats), len(xminHorizons), len(settings))
 	}
 
 	// Sample pg_stat_activity into the aggregator on the activity cadence.

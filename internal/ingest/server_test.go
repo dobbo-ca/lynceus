@@ -230,6 +230,47 @@ func TestIngest_writesIndexStats(t *testing.T) {
 	}
 }
 
+func TestIngest_writesSettings(t *testing.T) {
+	pool, srv := setup(t, ingest.Config{
+		DevToken:  "dev",
+		RateLimit: 10, RateBurst: 10,
+	})
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	snap := &lynceusv1.Snapshot{
+		ServerId:        "srv-set",
+		CollectedAtUnix: now.Unix(),
+		Settings: []*lynceusv1.Setting{{
+			Name: "shared_buffers", Value: "16384", Unit: "8kB",
+			Source: "configuration file", PendingRestart: false,
+		}, {
+			Name: "fsync", Value: "off", Unit: "",
+			Source: "override", PendingRestart: true,
+		}},
+	}
+	ship := collector.NewShipper(wsURL(srv.URL), "dev")
+	if err := ship.Send(ctx, snap); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	stats := store.NewStats(pool)
+	out, err := stats.LatestSettings(ctx, "srv-set", now.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("latest: %v", err)
+	}
+	byName := map[string]store.SettingRow{}
+	for _, r := range out {
+		byName[r.Name] = r
+	}
+	if len(out) != 2 || byName["shared_buffers"].Value != "16384" || byName["fsync"].Value != "off" {
+		t.Fatalf("settings rows not persisted: %+v", out)
+	}
+	if !byName["fsync"].PendingRestart {
+		t.Errorf("pending_restart not persisted: %+v", byName["fsync"])
+	}
+}
+
 //nolint:gocyclo // scenario-driven integration test; the assertions make complexity inherent
 func TestIngest_persistsLogEvents_alongsideQueryPlans(t *testing.T) {
 	pool, srv := setup(t, ingest.Config{

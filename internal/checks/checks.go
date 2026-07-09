@@ -59,6 +59,8 @@ type Input struct {
 	Indexes []IndexInfo // populated by the scheduler (ly-u4t.23)
 
 	XminHorizon *XminInfo // cluster-global oldest-xmin, nil when absent (ly-32k)
+
+	Settings []SettingInfo // populated by the scheduler (ly-u4t.24)
 }
 
 // TableInfo is the check-local projection of store.TableStatRow.
@@ -118,6 +120,17 @@ type IndexInfo struct {
 	IsReady   bool
 	IsUnique  bool
 	IsPrimary bool
+}
+
+// SettingInfo is the check-local projection of store.SettingRow. name is a
+// fixed catalog GUC identifier and value is a bounded config string (the
+// collector allowlist restricts it to numbers/bools/enums) — T1.
+type SettingInfo struct {
+	Name           string
+	Value          string
+	Unit           string
+	Source         string
+	PendingRestart bool
 }
 
 // Result is one firing check observation. Object is an identifier label

@@ -176,6 +176,11 @@ func (s *Server) persistExtendedRows(ctx context.Context, snap *lynceusv1.Snapsh
 			return "write index_stats", err
 		}
 	}
+	if st := snapshotToSettings(snap); len(st) > 0 {
+		if err := s.stats.WriteSettings(ctx, st); err != nil {
+			return "write settings", err
+		}
+	}
 	if cs := snapshotToConnectionSamples(snap); len(cs) > 0 {
 		if err := s.stats.WriteConnectionSamples(ctx, cs); err != nil {
 			return "write connection_samples", err
@@ -390,6 +395,29 @@ func snapshotToXminHorizons(snap *lynceusv1.Snapshot) []store.XminHorizonRow {
 			HolderKind:    x.HolderKind,
 
 			DataTier: 1,
+		})
+	}
+	return out
+}
+
+// snapshotToSettings maps the T1 Setting entries onto the store row type.
+// CollectedAt comes from the snapshot time; DataTier is fixed at 1 (T1).
+func snapshotToSettings(snap *lynceusv1.Snapshot) []store.SettingRow {
+	collectedAt := time.Unix(snap.CollectedAtUnix, 0).UTC()
+	if collectedAt.IsZero() || snap.CollectedAtUnix == 0 {
+		collectedAt = time.Now().UTC()
+	}
+	out := make([]store.SettingRow, 0, len(snap.Settings))
+	for _, s := range snap.Settings {
+		out = append(out, store.SettingRow{
+			ServerID:       snap.ServerId,
+			CollectedAt:    collectedAt,
+			Name:           s.Name,
+			Value:          s.Value,
+			Unit:           s.Unit,
+			Source:         s.Source,
+			PendingRestart: s.PendingRestart,
+			DataTier:       1,
 		})
 	}
 	return out
