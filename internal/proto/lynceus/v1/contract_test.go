@@ -285,6 +285,29 @@ func TestFreezeAgeHasOnlyAggregateFields(t *testing.T) {
 	assertOnlyAllowed(t, (&lynceusv1.FreezeAge{}).ProtoReflect().Descriptor().Fields(), allowed, "FreezeAge")
 }
 
+// TestXminHorizonHasOnlyAggregateFields enforces the T1 privacy guarantee for
+// the xmin-horizon message. XminHorizon must carry only a non-negative age
+// COUNT (age of the oldest backend_xmin / replication-slot xmin / prepared-xact
+// xid) and a fixed-vocabulary holder_kind label — never a replication-slot
+// name, prepared-xact gid, query text, or any per-execution literal from the
+// monitored database. Same privacy class as FreezeAge (counts + a bounded
+// label). holder_kind is checked to be a scalar string per the ActivityBucket /
+// ConnectionSample convention.
+func TestXminHorizonHasOnlyAggregateFields(t *testing.T) {
+	allowed := map[string]struct{}{
+		"oldest_xmin_age": {}, "holder_kind": {},
+	}
+	assertOnlyAllowed(t, (&lynceusv1.XminHorizon{}).ProtoReflect().Descriptor().Fields(), allowed, "XminHorizon")
+
+	f := (&lynceusv1.XminHorizon{}).ProtoReflect().Descriptor().Fields().ByName("holder_kind")
+	if f == nil {
+		t.Fatal("holder_kind field missing from XminHorizon")
+	}
+	if got := f.Kind().String(); got != "string" {
+		t.Fatalf("XminHorizon.holder_kind must be string kind, got %s", got)
+	}
+}
+
 // TestConnectionSampleHasOnlyAggregateFields enforces the T1 privacy guarantee
 // for per-backend connection observations. ConnectionSample must carry only the
 // backend pid, a fixed state/wait label, and integer durations — never the
@@ -337,6 +360,7 @@ func TestSnapshotCarriesLogEvents(t *testing.T) {
 		"connection_samples": {},
 		"blocking_edges":     {},
 		"index_stats":        {},
+		"xmin_horizons":      {},
 	}
 	assertOnlyAllowed(t, (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields(), allowed, "Snapshot")
 

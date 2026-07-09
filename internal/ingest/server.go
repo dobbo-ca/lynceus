@@ -166,6 +166,11 @@ func (s *Server) persistExtendedRows(ctx context.Context, snap *lynceusv1.Snapsh
 			return "write freeze_ages", err
 		}
 	}
+	if xh := snapshotToXminHorizons(snap); len(xh) > 0 {
+		if err := s.stats.WriteXminHorizons(ctx, xh); err != nil {
+			return "write xmin_horizon", err
+		}
+	}
 	if ix := snapshotToIndexStats(snap); len(ix) > 0 {
 		if err := s.stats.WriteIndexStats(ctx, ix); err != nil {
 			return "write index_stats", err
@@ -362,6 +367,27 @@ func snapshotToFreezeAges(snap *lynceusv1.Snapshot) []store.FreezeAgeRow {
 			XIDAge:                 f.XidAge,
 			MXIDAge:                f.MxidAge,
 			AutovacuumFreezeMaxAge: f.AutovacuumFreezeMaxAge,
+
+			DataTier: 1,
+		})
+	}
+	return out
+}
+
+// snapshotToXminHorizons maps the T1 XminHorizon entries onto the store row
+// type. CollectedAt comes from the snapshot time; DataTier is fixed at 1 (T1).
+func snapshotToXminHorizons(snap *lynceusv1.Snapshot) []store.XminHorizonRow {
+	collectedAt := time.Unix(snap.CollectedAtUnix, 0).UTC()
+	if collectedAt.IsZero() || snap.CollectedAtUnix == 0 {
+		collectedAt = time.Now().UTC()
+	}
+	out := make([]store.XminHorizonRow, 0, len(snap.XminHorizons))
+	for _, x := range snap.XminHorizons {
+		out = append(out, store.XminHorizonRow{
+			ServerID:      snap.ServerId,
+			CollectedAt:   collectedAt,
+			OldestXminAge: x.OldestXminAge,
+			HolderKind:    x.HolderKind,
 
 			DataTier: 1,
 		})

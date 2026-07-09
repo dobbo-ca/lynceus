@@ -78,6 +78,13 @@ message Snapshot {
   // IndexStat — T1, identifiers/counts/booleans only, NEVER an index
   // expression or predicate.
   repeated IndexStat index_stats = 12;
+
+  // Cluster-global oldest-xmin horizon (ly-32k): the age of the oldest
+  // transaction id still pinned by a backend / replication slot / prepared
+  // xact, which bounds what VACUUM can reclaim. See XminHorizon — T1, a
+  // non-negative age COUNT plus a fixed holder_kind label, NEVER a slot name,
+  // gid, or query text. Feeds the "blocked by xmin horizon" vacuum check.
+  repeated XminHorizon xmin_horizons = 13;
 }
 
 // QueryStat is one row of per-fingerprint query statistics, derived
@@ -276,4 +283,19 @@ message FreezeAge {
   int64 xid_age = 5;                   // age(relfrozenxid) | age(datfrozenxid)
   int64 mxid_age = 6;                  // mxid_age(relminmxid) | mxid_age(datminmxid)
   int64 autovacuum_freeze_max_age = 7; // server setting (count) for headroom
+}
+
+// XminHorizon is the cluster-global oldest-xmin observation (ly-32k). A single
+// row per full snapshot carries the AGE (in transactions) of the oldest xid
+// still held by some backend, replication slot, or prepared transaction — the
+// horizon past which VACUUM cannot remove dead rows. holder_kind is a closed,
+// package-authored label ("backend" | "replication_slot" | "prepared_xact"); it
+// NEVER carries a slot name, prepared-xact gid, or any monitored-DB value.
+//
+// INVARIANT: oldest_xmin_age is a non-negative age COUNT and holder_kind is a
+// fixed-vocabulary label. Same privacy class as FreezeAge (counts + a bounded
+// label). Adding any literal-bearing field violates the T1 guarantee.
+message XminHorizon {
+  int64 oldest_xmin_age = 1; // age(oldest pinned xid) in transactions [COUNT]
+  string holder_kind = 2;    // "backend" | "replication_slot" | "prepared_xact"
 }

@@ -588,3 +588,88 @@ func TestDropPartitionsOlderThan_dropsOldKeepsNew(t *testing.T) {
 		t.Errorf("remaining partitions = %d, want 1", remaining)
 	}
 }
+
+func TestWriteQueryStats_cachesEnsuredPartition(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	s := store.NewStats(pool)
+
+	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC) // a Wednesday
+	batch := []store.QueryStat{
+		{ServerID: "srv-1", CollectedAt: now, Fingerprint: "fp-a", NormalizedQuery: "SELECT 1", Calls: 1, TotalTimeMs: 1},
+	}
+	// Two writes for the SAME ISO week via the same *pgxStats: the second
+	// must hit the ensured-partition cache and skip the CREATE TABLE.
+	if err := s.WriteQueryStats(ctx, batch); err != nil {
+		t.Fatalf("write 1: %v", err)
+	}
+	if err := s.WriteQueryStats(ctx, batch); err != nil {
+		t.Fatalf("write 2: %v", err)
+	}
+
+	// Exactly one weekly partition — not duplicated across the two writes.
+	var partCount int
+	_ = pool.QueryRow(ctx,
+		`SELECT count(*) FROM pg_inherits WHERE inhparent = 'query_stats'::regclass`,
+	).Scan(&partCount)
+	if partCount != 1 {
+		t.Fatalf("partitions = %d, want 1", partCount)
+	}
+
+	// Both writes landed: 2 rows total.
+	var rowCount int
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM query_stats`).Scan(&rowCount)
+	if rowCount != 2 {
+		t.Fatalf("rows = %d, want 2", rowCount)
+	}
+}
+
+func TestDropPartitionsOlderThan_evictsCache(t *testing.T) {
+	pool := newPool(t)
+	ctx := context.Background()
+	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	s := store.NewStats(pool)
+
+	old := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	new := time.Date(2026, 5, 27, 0, 0, 0, 0, time.UTC)
+	if err := s.EnsureWeeklyPartition(ctx, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnsureWeeklyPartition(ctx, new); err != nil {
+		t.Fatal(err)
+	}
+
+	cutoff := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	dropped, err := s.DropPartitionsOlderThan(ctx, cutoff)
+	if err != nil {
+		t.Fatalf("drop: %v", err)
+	}
+	if dropped != 1 {
+		t.Fatalf("dropped = %d, want 1", dropped)
+	}
+
+	var count int
+	_ = pool.QueryRow(ctx,
+		`SELECT count(*) FROM pg_inherits WHERE inhparent = 'query_stats'::regclass`,
+	).Scan(&count)
+	if count != 1 {
+		t.Fatalf("partitions after drop = %d, want 1", count)
+	}
+
+	// The drop must have evicted old from the cache, so re-ensuring it
+	// runs the CREATE TABLE again instead of silently skipping it.
+	if err := s.EnsureWeeklyPartition(ctx, old); err != nil {
+		t.Fatalf("re-ensure old: %v", err)
+	}
+	_ = pool.QueryRow(ctx,
+		`SELECT count(*) FROM pg_inherits WHERE inhparent = 'query_stats'::regclass`,
+	).Scan(&count)
+	if count != 2 {
+		t.Fatalf("partitions after re-ensure = %d, want 2 (cache not evicted on drop)", count)
+	}
+}
