@@ -480,15 +480,16 @@ func TestSettingScalarFieldShapes(t *testing.T) {
 }
 
 // TestSnapshotCarriesSettings verifies the settings field exists on the
-// Snapshot wrapper as a repeated Setting at field number 13.
+// Snapshot wrapper as a repeated Setting at field number 14 (renumbered from
+// 13 to clear #35's xmin_horizons, which took 13 first).
 func TestSnapshotCarriesSettings(t *testing.T) {
 	fields := (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields()
 	f := fields.ByName("settings")
 	if f == nil {
 		t.Fatal("settings field missing from Snapshot")
 	}
-	if f.Number() != 13 {
-		t.Fatalf("settings field number = %d, want 13", f.Number())
+	if f.Number() != 14 {
+		t.Fatalf("settings field number = %d, want 14", f.Number())
 	}
 	if !f.IsList() {
 		t.Fatal("settings must be a repeated field")
