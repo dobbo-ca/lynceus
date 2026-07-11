@@ -1,0 +1,56 @@
+/* Scope-driven sidebar nav (ly-ae6.3). Tokens only — no hardcoded colors.
+   Values mirror docs/design/Lynceus.dc.html sidebar markup. Mounted into the
+   shell body in place of the placeholder sidebar (web/shell.templ). */
+
+.ln-nav {
+  width: 208px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  margin: 0; /* legacy-bleed guard: outrank `nav { margin-bottom:.5rem }` */
+  border-right: var(--border) solid var(--line);
+  background: var(--rail);
+  padding: 12px 0 20px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+/* legacy-bleed guard: `.ln-nav a` (0,1,1) outranks bare `nav a` (0,0,2), so the
+   legacy `margin-right:1rem` cannot leak onto sidebar anchors. */
+.ln-nav a { margin: 0; }
+
+.ln-nav-group { display: flex; flex-direction: column; }
+
+.ln-nav-head {
+  padding: 12px 14px 5px;
+  font-size: 10px;
+  letter-spacing: .12em;
+  color: var(--faint);
+}
+
+.ln-nav-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  font-size: 12px; /* legacy-bleed guard: outrank `nav a { font-size:.9rem }` */
+  color: var(--mut);
+  text-decoration: none;
+  border-right: 2px solid transparent;
+}
+.ln-nav-item:hover { color: var(--text); }
+.ln-nav-item--soon { color: var(--dim); }
+.ln-nav-item--active {
+  color: var(--acc2);
+  background: var(--accbg);
+  border-right-color: var(--acc);
+}
+
+.ln-nav-badge {
+  font-size: 9px;
+  padding: 0 4px;
+  border-radius: var(--radius-badge);
+  border: var(--border) solid var(--line);
+  color: var(--faint);
+}
+.ln-nav-badge--t2 { border-color: var(--warn); color: var(--warnT); }
