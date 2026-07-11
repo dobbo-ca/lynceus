@@ -191,7 +191,8 @@ func TestVerticalSlice_normalizedQueryRoundtripsAndCanaryNeverLeaks(t *testing.T
 	}
 
 	// --- assert RENDERED DASHBOARD has no canary ---
-	resp, err := http.Get(apiSrv.URL + "/")
+	// Top-queries moved off root to /queries; root is now the fleet shell (ly-ae6.2).
+	resp, err := http.Get(apiSrv.URL + "/queries")
 	if err != nil {
 		t.Fatal(err)
 	}

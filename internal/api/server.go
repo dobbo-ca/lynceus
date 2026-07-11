@@ -6,8 +6,10 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/web"
 )
 
 // Config is the server's runtime configuration.
@@ -45,6 +47,7 @@ func NewServer(cfg Config, stats store.Stats, conf store.Config) *Server {
 func (s *Server) Handler() http.Handler { return s.withAuth(s.mux) }
 
 func (s *Server) routes() {
+	s.mux.Handle("GET /static/", web.StaticHandler())
 	s.mux.HandleFunc("GET /databases", s.handleDatabases)
 	s.mux.HandleFunc("GET /partial/databases", s.handleDatabasesPartial)
 	s.mux.HandleFunc("GET /databases/{clusterID}", s.handleClusterOverview)
@@ -53,7 +56,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /databases/{clusterID}/activity", s.handleClusterActivity)
 	s.mux.HandleFunc("GET /databases/{clusterID}/settings", s.handleClusterSettings)
 	s.mux.HandleFunc("GET /partial/databases/{clusterID}/query/{fingerprint}", s.handleClusterQueryDrilldown)
-	s.mux.HandleFunc("GET /", s.handleDashboard)
+	s.mux.HandleFunc("GET /{$}", s.handleFleet)          // root IS the fleet landing shell
+	s.mux.HandleFunc("GET /fleet", s.handleFleet)        // hidden alias (old links/bookmarks)
+	s.mux.HandleFunc("GET /queries", s.handleDashboard)  // legacy global top-queries (retrofit: ly-ae6.7)
+	s.mux.HandleFunc("GET /partial/scope-options", s.handleScopeOptions)
 	s.mux.HandleFunc("GET /partial/queries", s.handleQueriesPartial)
 	s.mux.HandleFunc("GET /insights", s.handleInsightsPage)
 	s.mux.HandleFunc("GET /partial/insights", s.handleInsightsPartial)
@@ -85,6 +91,10 @@ func (s *Server) routes() {
 // SCIM/OIDC are emitted by their own handlers after auth passes.
 func (s *Server) withAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/static/") {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if !s.cfg.DevAuth {
 			http.Error(w, "unauthorized (dev auth disabled and OIDC not yet implemented — see ly-8b0.1)", http.StatusUnauthorized)
 			return

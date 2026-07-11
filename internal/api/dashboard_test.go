@@ -13,7 +13,7 @@ func TestDashboard_rendersTableWithSeededRowsAndNoLiterals(t *testing.T) {
 	pool, srv := setup(t, api.Config{DevAuth: true})
 	seedStats(t, pool)
 
-	resp, err := http.Get(srv.URL + "/")
+	resp, err := http.Get(srv.URL + "/queries") // top-queries moved off root; root is the fleet shell (ly-ae6.2)
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}

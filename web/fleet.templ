@@ -1,0 +1,24 @@
+package web
+
+// FleetShellPage wraps the Shell around the fleet/scoped main body. The body is
+// a minimal, clearly-marked seam: ly-ae6.4 replaces it with the real Fleet
+// dashboard, and ly-ae6.6 supplies the scoped "OPEN ISSUES ON THIS …" overview.
+templ FleetShellPage(vm ShellView) {
+	@Shell(vm) {
+		@shellPlaceholderMain(vm)
+	}
+}
+
+// shellPlaceholderMain renders the current scope so the shell is exercisable
+// end-to-end before the dashboard body exists.
+templ shellPlaceholderMain(vm ShellView) {
+	<div id="fleet-main" style="padding: 18px 22px; font-family: var(--font-mono); color: var(--dim); display: flex; flex-direction: column; gap: 8px;">
+		<div style="font-size: 15px; color: var(--text);">{ vm.ScopeLabel }</div>
+		<div style="font-size: 10.5px; letter-spacing: .08em; color: var(--faint);">
+			{ scopeKindLabel(vm.Scope) } · RANGE { vm.Range }
+		</div>
+		<div style="font-size: 11px; color: var(--dim);">
+			Dashboard body arrives with ly-ae6.4 (fleet) / ly-ae6.6 (scoped overview).
+		</div>
+	</div>
+}

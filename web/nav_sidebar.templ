@@ -1,0 +1,28 @@
+package web
+
+import "github.com/dobbo-ca/lynceus/internal/scope"
+
+// Sidebar renders the scope-driven navigation rail. The nav tree is a pure
+// function of scope (BuildNav); the shell (ly-ae6.2) supplies sc/label/eng/
+// active — typically via SidebarFromContext (see nav_context.go). label is the
+// resolved scope display name for the identity header.
+templ Sidebar(sc scope.Scope, label string, eng EngineFlags, active string) {
+	<nav class="ln-nav" aria-label="Scope navigation">
+		for _, g := range BuildNav(sc, label, eng, active) {
+			<div class="ln-nav-group">
+				<div class="ln-nav-head">{ g.Label }</div>
+				for _, it := range g.Items {
+					<a class={ it.ItemClass() } href={ templ.SafeURL(it.Href) }>
+						<span>{ it.Label }</span>
+						if it.Soon {
+							<span class="ln-nav-badge">SOON</span>
+						}
+						if it.T2 {
+							<span class="ln-nav-badge ln-nav-badge--t2">T2</span>
+						}
+					</a>
+				}
+			</div>
+		}
+	</nav>
+}

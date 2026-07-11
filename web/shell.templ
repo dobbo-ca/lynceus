@@ -1,0 +1,182 @@
+package web
+
+import (
+	"fmt"
+
+	"github.com/dobbo-ca/lynceus/internal/scope"
+)
+
+// Shell is the design-parity full-page layout: 48px top bar + a body flex of
+// the per-scope sidebar (ly-ae6.3 slot) and the main content ({ children... }).
+// Token-based; never links legacy.css.
+templ Shell(vm ShellView) {
+	<!DOCTYPE html>
+	<html lang="en" data-theme="dark">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ vm.Title }</title>
+			@templ.Raw(themeBootstrapTag())
+			<link rel="stylesheet" href="/static/css/tokens.css"/>
+			<link rel="stylesheet" href="/static/css/shell.css"/>
+			<link rel="stylesheet" href="/static/css/nav.css"/>
+			<script src="/static/js/htmx.min.js" defer></script>
+			<script src="/static/js/theme.js" defer></script>
+			<script src="/static/js/shell.js" defer></script>
+		</head>
+		<body>
+			<div class="shell">
+				@TopBar(vm)
+				<div class="shell-body">
+					if vm.Sidebar != nil {
+						@vm.Sidebar
+					} else {
+						@placeholderSidebar()
+					}
+					<main class="main">
+						{ children... }
+					</main>
+				</div>
+			</div>
+		</body>
+	</html>
+}
+
+// TopBar renders the 48px bar: logo→Fleet, ← FLEET reset (scoped only),
+// SCOPE picker, range control, poll indicator, theme toggle, user menu.
+templ TopBar(vm ShellView) {
+	<div class="topbar">
+		<a class="topbar-logo" href={ vm.LogoHref }>
+			<span class="logo-mark">L</span>
+			<span class="wordmark">LYNCEUS</span>
+		</a>
+		if vm.Scoped {
+			<a class="fleet-reset" href={ vm.ClearHref } title="Back to fleet">← FLEET</a>
+		}
+		@scopePicker(vm)
+		@rangeControl(vm)
+		<span class="spacer"></span>
+		@pollIndicator(vm)
+		<button type="button" id="theme-toggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">☾</button>
+		@userMenu(vm)
+	</div>
+}
+
+// scopePicker is a native <details> dropdown: a chip summary opening a search
+// box (HTMX-filtered) over the pre-rendered option list. Degrades without JS —
+// the full list is already server-rendered inside the panel.
+//
+// The search placeholder reads "search cluster / node / database…" — a conscious
+// divergence from the prototype's "search cluster / instance / pooler…"
+// (Lynceus.dc.html:120): it names only the entities actually enumerated today
+// (poolers are not modeled yet; "instance" == our NODE). See backend-gaps note.
+templ scopePicker(vm ShellView) {
+	<details class="scope">
+		<summary class="scope-chip" data-scoped?={ vm.Scoped }>
+			<span class="lbl">SCOPE:</span>
+			<span class="val">{ vm.ScopeLabel }</span>
+			<span class="lbl">⌄</span>
+		</summary>
+		<div class="scope-panel">
+			<div class="scope-search-wrap">
+				<input
+					class="scope-search"
+					type="search"
+					name="q"
+					value={ vm.OptionsQuery }
+					placeholder="search cluster / node / database…"
+					autocomplete="off"
+					hx-get="/partial/scope-options"
+					hx-target="#scope-options"
+					hx-swap="outerHTML"
+					hx-trigger="keyup changed delay:200ms, search"
+					hx-include="[name='scope-active']"
+				/>
+				<input type="hidden" name="scope-active" value={ vm.Scope.Encode() }/>
+			</div>
+			@ScopeOptionsList(vm.Options, vm.OptionsQuery)
+		</div>
+	</details>
+}
+
+// ScopeOptionsList is the swappable <ul> of picker options (HTMX target).
+templ ScopeOptionsList(opts []ScopeOption, q string) {
+	<ul id="scope-options" class="scope-options">
+		if len(opts) == 0 {
+			<li class="scope-empty">NO COMPONENTS MATCH</li>
+		} else {
+			for _, o := range opts {
+				<li>
+					<a
+						class="scope-opt"
+						href={ o.Href }
+						data-depth={ fmt.Sprintf("%d", o.Depth) }
+						data-current?={ o.Current }
+					>
+						<span class="lbl">{ o.Label }</span>
+						<span class="kind-badge">{ o.Kind }</span>
+					</a>
+				</li>
+			}
+		}
+	</ul>
+}
+
+// rangeControl renders the 15M/1H/24H/7D/30D segmented control as scope-
+// preserving links; the selected one carries .sel.
+templ rangeControl(vm ShellView) {
+	<nav class="range" aria-label="Time range">
+		for _, r := range vm.Ranges {
+			<a class={ "range-opt", templ.KV("sel", r.Selected) } href={ r.Href }>{ r.Label }</a>
+		}
+	</nav>
+}
+
+// pollIndicator shows the pulsing dot + cadence; shell.js ticks the "UPDATED
+// Ns AGO" text. NOTE: the tick is cosmetic in this bead (no live data refresh
+// exists yet) — it becomes a real freshness readout when the data screens add
+// polling (ly-ae6.4+). See the plan's backend-gaps note.
+templ pollIndicator(vm ShellView) {
+	<span class="poll" data-poll-secs={ fmt.Sprintf("%d", vm.PollSecs) }>
+		<span class="poll-dot">●</span>
+		{ fmt.Sprintf(" POLL %dS · ", vm.PollSecs) }
+		<span data-updated-ago>UPDATED 0S AGO</span>
+	</span>
+}
+
+// userMenu is a native <details> dropdown: identity header, GOVERNANCE and
+// ADMIN sections, Sign out. Audit Log links to the live /audit route; the rest
+// are SOON until their beads land (ly-ae6.13 governance, ly-8b0.1 auth).
+templ userMenu(vm ShellView) {
+	<details class="user" data-t2?={ vm.User.T2Granted }>
+		<summary class="icon-btn user-chip" title="Account">{ userInitials(vm.User.Name) }</summary>
+		<div class="user-panel">
+			<div class="user-id">
+				<span class="name">{ vm.User.Name }</span>
+				<span class="meta">{ userMeta(vm.User) }</span>
+			</div>
+			<div class="menu-head">GOVERNANCE</div>
+			<a class="menu-item" href="/audit"><span>Audit Log</span></a>
+			<a class="menu-item" href="#"><span>Access &amp; Roles</span><span class="badge-soon">SOON</span></a>
+			<div class="menu-head" style="border-top: var(--border) solid var(--line2); margin-top: 5px;">ADMIN</div>
+			<a class="menu-item" href="#"><span>Provider Setup</span><span class="badge-soon">SOON</span></a>
+			<a class="menu-item" href="#"><span>Collectors</span><span class="badge-soon">SOON</span></a>
+			<a class="menu-item" href="#"><span>Data &amp; Retention</span><span class="badge-soon">SOON</span></a>
+			<a class="menu-item" href="#"><span>Settings</span><span class="badge-soon">SOON</span></a>
+			<div class="menu-signout"><span class="lbl">Sign out</span></div>
+		</div>
+	</details>
+}
+
+// placeholderSidebar is the ly-ae6.3 slot filler until the per-scope nav lands.
+templ placeholderSidebar() {
+	<aside class="sidebar">
+		<div class="sidebar-placeholder">NAV · ly-ae6.3</div>
+	</aside>
+}
+
+// ScopeButton is the reusable ⌖ crosshair: a 24px icon anchor that sets scope
+// to sc. Other screens (ly-ae6.4/.5/.6) place it on otherwise-inert rows.
+templ ScopeButton(sc scope.Scope) {
+	<a class="scope-btn" href={ ScopeHref(sc) } title="Set scope" aria-label="Set scope to this component">⌖</a>
+}
