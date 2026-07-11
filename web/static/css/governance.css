@@ -1,0 +1,98 @@
+/* governance.css — design-token styling for the governance/admin/settings surfaces.
+   Dark is the tokens.css default; light is handled by the token overrides. */
+
+/* ---- shared page chrome ---- */
+.gov-page { padding: 18px 22px 32px; display: flex; flex-direction: column; gap: 14px; max-width: 1400px; }
+.gov-head { display: flex; align-items: center; gap: 12px; }
+.gov-title { font-family: var(--font-ui); font-size: 17px; font-weight: 600; color: var(--text); }
+.gov-spacer { flex: 1; }
+.gov-note { font-family: var(--font-mono); font-size: 10px; color: var(--faint); letter-spacing: .04em; }
+.gov-roadmap-strip { border: 1px solid var(--info); border-radius: 2px; background: var(--infobg); padding: 8px 12px; font-family: var(--font-mono); font-size: 10.5px; color: var(--infoT); }
+.gov-roadmap-strip em { font-style: normal; font-family: var(--font-ui); font-size: 12px; color: var(--mut); }
+
+.badge { font-family: var(--font-mono); font-size: 10px; padding: 0 5px; border-radius: 1px; border: 1px solid var(--line); color: var(--faint); letter-spacing: .04em; }
+.badge--live { color: var(--acc); border-color: var(--acc); }
+.badge--roadmap { color: var(--infoT); border-color: var(--info); }
+.badge--soon { font-size: 9px; padding: 0 4px; color: var(--faint); border-color: var(--line); }
+
+/* ---- audit log ---- */
+.chain-banner { font-family: var(--font-mono); font-size: 10.5px; color: var(--acc2); border: 1px solid var(--acc); background: var(--accbg); padding: 4px 10px; border-radius: 2px; }
+.chain-banner--broken { color: var(--critT); border-color: var(--crit); background: var(--critbg); }
+.audit-card { border: 1px solid var(--line); border-radius: 2px; background: var(--surface); overflow-x: auto; }
+.audit-grid { display: grid; grid-template-columns: 168px 110px 210px 1fr 150px 44px 84px; gap: 10px; align-items: center; font-family: var(--font-mono); min-width: 900px; }
+.audit-grid--head { padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 9.5px; letter-spacing: .1em; color: var(--faint); }
+.audit-row { padding: 7px 12px; border-bottom: 1px solid var(--line2); border-left: 3px solid transparent; }
+.audit-row--t2 { border-left-color: var(--warn); background: var(--warnbg); }
+.audit-row .c-ts { font-size: 10.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.audit-row .c-actor { font-size: 11px; color: var(--text); }
+/* Action color is T2-driven, matching the design source exactly. The prototype
+   computes actionColor per row as `a.t2 ? 'var(--warnT)' : 'var(--text)'`
+   (Lynceus.dc.html line 3202) — a binary T2 rule, NOT a per-action-type color
+   map. These two rules are a faithful, complete reproduction. */
+.audit-row .c-action { font-size: 11px; color: var(--text); }
+.audit-row--t2 .c-action { color: var(--warnT); }
+.audit-row .c-target { font-size: 11px; color: var(--mut); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audit-row .c-server { font-size: 10.5px; color: var(--dim); }
+.audit-row .tier-badge { font-size: 9.5px; border: 1px solid var(--line); color: var(--faint); padding: 1px 4px; border-radius: 1px; text-align: center; }
+.audit-row--t2 .tier-badge { border-color: var(--warn); color: var(--warnT); }
+.audit-row .c-hash { font-size: 10.5px; color: var(--faint); }
+
+/* ---- user menu (mounted by the ly-ae6.2 top bar) ---- */
+.user-menu { position: relative; }
+.user-menu > summary { list-style: none; width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 2px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 10px; color: var(--mut); cursor: pointer; user-select: none; }
+.user-menu > summary::-webkit-details-marker { display: none; }
+.user-menu[open] > summary { border-color: var(--acc); color: var(--text); }
+.user-menu__panel { position: absolute; top: 32px; right: 0; width: 236px; background: var(--surface); border: 1px solid var(--line); border-radius: 2px; box-shadow: var(--shadow-pop); z-index: 40; }
+.user-menu__id { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px; }
+.user-menu__name { font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--text); }
+.user-menu__meta { font-family: var(--font-mono); font-size: 9.5px; color: var(--dim); letter-spacing: .06em; }
+.user-menu__section { padding: 8px 12px 3px; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .12em; color: var(--faint); }
+.user-menu__section--admin { border-top: 1px solid var(--line2); margin-top: 5px; }
+.user-menu__item { padding: 6px 12px; font-family: var(--font-ui); font-size: 11.5px; color: var(--mut); display: flex; justify-content: space-between; align-items: center; gap: 8px; text-decoration: none; }
+a.user-menu__item:hover { background: var(--raised); color: var(--text); }
+.user-menu__item--disabled { color: var(--faint); cursor: default; }
+.user-menu__signout { border-top: 1px solid var(--line); margin-top: 5px; padding: 7px 12px 9px; }
+.user-menu__signout a { font-family: var(--font-ui); font-size: 11.5px; color: var(--dim); text-decoration: none; }
+.user-menu__signout a:hover { color: var(--critT); }
+
+/* ---- access & roles ---- */
+.access-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 14px; align-items: start; }
+.access-signin { border: 1px solid var(--line); border-radius: 2px; background: var(--surface); padding: 26px 22px; display: flex; flex-direction: column; gap: 14px; align-items: center; }
+.access-logo { width: 26px; height: 26px; border: 1.5px solid var(--acc); border-radius: 2px; display: flex; align-items: center; justify-content: center; color: var(--acc); font-weight: 600; font-size: 13px; font-family: var(--font-mono); }
+.access-signin__title { font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--text); }
+.access-oidc { width: 100%; border: 1px solid var(--acc); color: var(--acc2); background: var(--accbg); text-align: center; padding: 8px 0; border-radius: 2px; font-family: var(--font-mono); font-size: 11px; cursor: pointer; }
+.access-signin__note { font-family: var(--font-mono); font-size: 9.5px; color: var(--faint); text-align: center; line-height: 1.7; }
+.access-card { border: 1px solid var(--line); border-radius: 2px; background: var(--surface); }
+.access-card__head { padding: 8px 12px; border-bottom: 1px solid var(--line); font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; color: var(--dim); }
+.access-row { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-bottom: 1px solid var(--line2); font-family: var(--font-mono); }
+.access-row__name { font-size: 11.5px; width: 130px; color: var(--text); }
+.access-row__members { font-size: 10px; color: var(--dim); width: 70px; }
+.t2-tag { font-size: 10px; border: 1px solid var(--line); color: var(--faint); padding: 1px 6px; border-radius: 1px; }
+.t2-tag--reveal { border-color: var(--warn); color: var(--warnT); }
+.t2-tag--audit { border-color: var(--info); color: var(--infoT); }
+.access-row__scope { font-size: 10.5px; color: var(--faint); flex: 1; text-align: right; }
+@media (max-width: 720px) { .access-grid { grid-template-columns: 1fr; } }
+
+/* ---- settings › appearance ---- */
+.appearance-card { border: 1px solid var(--line); border-radius: 2px; background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.appearance-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; color: var(--dim); }
+.accent-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.accent-swatch { display: flex; gap: 8px; align-items: center; border: 1px solid var(--line); background: transparent; padding: 6px 12px; border-radius: 2px; cursor: pointer; }
+.accent-swatch:hover { border-color: var(--dim); }
+.accent-swatch.is-active { border-color: var(--acc); background: var(--accbg); }
+.accent-dot { width: 14px; height: 14px; border-radius: 2px; }
+.accent-swatch[data-accent="#2dd4bf"] .accent-dot { background: #2dd4bf; }
+.accent-swatch[data-accent="#22d3ee"] .accent-dot { background: #22d3ee; }
+.accent-swatch[data-accent="#818cf8"] .accent-dot { background: #818cf8; }
+.accent-name { font-family: var(--font-mono); font-size: 10.5px; color: var(--mut); letter-spacing: .06em; }
+.accent-swatch.is-active .accent-name { color: var(--acc2); }
+.appearance-note { font-family: var(--font-mono); font-size: 9.5px; color: var(--faint); letter-spacing: .04em; }
+.settings-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.settings-card { border: 1px solid var(--line); border-radius: 2px; background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
+.settings-card__label { font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; color: var(--dim); }
+.settings-card__skel { height: 10px; border-radius: 1px; background: linear-gradient(90deg, var(--shimA) 25%, var(--shimB) 50%, var(--shimA) 75%); background-size: 800px 100%; animation: gov-shimmer 1.6s linear infinite; }
+.settings-card__skel.w75 { width: 75%; }
+.settings-card__skel.w50 { width: 50%; }
+.settings-card__skel.w62 { width: 62%; }
+@keyframes gov-shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+@media (max-width: 720px) { .settings-cards { grid-template-columns: 1fr; } }

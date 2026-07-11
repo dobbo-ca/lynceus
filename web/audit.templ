@@ -2,41 +2,72 @@ package web
 
 import "fmt"
 
-// AuditRow is the view-model for one rendered audit-log row. All fields
-// are already-normalized strings/ints from the config DB; the detail is
-// the canonical JSON text as stored (may be empty).
-type AuditRow struct {
-	ID       int64
-	Actor    string
-	Action   string
-	ServerID string
-	DataTier int16
-	Detail   string
-	At       string // pre-formatted timestamp (RFC3339, UTC)
+// AuditChain drives the page-level tamper-evidence banner. It reflects a
+// whole-chain VerifyChain result plus the current chain tip; it is NOT part
+// of the HTMX-swapped table fragment.
+type AuditChain struct {
+	Verified bool
+	TipShort string
+	Count    int64
 }
 
-// AuditFilterValues echoes the active filter back into the form so the
-// inputs stay populated across HTMX submissions.
+// AuditRow is the view-model for one rendered audit-log row. Target is derived
+// from the Detail structural keys (T1-safe — never a monitored-DB literal);
+// HashShort is a short render of the chain row hash; IsT2 marks tier-2 reads.
+type AuditRow struct {
+	ID        int64
+	Actor     string
+	Action    string
+	ServerID  string
+	DataTier  int16
+	Detail    string
+	At        string
+	Target    string
+	HashShort string
+	IsT2      bool
+}
+
+// AuditFilterValues echoes the active filter back into the form.
 type AuditFilterValues struct {
 	Actor    string
 	Action   string
 	ServerID string
-	Since    string // yyyy-mm-dd or empty
-	Until    string // yyyy-mm-dd or empty
-	Tier     string // "", "1", or "2"
+	Since    string
+	Until    string
+	Tier     string
 }
 
-// AuditPage is the full filterable audit-log page.
-templ AuditPage(f AuditFilterValues, rows []AuditRow) {
-	@Layout("Lynceus — audit log", "tamper-evident audit log") {
-		@AuditFilterForm(f)
-		@AuditTable(rows)
+// AuditPage is the full filterable audit-log page rendered inside the design
+// Shell (org-level governance surface, reached from the top-bar user menu): LIVE
+// header, verified hash-chain banner, tamper subtitle, the (retained) filter
+// form, and the grid.
+templ AuditPage(sv ShellView, chain AuditChain, f AuditFilterValues, rows []AuditRow) {
+	@Shell(sv) {
+		<link rel="stylesheet" href="/static/css/governance.css"/>
+		<div class="gov-page">
+			<div class="gov-head">
+				<span class="gov-title">Audit Log</span>
+				<span class="badge badge--live">LIVE</span>
+				<span class="gov-spacer"></span>
+				@auditBanner(chain)
+			</div>
+			<div class="gov-note">TAMPER-EVIDENT: EACH EVENT'S HASH COVERS THE PREVIOUS. EVERY T2 READ APPEARS HERE — NO EXCEPTIONS.</div>
+			@AuditFilterForm(f)
+			@AuditTable(rows)
+		</div>
 	}
 }
 
-// AuditFilterForm submits via hx-get to /partial/audit and swaps the
-// results table (#audit-table) in place. A normal submit (no JS) falls
-// back to a full-page GET /audit with the same query params.
+templ auditBanner(chain AuditChain) {
+	if chain.Verified {
+		<span class="chain-banner">{ fmt.Sprintf("✓ HASH CHAIN VERIFIED · TIP %s · %d EVENTS", chain.TipShort, chain.Count) }</span>
+	} else {
+		<span class="chain-banner chain-banner--broken">{ fmt.Sprintf("✗ HASH CHAIN BROKEN · TIP %s · %d EVENTS", chain.TipShort, chain.Count) }</span>
+	}
+}
+
+// AuditFilterForm — retained bonus (beyond the design). Restyle deferred to the
+// shape pass (ly-ae6.14); functionally unchanged.
 templ AuditFilterForm(f AuditFilterValues) {
 	<form class="filters" action="/audit" method="get"
 		hx-get="/partial/audit" hx-target="#audit-table" hx-swap="outerHTML">
@@ -72,39 +103,52 @@ templ AuditFilterForm(f AuditFilterValues) {
 	</form>
 }
 
-// AuditTable renders just the results table. The wrapping div carries the
-// id used as the HTMX swap target.
+// AuditTable renders just the results grid (the HTMX swap target).
 templ AuditTable(rows []AuditRow) {
 	<div id="audit-table">
 		if len(rows) == 0 {
-			<p class="empty">No audit entries match the current filter.</p>
+			<p class="gov-note">No audit entries match the current filter.</p>
 		} else {
-			<table>
-				<thead>
-					<tr>
-						<th class="num">ID</th>
-						<th>Time (UTC)</th>
-						<th>Actor</th>
-						<th>Action</th>
-						<th>Server</th>
-						<th class="num">Tier</th>
-						<th>Detail</th>
-					</tr>
-				</thead>
-				<tbody>
-					for _, r := range rows {
-						<tr>
-							<td class="num">{ fmt.Sprintf("%d", r.ID) }</td>
-							<td>{ r.At }</td>
-							<td>{ r.Actor }</td>
-							<td><code>{ r.Action }</code></td>
-							<td>{ r.ServerID }</td>
-							<td class="num">{ fmt.Sprintf("%d", r.DataTier) }</td>
-							<td><code>{ r.Detail }</code></td>
-						</tr>
-					}
-				</tbody>
-			</table>
+			<div class="audit-card">
+				<div class="audit-grid audit-grid--head">
+					<span>TIMESTAMP</span>
+					<span>ACTOR</span>
+					<span>ACTION</span>
+					<span>TARGET</span>
+					<span>SERVER</span>
+					<span>TIER</span>
+					<span>HASH</span>
+				</div>
+				for _, r := range rows {
+					<div class={ auditRowClass(r) }>
+						<span class="c-ts">{ r.At }</span>
+						<span class="c-actor">{ r.Actor }</span>
+						<span class="c-action">{ r.Action }</span>
+						<span class="c-target">{ r.Target }</span>
+						<span class="c-server">{ r.ServerID }</span>
+						<span class="tier-badge">{ tierLabel(r.DataTier) }</span>
+						<span class="c-hash">{ r.HashShort }</span>
+					</div>
+				}
+			</div>
 		}
 	</div>
+}
+
+func auditRowClass(r AuditRow) string {
+	if r.IsT2 {
+		return "audit-grid audit-row audit-row--t2"
+	}
+	return "audit-grid audit-row"
+}
+
+func tierLabel(t int16) string {
+	switch t {
+	case 1:
+		return "T1"
+	case 2:
+		return "T2"
+	default:
+		return "—"
+	}
 }

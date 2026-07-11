@@ -15,6 +15,7 @@ import (
 type Config interface {
 	Pool() *pgxpool.Pool
 	ListAudit(ctx context.Context, f AuditFilter) ([]AuditRecord, error)
+	VerifyChain(ctx context.Context, since, until time.Time) (int, string, error)
 	AppendAuditReturning(ctx context.Context, e AuditEntry) (AuditRecord, error)
 	CreateCluster(ctx context.Context, name string) (Cluster, error)
 	CreateInstance(ctx context.Context, clusterID, name string) (Instance, error)
