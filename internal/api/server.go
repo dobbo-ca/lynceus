@@ -118,6 +118,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /partial/console", s.handleConsolePartial)
 	s.mux.HandleFunc("POST /partial/console/run", s.handleConsoleRun)
 	s.mux.HandleFunc("GET /console/export", s.handleConsoleExport)
+	s.mux.HandleFunc("GET /cache/clusters", s.handleCacheClusters)
+	s.mux.HandleFunc("GET /partial/cache/clusters", s.handleCacheClustersPartial)
 	s.mux.HandleFunc("GET /api/queries/top", s.handleTopQueries)
 	s.mux.HandleFunc("GET /api/servers/{id}/capabilities", s.handleCapabilityMatrix)
 	s.mux.HandleFunc("POST /api/servers/{id}/capabilities/{cap}", s.handleCapabilityToggle)
