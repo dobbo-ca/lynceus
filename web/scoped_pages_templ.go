@@ -400,7 +400,6 @@ func NodeCards(nodes []ScopeNodeVM) templ.Component {
 type CapabilityRowVM struct {
 	Name      string
 	Available bool
-	AvailMod  string // "is-on" | "is-off"
 	Final     string // short effective-policy note
 }
 
@@ -455,7 +454,7 @@ func CapabilitiesShell(shell ShellView, vm CapabilitiesVM) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(vm.ScopeLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/scoped_pages.templ`, Line: 114, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/scoped_pages.templ`, Line: 113, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -483,7 +482,7 @@ func CapabilitiesShell(shell ShellView, vm CapabilitiesVM) templ.Component {
 					var templ_7745c5c3_Var24 string
 					templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Caps[i].Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/scoped_pages.templ`, Line: 122, Col: 48}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/scoped_pages.templ`, Line: 121, Col: 48}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 					if templ_7745c5c3_Err != nil {
@@ -511,7 +510,7 @@ func CapabilitiesShell(shell ShellView, vm CapabilitiesVM) templ.Component {
 					var templ_7745c5c3_Var25 string
 					templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Caps[i].Final)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/scoped_pages.templ`, Line: 129, Col: 50}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/scoped_pages.templ`, Line: 128, Col: 50}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 					if templ_7745c5c3_Err != nil {
