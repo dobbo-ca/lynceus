@@ -2,14 +2,21 @@ package web
 
 import "fmt"
 
-// PlanPage is the full plan-visualization page for one (server, fingerprint).
-templ PlanPage(vm PlanVM) {
-	@Layout("Lynceus — query plan", "most recent normalized plan") {
-		<p>
-			Server <code>{ vm.ServerID }</code> · fingerprint <code>{ vm.Fingerprint }</code>
-		</p>
-		@PlanView(vm)
+// PlanPage renders the Plans screen inside the design shell.
+templ PlanPage(sv ShellView, vm PlanVM) {
+	@Shell(sv) {
+		@PlanScreen(vm)
 	}
+}
+
+templ PlanScreen(vm PlanVM) {
+	<div class="screen" data-screen-label="Plans">
+		@ScreenHeader("Plans", []HeaderBadge{
+			{Text: "LIVE", Kind: "live"},
+			{Text: "T1 · CONDITIONS NORMALIZED, NO LITERALS", Kind: "t1"},
+		})
+		@PlanView(vm)
+	</div>
 }
 
 // PlanView is also served as a stand-alone HTMX fragment. The wrapping div
@@ -17,68 +24,75 @@ templ PlanPage(vm PlanVM) {
 templ PlanView(vm PlanVM) {
 	<div id="plan-view">
 		if vm.Empty {
-			<p class="empty">No plan stored for this server and fingerprint.</p>
+			@EmptyState("No plan stored for this server and fingerprint.")
 		} else {
-			<h2>Plan tree</h2>
-			<ul class="plan-tree">
-				@PlanTreeNode(vm.Root)
-			</ul>
-			<h2>Nodes</h2>
-			<table>
-				<thead>
-					<tr>
-						<th>Node type</th>
-						<th>Relation</th>
-						<th>Index</th>
-						<th>Condition</th>
-						<th class="num">Plan rows</th>
-						<th class="num">Actual rows</th>
-						<th class="num">Loops</th>
-						<th class="num">Total cost</th>
-						<th class="num">Rows removed</th>
-					</tr>
-				</thead>
-				<tbody>
-					for _, n := range vm.Flat {
-						<tr>
-							<td><code>{ n.NodeType }</code></td>
-							<td>{ n.Relation }</td>
-							<td>{ n.Index }</td>
-							<td><code>{ n.Condition }</code></td>
-							<td class="num">{ fmt.Sprintf("%d", n.PlanRows) }</td>
-							<td class="num">{ fmt.Sprintf("%d", n.ActualRows) }</td>
-							<td class="num">{ fmt.Sprintf("%d", n.ActualLoops) }</td>
-							<td class="num">{ FmtCost(n.TotalCost) }</td>
-							<td class="num">{ fmt.Sprintf("%d", n.RowsRemovedByFilter) }</td>
-						</tr>
+			if len(vm.Variants) > 1 {
+				<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+					for _, pt := range vm.Variants {
+						<a class={ chipClass(pt.Selected) } href={ templ.SafeURL(pt.Href) }>{ pt.FP } · { pt.Label }</a>
 					}
-				</tbody>
-			</table>
+				</div>
+			}
+			<div style="display:grid;grid-template-columns:3fr 2fr;gap:14px;align-items:start;">
+				<div class="panel scroll-x">
+					<div class="panel-hd">PLAN TREE — CLICK A NODE</div>
+					<div style="padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:560px;">
+						for _, n := range vm.Flat {
+							<a class={ planNodeStripe(n) } style={ planNodeStyle(n) } href={ templ.SafeURL(planNodeHref(vm, n.Idx)) }>
+								<span class="mono" style={ "font-size:12px;font-weight:600;color:" + planTypeColor(n) + ";" }>{ n.NodeType }</span>
+								if n.Relation != "" {
+									<span class="mono" style="font-size:11.5px;color:var(--acc2);">{ n.Relation }</span>
+								}
+								<span style="flex:1;"></span>
+								<span class="mono" style="font-size:10.5px;color:var(--dim);">est <span style={ "color:" + n.EstColorVar + ";" }>{ fmt.Sprintf("%d", n.PlanRows) }</span> → act <span style={ "color:" + n.EstColorVar + ";" }>{ fmt.Sprintf("%d", n.ActualRows) }</span></span>
+								<span class="mono" style="font-size:10.5px;color:var(--faint);">cost { FmtCost(n.TotalCost) } · loops { fmt.Sprintf("%d", n.ActualLoops) }</span>
+							</a>
+						}
+					</div>
+				</div>
+				<div class="panel">
+					<div class="panel-hd">NODE DETAIL</div>
+					if vm.Selected != nil {
+						@planNodeDetail(vm.Selected)
+					}
+				</div>
+			</div>
 		}
 	</div>
 }
 
-// PlanTreeNode renders one node and recurses into its children. The
-// self-reference makes the tree arbitrarily deep.
-templ PlanTreeNode(n *PlanNodeVM) {
-	<li>
-		<span class="node-type">{ n.NodeType }</span>
-		if n.Relation != "" {
-			<span class="node-meta">on <code>{ n.Relation }</code></span>
-		}
-		if n.Index != "" {
-			<span class="node-meta">using <code>{ n.Index }</code></span>
-		}
-		if n.JoinType != "" {
-			<span class="node-meta">{ n.JoinType } join</span>
-		}
-		<span class="node-meta">cost { FmtCost(n.TotalCost) } · rows { fmt.Sprintf("%d", n.PlanRows) }</span>
-		if len(n.Children) > 0 {
-			<ul class="plan-tree">
-				for _, c := range n.Children {
-					@PlanTreeNode(c)
+templ planNodeDetail(n *PlanNodeVM) {
+	<div style="padding:12px 14px;display:flex;flex-direction:column;gap:9px;">
+		<div style="display:flex;gap:8px;align-items:center;">
+			<span class="mono" style="font-size:13px;font-weight:600;">{ n.NodeType }</span>
+			if n.Relation != "" {
+				<span class="mono" style="font-size:12px;color:var(--acc2);">{ n.Relation }</span>
+			}
+			if n.Problem {
+				<span class="badge" style="color:var(--critT);border-color:var(--crit);">PROBLEM NODE</span>
+			}
+		</div>
+		<div style="display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;">
+			<span class="mono-lbl" style="font-size:10.5px;">EST ROWS</span><span class="mono" style="font-variant-numeric:tabular-nums;">{ fmt.Sprintf("%d", n.PlanRows) }</span>
+			<span class="mono-lbl" style="font-size:10.5px;">ACTUAL ROWS</span><span class="mono" style={ "font-variant-numeric:tabular-nums;color:" + n.EstColorVar + ";" }>{ fmt.Sprintf("%d", n.ActualRows) }</span>
+			<span class="mono-lbl" style="font-size:10.5px;">TOTAL COST</span><span class="mono">{ FmtCost(n.TotalCost) }</span>
+			<span class="mono-lbl" style="font-size:10.5px;">LOOPS</span><span class="mono">{ fmt.Sprintf("%d", n.ActualLoops) }</span>
+		</div>
+		if n.Condition != "" || n.JoinType != "" || n.ScanDirection != "" {
+			<div class="mono" style="font-size:11px;color:var(--mut);background:var(--raised);border:1px solid var(--line2);padding:7px 9px;border-radius:1px;line-height:1.6;">
+				if n.JoinType != "" {
+					<div>{ n.JoinType } join</div>
 				}
-			</ul>
+				if n.ScanDirection != "" {
+					<div>scan { n.ScanDirection }</div>
+				}
+				if n.Condition != "" {
+					<div>cond { n.Condition }</div>
+				}
+			</div>
 		}
-	</li>
+		if n.Problem {
+			<div style="font-size:12px;color:var(--mut);border-left:3px solid var(--crit);padding:6px 10px;background:var(--critbg);line-height:1.6;">Estimated and actual row counts differ by more than 10× — the planner is mis-estimating this node. Consider ANALYZE or extended statistics.</div>
+		}
+	</div>
 }

@@ -25,6 +25,17 @@ type PlanNodeVM struct {
 	ActualTotalTimeMs   float64
 	RowsRemovedByFilter int64
 	Children            []*PlanNodeVM
+	Idx                 int    // flat-list index (assigned by DecoratePlan)
+	Problem             bool   // misestimated node (>10x plan vs actual)
+	EstColorVar         string // est→act row color token
+}
+
+// PlanVariant is one plan variant tab for a fingerprint.
+type PlanVariant struct {
+	FP       string
+	Label    string // "seen 12× · 4.2ms"
+	Selected bool
+	Href     string
 }
 
 // PlanVM is the full view-model for the /plan surface. Empty drives the
@@ -35,6 +46,49 @@ type PlanVM struct {
 	Empty       bool
 	Root        *PlanNodeVM   // nil when Empty
 	Flat        []*PlanNodeVM // depth-first pre-order, nil when Empty
+	Variants    []PlanVariant
+	VariantIdx  int // selected plan-variant index (the ?plan= param)
+	SelectedIdx int // selected node index within the variant (the ?node= param)
+	Selected    *PlanNodeVM
+}
+
+// DecoratePlan assigns flat indices, flags misestimated nodes (actual vs plan
+// rows off by >10x in either direction), colors the est→act, and selects the
+// node at selectedIdx (clamped). Call after ToPlanVM builds Root+Flat.
+func DecoratePlan(vm *PlanVM, selectedIdx int) {
+	for i, n := range vm.Flat {
+		n.Idx = i
+		ratio := misestimateRatio(n.PlanRows, n.ActualRows)
+		if ratio >= 10 {
+			n.Problem = true
+			n.EstColorVar = "var(--critT)"
+		} else {
+			n.EstColorVar = "var(--dim)"
+		}
+	}
+	if len(vm.Flat) == 0 {
+		return
+	}
+	if selectedIdx < 0 || selectedIdx >= len(vm.Flat) {
+		selectedIdx = 0
+	}
+	vm.SelectedIdx = selectedIdx
+	vm.Selected = vm.Flat[selectedIdx]
+}
+
+// misestimateRatio is the larger of plan/actual and actual/plan (guarding zero).
+func misestimateRatio(plan, actual int64) float64 {
+	p, a := float64(plan), float64(actual)
+	if p < 1 {
+		p = 1
+	}
+	if a < 1 {
+		a = 1
+	}
+	if a > p {
+		return a / p
+	}
+	return p / a
 }
 
 // ToPlanVM maps a stored QueryPlan into the view-model. It is nil-safe: a

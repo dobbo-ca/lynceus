@@ -100,3 +100,24 @@ func TestToPlanVM_nilRootIsEmpty(t *testing.T) {
 		t.Errorf("Fingerprint = %q, want fp-x", vm.Fingerprint)
 	}
 }
+
+func TestDecoratePlan_FlagsProblemNodeAndSelects(t *testing.T) {
+	root := &PlanNodeVM{NodeType: "Nested Loop", PlanRows: 10, ActualRows: 10}
+	child := &PlanNodeVM{NodeType: "Seq Scan", Relation: "orders", PlanRows: 5, ActualRows: 5000}
+	root.Children = []*PlanNodeVM{child}
+	vm := PlanVM{Root: root}
+	flatten(root, &vm.Flat)
+	DecoratePlan(&vm, 1)
+	if vm.Flat[0].Idx != 0 || vm.Flat[1].Idx != 1 {
+		t.Fatalf("Idx not assigned: %d %d", vm.Flat[0].Idx, vm.Flat[1].Idx)
+	}
+	if !vm.Flat[1].Problem {
+		t.Error("Seq Scan 5→5000 (1000x) should be flagged a problem node")
+	}
+	if vm.Flat[0].Problem {
+		t.Error("Nested Loop 10→10 should not be a problem node")
+	}
+	if vm.Selected == nil || vm.Selected.NodeType != "Seq Scan" {
+		t.Error("selected node should be Flat[1]")
+	}
+}
