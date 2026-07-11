@@ -82,6 +82,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /partial/nodes", s.handleNodesPartial)
 	s.mux.HandleFunc("GET /databases/all", s.handleDatabasesList)
 	s.mux.HandleFunc("GET /partial/databases/all", s.handleDatabasesListPartial)
+	s.mux.HandleFunc("GET /cluster", s.handleClusterScopedOverview)  // scoped cluster Overview (ly-ae6.6)
+	s.mux.HandleFunc("GET /capabilities", s.handleCapabilitiesPage) // scoped capability matrix (ly-ae6.6; redesign ly-4ov)
 	s.mux.HandleFunc("GET /databases/{clusterID}", s.handleClusterOverview)
 	s.mux.HandleFunc("GET /databases/{clusterID}/queries", s.handleClusterQueries)
 	s.mux.HandleFunc("GET /databases/{clusterID}/insights", s.handleClusterInsights)

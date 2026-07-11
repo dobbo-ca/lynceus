@@ -72,6 +72,7 @@ func TestStaticHandler_ServesThemeJSAndLegacyCSS(t *testing.T) {
 		{"/static/js/theme.js", "cycleTheme"},
 		{"/static/js/theme.js", "setAccent"},
 		{"/static/css/legacy.css", ".db-card"},
+		{"/static/css/scope.css", ".scope-screen"},
 		{"/static/css/governance.css", ".audit-row--t2"},
 		{"/static/css/governance.css", ".chain-banner"},
 		{"/static/js/settings.js", "setAccent"},

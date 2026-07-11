@@ -1,0 +1,50 @@
+package web
+
+// ScopeIssueVM is one row in a scoped "OPEN ISSUES" list. All fields are
+// already-normalized T1 text — never a monitored-DB literal.
+type ScopeIssueVM struct {
+	Severity string // "crit" | "warn" | "info"
+	ID       string
+	Detail   string
+	Server   string
+	Age      string
+	Href     templ.SafeURL
+}
+
+// ScopedIssuesVM is the full model for the OPEN ISSUES ON THIS <scope> card.
+type ScopedIssuesVM struct {
+	ScopeKind  string // "CLUSTER" | "NODE" | "DATABASE" | "POOLER"
+	Count      int
+	Issues     []ScopeIssueVM
+	ShowServer bool // false on node/pooler scope (single server) — hides SERVER column
+}
+
+// ScopedIssues renders the "OPEN ISSUES ON THIS <scope>" list, or a green clean
+// strip when there are none. Rows are anchors deep-linking to the explanation.
+templ ScopedIssues(vm ScopedIssuesVM) {
+	if vm.Count == 0 {
+		<div class="issues-clean">
+			{ "● NO OPEN CHECKS OR INSIGHTS ON THIS " + vm.ScopeKind }
+		</div>
+	} else {
+		<div class="issues-card">
+			<div class="issues-head">
+				{ "OPEN ISSUES ON THIS " + vm.ScopeKind }
+				<span class="scope-spacer"></span>
+				<span class="issues-count">{ intToStr(vm.Count) } OPEN</span>
+			</div>
+			for i := range vm.Issues {
+				<a class="issue-row" href={ vm.Issues[i].Href }>
+					<span class={ "issue-sev sev-" + vm.Issues[i].Severity }></span>
+					<span class="issue-id">{ vm.Issues[i].ID }</span>
+					<span class="issue-detail">{ vm.Issues[i].Detail }</span>
+					<span class="scope-spacer"></span>
+					if vm.ShowServer {
+						<span class="issue-server">{ vm.Issues[i].Server }</span>
+					}
+					<span class="issue-age">{ vm.Issues[i].Age }</span>
+				</a>
+			}
+		</div>
+	}
+}
