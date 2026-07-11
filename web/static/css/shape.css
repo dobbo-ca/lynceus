@@ -1,0 +1,108 @@
+/* Lynceus design-system component primitives (ly-ae6.14). Built on the shape /
+   type tokens in tokens.css (--radius 2px, --radius-badge 1px, --border 1px,
+   --shadow-pop). New screens compose these classes instead of the frozen
+   pre-design legacy.css component styles. Shadow policy: NONE anywhere except
+   .pop (dropdowns / menus / modals), which uses --shadow-pop. */
+
+/* ---- Surfaces / cards: 2px radius, 1px border, no shadow. ---- */
+.card {
+  background: var(--surface);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+
+/* ---- Tiny badges: 1px radius, letter-spaced mono. ---- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .06em;
+  line-height: 1.6;
+  padding: 0 5px;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius-badge);
+  color: var(--mut);
+}
+.badge--info { color: var(--infoT); border-color: var(--info); background: var(--infobg); }
+.badge--crit { color: var(--critT); border-color: var(--crit); background: var(--critbg); }
+.badge--warn { color: var(--warnT); border-color: var(--warn); background: var(--warnbg); }
+
+/* ---- Severity squares: UNROUNDED 8px. ---- */
+.sev-sq {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 0;
+  flex-shrink: 0;
+}
+.sev-sq--crit { background: var(--crit); }
+.sev-sq--warn { background: var(--warn); }
+.sev-sq--info { background: var(--info); }
+
+/* ---- 24px square icon buttons. ---- */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--dim);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.icon-btn:hover { border-color: var(--acc); background: var(--accdim); color: var(--acc2); }
+.icon-btn--danger:hover { border-color: var(--crit); background: transparent; color: var(--critT); }
+
+/* ---- Popovers: the ONLY elements that carry a shadow. ---- */
+.pop {
+  background: var(--surface);
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+}
+
+/* ---- Accent-preset picker (Settings > Appearance). Active swatch is the one
+   whose data-accent matches the live <html data-accent> set by the bootstrap
+   (web/bootstrap.go applyAccent). It glows in the current --acc/--accbg, so it
+   automatically tracks the chosen preset and the light/dark theme. ---- */
+.accent-picker { display: flex; gap: 10px; flex-wrap: wrap; }
+.accent-swatch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: var(--border) solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+  user-select: none;
+}
+.accent-swatch:hover { border-color: var(--dim); }
+.accent-swatch__chip { width: 14px; height: 14px; border-radius: var(--radius); }
+.accent-swatch[data-accent='#2dd4bf'] .accent-swatch__chip { background: #2dd4bf; }
+.accent-swatch[data-accent='#22d3ee'] .accent-swatch__chip { background: #22d3ee; }
+.accent-swatch[data-accent='#818cf8'] .accent-swatch__chip { background: #818cf8; }
+.accent-swatch__name {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .06em;
+  color: var(--mut);
+}
+html[data-accent='#2dd4bf'] .accent-swatch[data-accent='#2dd4bf'],
+html[data-accent='#22d3ee'] .accent-swatch[data-accent='#22d3ee'],
+html[data-accent='#818cf8'] .accent-swatch[data-accent='#818cf8'] {
+  border-color: var(--acc);
+  background: var(--accbg);
+}
+html[data-accent='#2dd4bf'] .accent-swatch[data-accent='#2dd4bf'] .accent-swatch__name,
+html[data-accent='#22d3ee'] .accent-swatch[data-accent='#22d3ee'] .accent-swatch__name,
+html[data-accent='#818cf8'] .accent-swatch[data-accent='#818cf8'] .accent-swatch__name {
+  color: var(--acc2);
+}

@@ -53,3 +53,34 @@ func TestChecksPageRenders(t *testing.T) {
 		t.Fatalf("checks page missing seeded check id; body=%s", html)
 	}
 }
+
+func TestChecksMute_toggleRoundTrip(t *testing.T) {
+	pool, srv := setup(t, api.Config{DevAuth: true})
+	seedChecksData(t, pool)
+
+	muteURL := srv.URL + "/partial/checks/mute?server=srv-a&check=test.always&object=obj1"
+
+	resp, err := http.Post(muteURL, "", nil)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if !strings.Contains(string(body), "MUTED") {
+		t.Fatalf("first POST should mute; body=%s", string(body))
+	}
+
+	resp2, err := http.Post(muteURL, "", nil)
+	if err != nil {
+		t.Fatalf("POST 2: %v", err)
+	}
+	body2, _ := io.ReadAll(resp2.Body)
+	_ = resp2.Body.Close()
+	// After un-muting, the button reads MUTE (not MUTED).
+	if strings.Contains(string(body2), "MUTED") {
+		t.Fatalf("second POST should un-mute; body=%s", string(body2))
+	}
+	if !strings.Contains(string(body2), "MUTE") {
+		t.Fatalf("second POST should show MUTE button; body=%s", string(body2))
+	}
+}

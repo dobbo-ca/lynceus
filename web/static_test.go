@@ -72,6 +72,14 @@ func TestStaticHandler_ServesThemeJSAndLegacyCSS(t *testing.T) {
 		{"/static/js/theme.js", "cycleTheme"},
 		{"/static/js/theme.js", "setAccent"},
 		{"/static/css/legacy.css", ".db-card"},
+		{"/static/css/shape.css", ".icon-btn"},
+		{"/static/css/scope.css", ".scope-screen"},
+		{"/static/css/governance.css", ".audit-row--t2"},
+		{"/static/css/governance.css", ".chain-banner"},
+		{"/static/js/settings.js", "setAccent"},
+		{"/static/js/settings.js", "data-accent"},
+		{"/static/js/settings.js", "lynceus.accent"},
+		{"/static/css/screens.css", ".screen-hd"},
 	}
 	for _, c := range cases {
 		req := httptest.NewRequest(http.MethodGet, c.path, nil)

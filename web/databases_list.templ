@@ -1,0 +1,95 @@
+package web
+
+// DatabaseEntryVM is one database row (cluster-qualified identity). Size/Cache/
+// Tables are backend gaps rendered "—" until collected. ScopeHref is the landed
+// scope encoder's URL for the database.
+type DatabaseEntryVM struct {
+	Name      string
+	Qual      string // "orders-prod/orders"
+	Size      string // "—" until collected
+	QPS       string
+	Conns     string
+	Cache     string // "—"
+	Tables    string // "—"
+	ScopeHref string // web.ScopeHref(database scope)
+}
+
+type DatabaseGroupVM struct {
+	Name        string
+	EngineIcon  string
+	EngineName  string
+	Version     string
+	HealthText  string
+	HealthClass string
+	SevRank     int
+	ScopeHref   string // web.ScopeHref(cluster scope)
+	Entries     []DatabaseEntryVM
+}
+
+type DatabasesListView struct {
+	Groups     []DatabaseGroupVM
+	CountLabel string // "7 DATABASES ACROSS 5 CLUSTERS"
+	Sort       string
+	SortLabel  string
+	SortHref   string
+	PageHref   string
+}
+
+// DatabasesListShellPage renders the Databases list inside the design shell.
+// Engine sprites sit OUTSIDE #databases-screen so HTMX body swaps keep <use> refs.
+templ DatabasesListShellPage(vm ShellView, v DatabasesListView) {
+	@Shell(vm) {
+		@EngineSprites()
+		@DatabasesListBody(v)
+	}
+}
+
+templ DatabasesListBody(v DatabasesListView) {
+	<div id="databases-screen" class="vlist">
+		<div class="vlist-head">
+			<span class="vlist-title">Databases</span>
+			<span class="badge-live">LIVE</span>
+			<span class="vlist-strap">{ v.CountLabel }</span>
+			<span class="vlist-spacer"></span>
+			<a class="vlist-btn" href={ templ.SafeURL(v.PageHref) } hx-get={ v.SortHref } hx-target="#databases-screen" hx-swap="outerHTML">SORT: { v.SortLabel } ⇅</a>
+		</div>
+		<div class="info-strip">◈ A DATABASE IS IDENTIFIED BY CLUSTER + NAME — <span class="prose">orders-prod/orders and analytics-stage/orders share a name but are unrelated databases; stats, insights and history are never merged across clusters.</span></div>
+		for _, g := range v.Groups {
+			<div class="vpanel">
+				<div class="grp-head">
+					<span class="eng-mark" title={ g.EngineName }>
+						<svg width="12" height="12" viewBox="0 0 24 24"><use href={ "#" + g.EngineIcon }></use></svg>
+					</span>
+					<span class="grp-name">{ g.Name }</span>
+					if g.Version != "" {
+						<span class="grp-ver">{ "v" + g.Version }</span>
+					}
+					<span class="vlist-spacer"></span>
+					<span class={ "grp-rollup " + g.HealthClass }>{ g.HealthText }</span>
+					<a class="scope-btn" href={ templ.SafeURL(g.ScopeHref) } title="Set scope to this cluster">⌖</a>
+				</div>
+				<div class="tbl-scroll">
+					<div class="dbs-grid">
+						<div class="dbs-hd">
+							<span>DATABASE</span><span class="num-r">SIZE</span><span class="num-r">QPS</span><span class="num-r">CONNS</span><span class="num-r">CACHE</span><span class="num-r">TABLES</span><span></span>
+						</div>
+						for _, d := range g.Entries {
+							<div class="dbs-row">
+								<div class="db-id">
+									<span class="db-name">{ d.Name }</span>
+									<span class="db-qual">{ d.Qual }</span>
+								</div>
+								<span class="db-metric num-r">{ d.Size }</span>
+								<span class="db-metric db-qps num-r">{ d.QPS }</span>
+								<span class="db-metric num-r">{ d.Conns }</span>
+								<span class="db-metric num-r">{ d.Cache }</span>
+								<span class="db-metric num-r">{ d.Tables }</span>
+								<a class="scope-btn" href={ templ.SafeURL(d.ScopeHref) } title="Set scope to this database">⌖</a>
+							</div>
+						}
+					</div>
+				</div>
+			</div>
+		}
+	</div>
+}

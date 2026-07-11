@@ -25,17 +25,30 @@ func ParseRange(raw string) string {
 	return DefaultRange
 }
 
-// ScopeHref is the shell landing URL that sets the given scope: / for
-// fleet, /?scope=<encoded> otherwise. This is the canonical scope-set URL
-// shared by the picker, the ⌖ row buttons, and deep links. ly-ae6.6 will
-// repoint these targets to the per-scope Overview routes; keep the encoding
-// stable so every producer agrees.
+// ScopeHref is the canonical scope-set URL shared by the picker, the ⌖ row
+// buttons, and deep links: it lands on the scope's OVERVIEW screen with the
+// scope encoded in the single "scope" query param. Fleet -> "/". Each scope
+// kind resolves to its per-scope Overview route via screenPath/NavHref (ly-ae6.6
+// repoint): cluster -> /cluster, node/pooler -> /nodes, database -> /databases/all.
 func ScopeHref(sc scope.Scope) templ.SafeURL {
-	if sc.IsFleet() {
-		return templ.SafeURL("/")
+	return templ.SafeURL(NavHref(sc, scopeOverviewScreen(sc)))
+}
+
+// scopeOverviewScreen maps a scope kind to the design screen id of its Overview
+// destination — the same screen each scope's sidebar "Overview" nav item points
+// at (see BuildNav in nav.go). Keeping the two in lockstep means the picker, the
+// row buttons, and the sidebar all land on one screen per scope.
+func scopeOverviewScreen(sc scope.Scope) string {
+	switch sc.Kind {
+	case scope.Cluster:
+		return "clusterdetail"
+	case scope.Node, scope.Pooler:
+		return "nodes"
+	case scope.Database:
+		return "databases"
+	default:
+		return "fleet"
 	}
-	v := url.Values{"scope": {sc.Encode()}}
-	return templ.SafeURL("/?" + v.Encode())
 }
 
 // RangeOption is one segmented-control entry.
@@ -45,15 +58,18 @@ type RangeOption struct {
 	Href     templ.SafeURL
 }
 
-// RangeOptions builds the five range entries, preserving the active scope on
-// each href and marking the selected one.
-//
-// NOTE (ly-ae6.6): like ScopeHref, this hardcodes the / base path. When
-// ly-ae6.6 adds per-scope Overview routes it MUST repoint this alongside
-// ScopeHref (share one base-path resolver), or changing the range on a scoped
-// screen will bounce the user back to the fleet landing and drop their page context.
-func RangeOptions(current string, sc scope.Scope) []RangeOption {
+// RangeOptions builds the five range entries, preserving BOTH the active scope
+// and the CURRENT screen on each href, and marking the selected one. screen is
+// the design screen id of the page being rendered (threaded in by the shell
+// builder); the range control therefore keeps the user on that screen instead of
+// bouncing them back to the fleet landing (the ly-ae6.6 repoint, coordinated with
+// ScopeHref). An unknown/empty screen falls back to the "/" base.
+func RangeOptions(current string, sc scope.Scope, screen string) []RangeOption {
 	current = ParseRange(current)
+	base, ok := screenPath[screen]
+	if !ok {
+		base = "/"
+	}
 	out := make([]RangeOption, 0, len(ValidRanges))
 	for _, r := range ValidRanges {
 		v := url.Values{"range": {r}}
@@ -63,7 +79,7 @@ func RangeOptions(current string, sc scope.Scope) []RangeOption {
 		out = append(out, RangeOption{
 			Label:    r,
 			Selected: r == current,
-			Href:     templ.SafeURL("/?" + v.Encode()),
+			Href:     templ.SafeURL(base + "?" + v.Encode()),
 		})
 	}
 	return out
@@ -136,21 +152,4 @@ func userMeta(u ShellUser) string {
 		t2 = "T2 GRANTED"
 	}
 	return "GROUP: " + strings.ToUpper(u.Group) + " · " + t2
-}
-
-// scopeKindLabel is the human label for the current scope kind, shown in the
-// placeholder main until the real bodies land.
-func scopeKindLabel(sc scope.Scope) string {
-	switch sc.Kind {
-	case scope.Cluster:
-		return "CLUSTER SCOPE"
-	case scope.Node:
-		return "NODE SCOPE"
-	case scope.Pooler:
-		return "POOLER SCOPE"
-	case scope.Database:
-		return "DATABASE SCOPE"
-	default:
-		return "FLEET"
-	}
 }

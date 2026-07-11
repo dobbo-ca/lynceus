@@ -18,14 +18,27 @@ package web
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+// QuerySort is the active column-sort state for the Top Queries table.
+// Nav carries the page-navigation base paths (Scope-Shell Integration
+// Contract); the fleet handler fills it, ly-ae6.3 refills it under scope.
+type QuerySort struct {
+	Col string // "calls" | "total" | "mean" | "rows" | "hit"
+	Dir string // "asc" | "desc"
+	Nav ScreenNav
+}
+
 // TopQuery is the view-model for one row in the top-queries table.
-// Field types deliberately mirror the API DTO so the handler does
-// not have to translate further.
 type TopQuery struct {
 	Fingerprint     string
 	NormalizedQuery string
 	Calls           int64
 	TotalTimeMs     float64
+	MeanTimeMs      float64 // computed via MeanMs
+	Rows            int64   // 0 until ly-58w.8; render "—"
+	CacheHitPct     float64 // <0 unknown (ly-xqf.3); render "—"
+	InsightCount    int     // per-fingerprint, computed from fetchInsights
+	ClusterID       string  // drilldown link target; "" at fleet scope
+	SparkPoints     string  // SVG polyline points; "" hides sparkline (ly-xqf.10)
 }
 
 func Layout(title, subtitle string) templ.Component {
@@ -56,7 +69,7 @@ func Layout(title, subtitle string) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layout.templ`, Line: 24, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layout.templ`, Line: 37, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -70,14 +83,14 @@ func Layout(title, subtitle string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<link rel=\"stylesheet\" href=\"/static/css/tokens.css\"><link rel=\"stylesheet\" href=\"/static/css/legacy.css\"><script src=\"/static/js/htmx.min.js\" defer></script><script src=\"/static/js/theme.js\" defer></script></head><body><h1>Lynceus</h1><nav><a href=\"/databases\">Databases</a> <a href=\"/queries\">Top queries</a> <a href=\"/insights\">Insights</a> <a href=\"/index-advisor\">Index advisor</a> <a href=\"/vacuum-advisor\">Vacuum advisor</a> <a href=\"/config-advisor\">Config advisor</a> <a href=\"/waits\">Waits</a> <a href=\"/checks\">Checks</a> <a href=\"/audit\">Audit log</a></nav><p class=\"subtitle\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<link rel=\"stylesheet\" href=\"/static/css/tokens.css\"><link rel=\"stylesheet\" href=\"/static/css/shape.css\"><link rel=\"stylesheet\" href=\"/static/css/legacy.css\"><script src=\"/static/js/htmx.min.js\" defer></script><script src=\"/static/js/theme.js\" defer></script><script src=\"/static/js/onboarding.js\" defer></script></head><body><h1>Lynceus</h1><nav><a href=\"/databases\">Databases</a> <a href=\"/queries\">Top queries</a> <a href=\"/insights\">Insights</a> <a href=\"/index-advisor\">Index advisor</a> <a href=\"/vacuum-advisor\">Vacuum advisor</a> <a href=\"/config-advisor\">Config advisor</a> <a href=\"/waits\">Waits</a> <a href=\"/checks\">Checks</a> <a href=\"/audit\">Audit log</a></nav><p class=\"subtitle\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(subtitle)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layout.templ`, Line: 44, Col: 33}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layout.templ`, Line: 59, Col: 33}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {

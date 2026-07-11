@@ -55,9 +55,9 @@ func TestWaitsPage_rendersHistogram(t *testing.T) {
 	html := string(body)
 	for _, want := range []string{
 		"<!doctype html>",                   // full page (templ emits lowercase)
-		`id="waits-table"`,                  // HTMX swap target
+		`id="waits-view"`,                   // HTMX swap target
 		`hx-get="/partial/waits?server=s1"`, // poll target
-		`href="/waits"`,                     // nav link
+		`data-screen-label="Wait Events"`,   // retrofitted screen marker
 		"IO / DataFileRead",                 // seeded wait class
 		"CPU",                               // on-CPU samples preserved, not dropped
 	} {
@@ -84,11 +84,11 @@ func TestWaitsPartial_returnsFragmentOnly(t *testing.T) {
 	if strings.Contains(html, "<!doctype html>") {
 		t.Error("partial returned a full document; expected a fragment only")
 	}
-	if !strings.Contains(html, `id="waits-table"`) {
+	if !strings.Contains(html, `id="waits-view"`) {
 		t.Error("partial missing the swap-target id (HTMX outerHTML reswap would break)")
 	}
-	if !strings.Contains(html, "<table>") {
-		t.Error("partial missing seeded wait-event table")
+	if !strings.Contains(html, "IO / DataFileRead") {
+		t.Error("partial missing seeded wait-event mix")
 	}
 }
 

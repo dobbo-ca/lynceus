@@ -1,0 +1,253 @@
+package web
+
+import "strings"
+
+type CacheStat struct {
+	Label string
+	Value string
+	Sub   string
+	Sev   string
+}
+
+type CacheClusterRS struct {
+	Name   string
+	Topo   string
+	Mem    string
+	Ops    string
+	Health string
+	Sev    string
+}
+
+type CacheCluster struct {
+	ID          string
+	Name        string
+	Version     string
+	Mode        string
+	Provider    string
+	Engine      string
+	Stats       []CacheStat // cell count is mode-dependent (SENTINEL=5); see the backend-dependency note
+	Replicasets []CacheClusterRS
+}
+
+type CacheClustersView struct {
+	Enabled  bool
+	Clusters []CacheCluster
+}
+
+// CacheClustersPage renders the Clusters screen inside the design Shell. The
+// handler builds shell via s.buildShellView(r); the body fills the main slot.
+templ CacheClustersPage(shell ShellView, v CacheClustersView) {
+	@Shell(shell) {
+		@cacheEngineSprite()
+		@CacheClustersBody(v)
+	}
+}
+
+templ CacheClustersBody(v CacheClustersView) {
+	<div id="cache-body" class="c-page">
+		<div class="c-head">
+			<span class="c-title">Cache Clusters</span>
+			<span class="c-live">LIVE</span>
+			<span class="c-meta">VALKEY / REDIS — A CLUSTER (SENTINEL) GROUPS REPLICASETS</span>
+			<span class="c-spacer"></span>
+			<button type="button" class="c-btn c-btn-add" hx-get="/partial/add?kind=cache" hx-target="#modal-root" hx-swap="innerHTML">+ ADD CLUSTER</button>
+		</div>
+		if len(v.Clusters) == 0 {
+			<div class="c-empty">NO CACHE CLUSTERS REPORTING YET — DEPLOY A COLLECTOR WITH TARGET_KIND=VALKEY.</div>
+		} else {
+			for _, c := range v.Clusters {
+				@cacheClusterCard(c)
+			}
+		}
+	</div>
+}
+
+templ cacheClusterCard(c CacheCluster) {
+	<div class="c-card">
+		<div class="c-card-head">
+			<span class="c-eng" title={ c.Engine }>
+				<svg width="12" height="12" viewBox="0 0 24 24"><use href="#eng-vk"></use></svg>
+			</span>
+			<span class="c-name">{ c.Name }</span>
+			<span class="c-ver">v{ c.Version }</span>
+			<span class="c-chip">{ c.Mode }</span>
+			<span class="c-chip">{ c.Provider }</span>
+		</div>
+		<div class="c-stats">
+			for _, st := range c.Stats {
+				<div class="c-stat">
+					<span class="c-stat-label">{ st.Label }</span>
+					<span class={ "c-stat-val " + sevClass(st.Sev) }>{ st.Value }</span>
+					<span class="c-stat-sub">{ st.Sub }</span>
+				</div>
+			}
+		</div>
+		for _, r := range c.Replicasets {
+			<div class="c-rs-row">
+				<span class="c-rs-name">{ r.Name }</span>
+				<span class="c-rs-topo">{ r.Topo }</span>
+				<span class="c-spacer"></span>
+				<span class="c-mut">{ r.Mem }</span>
+				<span class="c-dim">{ r.Ops } OPS/S</span>
+				<span class={ sevClass(r.Sev) }>{ r.Health }</span>
+			</div>
+		}
+		<div class="c-note">
+			<span>WRITES GO TO EACH REPLICASET'S PRIMARY — REPLICAS ARE READ-ONLY</span>
+			<span class="c-spacer"></span>
+			<a href="/cache/replicasets">REPLICASETS →</a>
+		</div>
+	</div>
+}
+
+// cacheEngineSprite renders the hidden #eng-vk key glyph once per page.
+// Original glyph (no official Redis/Valkey logo) — matches design sprite slot.
+templ cacheEngineSprite() {
+	<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+		<symbol id="eng-vk" viewBox="0 0 24 24">
+			<circle cx="8" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"></circle>
+			<line x1="12" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
+			<line x1="17" y1="12" x2="17" y2="15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
+			<line x1="20" y1="12" x2="20" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
+		</symbol>
+	</svg>
+}
+
+type CacheReplicasetRow struct {
+	Name      string
+	Cluster   string
+	Topo      string
+	Keys      string
+	Mem       string
+	Ops       string
+	Evictions string
+	Health    string
+	Sev       string
+	SevRank   int
+}
+
+type CacheReplicasetsView struct {
+	Enabled bool
+	Rows    []CacheReplicasetRow
+	Sort    string
+}
+
+templ CacheReplicasetsPage(shell ShellView, v CacheReplicasetsView) {
+	@Shell(shell) {
+		@CacheReplicasetsBody(v)
+	}
+}
+
+templ CacheReplicasetsBody(v CacheReplicasetsView) {
+	<div id="cache-body" class="c-page">
+		<div class="c-head">
+			<span class="c-title">Replicasets</span>
+			<span class="c-live">LIVE</span>
+			<span class="c-meta">1 PRIMARY + N REPLICAS · WRITES LAND ON THE PRIMARY ONLY</span>
+			<span class="c-spacer"></span>
+			<button
+				type="button"
+				class="c-btn"
+				hx-get={ "/partial/cache/replicasets?sort=" + nextSortKey(v.Sort, "health", "name") }
+				hx-target="#cache-body"
+				hx-swap="outerHTML"
+			>SORT: { strings.ToUpper(v.Sort) } ⇅</button>
+		</div>
+		<div class="c-table-wrap">
+			<div class="c-rs-min">
+				<div class="c-rs-grid c-rs-head">
+					<span>REPLICASET</span><span>CLUSTER</span><span>TOPOLOGY</span>
+					<span class="c-num">KEYS</span><span class="c-num">MEMORY</span>
+					<span class="c-num">OPS/S</span><span class="c-num">EVICTIONS</span>
+					<span class="c-num">HEALTH</span>
+				</div>
+				if len(v.Rows) == 0 {
+					<div class="c-empty">NO REPLICASETS REPORTING YET.</div>
+				} else {
+					for _, r := range v.Rows {
+						<div class="c-rs-grid c-rs-row2">
+							<span class="c-rs-name">{ r.Name }</span>
+							<span class="c-dim">{ r.Cluster }</span>
+							<span class="c-faint">{ r.Topo }</span>
+							<span class="c-num c-mut">{ r.Keys }</span>
+							<span class="c-num c-mut">{ r.Mem }</span>
+							<span class="c-num c-mut">{ r.Ops }</span>
+							<span class="c-num c-mut">{ r.Evictions }</span>
+							<span class={ "c-num " + sevClass(r.Sev) }>{ r.Health }</span>
+						</div>
+					}
+				}
+			</div>
+		</div>
+	</div>
+}
+
+type CacheNodeRow struct {
+	Role       string
+	Name       string
+	Replicaset string
+	Version    string
+	Mem        string
+	Ops        string
+	Clients    string
+	Hit        string
+	Access     string
+	OpsVal     float64
+}
+
+type CacheNodesView struct {
+	Enabled bool
+	Rows    []CacheNodeRow
+	Sort    string
+}
+
+templ CacheNodesPage(shell ShellView, v CacheNodesView) {
+	@Shell(shell) {
+		@CacheNodesBody(v)
+	}
+}
+
+templ CacheNodesBody(v CacheNodesView) {
+	<div id="cache-body" class="c-page">
+		<div class="c-head">
+			<span class="c-title">Cache Nodes</span>
+			<span class="c-live">LIVE</span>
+			<span class="c-meta">PRIMARIES ACCEPT WRITES · REPLICAS ARE READ-ONLY UNTIL PROMOTED</span>
+			<span class="c-spacer"></span>
+			<button
+				type="button"
+				class="c-btn"
+				hx-get={ "/partial/cache/nodes?sort=" + nextSortKey(v.Sort, "ops", "name") }
+				hx-target="#cache-body"
+				hx-swap="outerHTML"
+			>SORT: { strings.ToUpper(v.Sort) } ⇅</button>
+		</div>
+		<div class="c-table-wrap">
+			<div class="c-node-min">
+				<div class="c-node-grid c-node-head">
+					<span>ROLE</span><span>NODE</span><span>REPLICASET</span><span>VER</span>
+					<span class="c-num">MEMORY</span><span class="c-num">OPS/S</span>
+					<span class="c-num">CLIENTS</span><span class="c-num">HIT</span>
+					<span class="c-num">ACCESS</span>
+				</div>
+				if len(v.Rows) == 0 {
+					<div class="c-empty">NO CACHE NODES REPORTING YET.</div>
+				} else {
+					for _, n := range v.Rows {
+						<div class="c-node-grid c-node-row">
+							<span class={ roleClass(n.Role) }>{ n.Role }</span>
+							<span class="c-node-name">{ n.Name }</span>
+							<span class="c-dim">{ n.Replicaset }</span>
+							<span class="c-dim">v{ n.Version }</span>
+							<span class="c-num c-mut">{ n.Mem }</span>
+							<span class="c-num c-mut">{ n.Ops }</span>
+							<span class="c-num c-mut">{ n.Clients }</span>
+							<span class="c-num c-mut">{ n.Hit }</span>
+							<span class={ accessClass(n.Access) }>{ n.Access }</span>
+						</div>
+					}
+				}
+			</div>
+		</div>
+	</div>
+}

@@ -1,0 +1,57 @@
+package web
+
+// AccentSwatch is one selectable accent preset. Hex must be one of the F1
+// presets (#2dd4bf/#22d3ee/#818cf8) whose per-theme variants live in bootstrap.go.
+type AccentSwatch struct {
+	Hex  string
+	Name string
+}
+
+type SettingsRoadmapCard struct {
+	Label string
+}
+
+type SettingsVM struct {
+	Accents      []AccentSwatch
+	RoadmapCards []SettingsRoadmapCard
+}
+
+// SettingsPage is Settings › Appearance, rendered inside the design Shell: the
+// accent-color picker (wired to the F1 window.Lynceus.setAccent via
+// settings.js) plus a ROADMAP preview of org/integration cards. Accent
+// persistence is per-browser (localStorage) until the M5 users model lands.
+templ SettingsPage(sv ShellView, vm SettingsVM) {
+	@Shell(sv) {
+		<link rel="stylesheet" href="/static/css/governance.css"/>
+		<div class="gov-page">
+			<div class="gov-head">
+				<span class="gov-title">Settings</span>
+				<span class="badge badge--roadmap">ROADMAP</span>
+			</div>
+			<div class="appearance-card">
+				<span class="appearance-label">APPEARANCE — ACCENT COLOR</span>
+				<div class="accent-row">
+					for _, a := range vm.Accents {
+						<button type="button" class="accent-swatch" data-accent={ a.Hex } aria-pressed="false">
+							<span class="accent-dot"></span>
+							<span class="accent-name">{ a.Name }</span>
+						</button>
+					}
+				</div>
+				<span class="appearance-note">SAVED TO YOUR PROFILE · ADAPTS AUTOMATICALLY TO DARK AND LIGHT THEMES</span>
+			</div>
+			<div class="gov-roadmap-strip">◧ ROADMAP PREVIEW — <em>org settings and integrations.</em></div>
+			<div class="settings-cards">
+				for _, c := range vm.RoadmapCards {
+					<div class="settings-card">
+						<span class="settings-card__label">{ c.Label }</span>
+						<div class="settings-card__skel w75"></div>
+						<div class="settings-card__skel w50"></div>
+						<div class="settings-card__skel w62"></div>
+					</div>
+				}
+			</div>
+		</div>
+		<script src="/static/js/settings.js" defer></script>
+	}
+}

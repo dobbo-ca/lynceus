@@ -13,8 +13,9 @@ import (
 )
 
 func (s *Server) handleIndexAdvisorPage(w http.ResponseWriter, r *http.Request) {
+	sv := s.buildShellView(r, "indexadvisor")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = web.IndexAdvisorPage(s.fetchIndexAdvice(r)).Render(r.Context(), w)
+	_ = web.IndexAdvisorPage(sv, s.fetchIndexAdvice(r)).Render(r.Context(), w)
 }
 
 func (s *Server) handleIndexAdvisorPartial(w http.ResponseWriter, r *http.Request) {
@@ -58,6 +59,10 @@ func (s *Server) fetchIndexAdvice(r *http.Request) []web.IndexAdvisorRow {
 	}
 	var out []web.IndexAdvisorRow
 	for _, rec := range advisor.RecommendIndexes(plans, tables) {
+		evfp := ""
+		if len(rec.Fingerprints) > 0 {
+			evfp = rec.Fingerprints[0] // evidence fingerprint is available today (index.go:59)
+		}
 		out = append(out, web.IndexAdvisorRow{
 			Relation:   rec.Relation,
 			Columns:    strings.Join(rec.Columns, ", "),
@@ -65,6 +70,11 @@ func (s *Server) fetchIndexAdvice(r *http.Request) []web.IndexAdvisorRow {
 			SizePretty: prettyBytes(rec.TotalBytes),
 			SeqScans:   rec.SeqScans,
 			Rationale:  rec.Rationale,
+			DDL:        fmt.Sprintf("CREATE INDEX ON %s (%s)", rec.Relation, strings.Join(rec.Columns, ", ")),
+			BenefitPct: 0,    // ly-u4t.13 will quantify benefit; bar hidden until then
+			EvidenceFP: evfp, // populated now → EVIDENCE link renders
+			// scope crumb Cluster/Database/Server + ClusterID fill when scope resolves (ly-u4t.12/ly-ae6.2)
+			Nav: web.ScreenNav{Base: "/index-advisor", Plan: "/plan"},
 		})
 	}
 	return out

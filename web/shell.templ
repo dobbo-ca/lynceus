@@ -18,11 +18,18 @@ templ Shell(vm ShellView) {
 			<title>{ vm.Title }</title>
 			@templ.Raw(themeBootstrapTag())
 			<link rel="stylesheet" href="/static/css/tokens.css"/>
+			<link rel="stylesheet" href="/static/css/shape.css"/>
 			<link rel="stylesheet" href="/static/css/shell.css"/>
 			<link rel="stylesheet" href="/static/css/nav.css"/>
+			<link rel="stylesheet" href="/static/css/scope.css"/>
+			<link rel="stylesheet" href="/static/css/verticals.css"/>
+			<link rel="stylesheet" href="/static/css/cache.css"/>
+			<link rel="stylesheet" href="/static/css/scripts.css"/>
+			<link rel="stylesheet" href="/static/css/screens.css"/>
 			<script src="/static/js/htmx.min.js" defer></script>
 			<script src="/static/js/theme.js" defer></script>
 			<script src="/static/js/shell.js" defer></script>
+			<script src="/static/js/onboarding.js" defer></script>
 		</head>
 		<body>
 			<div class="shell">
@@ -37,6 +44,9 @@ templ Shell(vm ShellView) {
 						{ children... }
 					</main>
 				</div>
+				<!-- HTMX modal target: fragments (the + ADD wizard) swap into here.
+				     Lives outside <main> so a main-content body swap never clears it. -->
+				<div id="modal-root"></div>
 			</div>
 		</body>
 	</html>
@@ -157,12 +167,12 @@ templ userMenu(vm ShellView) {
 			</div>
 			<div class="menu-head">GOVERNANCE</div>
 			<a class="menu-item" href="/audit"><span>Audit Log</span></a>
-			<a class="menu-item" href="#"><span>Access &amp; Roles</span><span class="badge-soon">SOON</span></a>
+			<a class="menu-item" href="/access"><span>Access &amp; Roles</span><span class="badge-soon">SOON</span></a>
 			<div class="menu-head" style="border-top: var(--border) solid var(--line2); margin-top: 5px;">ADMIN</div>
-			<a class="menu-item" href="#"><span>Provider Setup</span><span class="badge-soon">SOON</span></a>
+			<a class="menu-item" href="/admin/provider-setup"><span>Provider Setup</span></a>
 			<a class="menu-item" href="#"><span>Collectors</span><span class="badge-soon">SOON</span></a>
 			<a class="menu-item" href="#"><span>Data &amp; Retention</span><span class="badge-soon">SOON</span></a>
-			<a class="menu-item" href="#"><span>Settings</span><span class="badge-soon">SOON</span></a>
+			<a class="menu-item" href="/settings"><span>Settings</span><span class="badge-soon">SOON</span></a>
 			<div class="menu-signout"><span class="lbl">Sign out</span></div>
 		</div>
 	</details>

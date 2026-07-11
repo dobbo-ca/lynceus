@@ -1,0 +1,197 @@
+package web
+
+// SavedScriptsPage is the full Saved Scripts list surface, rendered inside the
+// design Shell. It is scope-independent (visible at every scope) and lives at
+// /scripts; the shell VM carries the top bar + per-scope sidebar, this page
+// fills the main-body slot.
+templ SavedScriptsPage(shell ShellView, vm SavedScriptsVM) {
+	@Shell(shell) {
+		@savedScriptsBody(vm)
+	}
+}
+
+// savedScriptsBody is the main-body content of the Saved Scripts list.
+templ savedScriptsBody(vm SavedScriptsVM) {
+	<div class="ss-page">
+		<div class="ss-head">
+			<span class="ss-title">Saved Scripts</span>
+			<span class="ss-live">LIVE</span>
+			<span class="ss-sub">{ vm.SubLine }</span>
+		</div>
+		<input class="ss-search" type="search" name="q" value={ vm.Query }
+			placeholder="search saved scripts…"
+			hx-get="/partial/scripts" hx-target="#scripts-table" hx-swap="outerHTML"
+			hx-trigger="input changed delay:200ms, search"/>
+		@SavedScriptsTable(vm)
+		<div class="ss-foot">CLICK A SCRIPT TO MANAGE ACCESS OR RUN IT AGAINST A DATABASE. ONLY THE OWNER (OR AN ADMIN) CAN CHANGE ACCESS OR DELETE.</div>
+	</div>
+}
+
+// SavedScriptsTable is the swap target for HTMX filtering. The wrapping div
+// carries the id used as the swap target.
+templ SavedScriptsTable(vm SavedScriptsVM) {
+	<div id="scripts-table" class="ss-card">
+		<div class="ss-tablescroll">
+			<div class="ss-table">
+				<div class="ss-thead">
+					<span>SCRIPT</span><span>ACCESS</span><span>OWNER</span><span>SAVED</span><span></span>
+				</div>
+				if len(vm.Rows) == 0 {
+					<div class="ss-empty">NO SCRIPTS MATCH</div>
+				} else {
+					for _, sp := range vm.Rows {
+						<div class="ss-row">
+							<a class="ss-namecell" href={ templ.SafeURL(sp.DetailHref) }>
+								<span class="ss-name">{ sp.Name }</span>
+								<span class="ss-desc">{ sp.Description }</span>
+							</a>
+							<div class="ss-accesscell">
+								<span class="scope-badge" style={ "color:" + sp.ScopeColor }>{ sp.Scope }</span>
+								<span class="ss-visible">visible to { sp.VisibleTo }</span>
+							</div>
+							<span class="ss-owner">{ sp.Owner }</span>
+							<span class="ss-when">{ sp.SavedAge }</span>
+							<div class="ss-actions">
+								<a class="ss-iconbtn ss-iconbtn--load" title="Load into console"
+									href={ templ.SafeURL(sp.LoadHref) }>↪</a>
+								if sp.Mine {
+									<form method="post" action={ templ.SafeURL("/scripts/" + itoa(sp.ID) + "/delete") }
+										hx-post={ "/scripts/" + itoa(sp.ID) + "/delete" } hx-target="#scripts-table" hx-swap="outerHTML"
+										hx-confirm="Delete this saved script?">
+										<button class="ss-iconbtn ss-iconbtn--del" title="Delete script" type="submit">✕</button>
+									</form>
+								}
+							</div>
+						</div>
+					}
+				}
+			</div>
+		</div>
+	</div>
+}
+
+// ScriptDetailPage renders one saved script inside the Shell: SQL block,
+// ACCESS card, RUN card.
+templ ScriptDetailPage(shell ShellView, vm ScriptDetailVM) {
+	@Shell(shell) {
+		@scriptDetailBody(vm)
+	}
+}
+
+// scriptDetailBody is the main-body content of the script detail surface.
+templ scriptDetailBody(vm ScriptDetailVM) {
+	<div class="sd-page">
+		<div class="sd-head">
+			<a class="sd-back" href="/scripts">← SAVED SCRIPTS</a>
+			<span class="sd-name">{ vm.Name }</span>
+			<span class="scope-badge" style={ "color:" + vm.ScopeColor }>{ vm.Scope }</span>
+			<span class="sd-meta">{ vm.Owner } · { vm.SavedAge }</span>
+		</div>
+		<div class="sd-sqlcard">
+			<div class="sd-cardhdr">SQL — { vm.Description }</div>
+			<div class="sd-sql">{ vm.SQLText }</div>
+		</div>
+		<div class="sd-grid">
+			@ScriptAccessCard(vm)
+			@ScriptRunCard(vm.Run)
+		</div>
+	</div>
+}
+
+// ScriptAccessCard is the ACCESS panel; its wrapping div is the HTMX swap
+// target for scope changes.
+templ ScriptAccessCard(vm ScriptDetailVM) {
+	<div id="access-card" class="sd-col">
+		<div class="sd-cardhdr">ACCESS — WHO CAN SEE &amp; RUN THIS SCRIPT</div>
+		<div class="sd-cardbody">
+			if vm.Mine {
+				<div class="sd-scoperow">
+					for _, so := range vm.ScopeOptions {
+						<button class={ "sd-scopebtn", templ.KV("sd-scopebtn--active", so.Active) }
+							hx-post={ "/scripts/" + itoa(vm.ID) + "/scope" }
+							hx-vals={ `{"scope":"` + so.Label + `"}` }
+							hx-target="#access-card" hx-swap="outerHTML" type="button">{ so.Label }</button>
+					}
+				</div>
+			} else {
+				<span class="sd-managed" style={ "color:" + vm.ScopeColor }>{ vm.Scope } · MANAGED BY { vm.ManagedBy }</span>
+			}
+			<span class="sd-note">Visible to { vm.VisibleTo }.</span>
+			<span class="sd-legend">GLOBAL — EVERYONE · TEAM — DBA-ONCALL · PERSONAL — OWNER ONLY. SCOPE CHANGES ARE AUDITED.</span>
+		</div>
+	</div>
+}
+
+// ScriptRunCard is the RUN panel; its wrapping div is the HTMX swap target
+// for target-search / node / database selection.
+templ ScriptRunCard(vm ScriptRunVM) {
+	<div id="run-card" class="sd-col">
+		<div class="sd-cardhdr">RUN — SEARCH A CLUSTER, NODE OR DATABASE</div>
+		<div class="sd-cardbody">
+			<input class="sd-search" type="search" name="q" value={ vm.TargetQuery }
+				placeholder="search cluster / node / database…"
+				hx-get={ "/partial/scripts/" + itoa(vm.ScriptID) + "/run" }
+				hx-target="#run-card" hx-swap="outerHTML"
+				hx-trigger="input changed delay:200ms, search"/>
+			<div class="sd-targets">
+				if len(vm.Targets) == 0 {
+					<div class="ssx-empty">NOTHING MATCHES</div>
+				} else {
+					for _, tg := range vm.Targets {
+						<button class={ "sd-target", templ.KV("sd-target--active", tg.Active) } type="button"
+							hx-get={ "/partial/scripts/" + itoa(vm.ScriptID) + "/run?target=" + urlq(tg.Value) }
+							hx-target="#run-card" hx-swap="outerHTML">
+							<span class="sd-targetlabel" style={ "color:" + tg.KindColor }>{ tg.Label }</span>
+							<span class="sd-targetkind" style={ "color:" + tg.KindColor }>{ tg.Kind }</span>
+						</button>
+					}
+				}
+			</div>
+			if vm.Selected {
+				<div class="sd-chiprow">
+					<span class="sd-chiplabel">NODE</span>
+					for _, c := range vm.NodeChips {
+						<button class={ "sd-chip", templ.KV("sd-chip--active", c.Active) } type="button"
+							hx-get={ "/partial/scripts/" + itoa(vm.ScriptID) + "/run?" + c.Value }
+							hx-target="#run-card" hx-swap="outerHTML">{ c.Label }</button>
+					}
+				</div>
+				<div class="sd-chiprow">
+					<span class="sd-chiplabel">DATABASE</span>
+					for _, c := range vm.DBChips {
+						<button class={ "sd-chip", templ.KV("sd-chip--active", c.Active) } type="button"
+							hx-get={ "/partial/scripts/" + itoa(vm.ScriptID) + "/run?" + c.Value }
+							hx-target="#run-card" hx-swap="outerHTML">{ c.Label }</button>
+					}
+				</div>
+			}
+			if vm.RunReady {
+				<a class="sd-run sd-run--ready" href={ templ.SafeURL(vm.RunHref) }>{ vm.RunLabel }</a>
+			} else {
+				<span class="sd-run">{ vm.RunLabel }</span>
+			}
+			<span class="sd-runhint">{ vm.RunHint }</span>
+		</div>
+	</div>
+}
+
+// ScriptSearchResults is the compact dropdown the SQL console (ly-ae6.8)
+// embeds under its "search saved scripts…" input. Selecting an item loads
+// the script into the console editor via the /console hand-off.
+templ ScriptSearchResults(vm ScriptSearchVM) {
+	<div id="script-search-results" class="ssx-menu">
+		for _, it := range vm.Items {
+			<a class="ssx-item" href={ templ.SafeURL(it.LoadHref) }>
+				<span class="ssx-itemtop">
+					<span class="ssx-name">{ it.Name }</span>
+					<span class="ssx-scope" style={ "color:" + it.ScopeColor }>{ it.Scope }</span>
+				</span>
+				<span class="ssx-desc">{ it.Description }</span>
+			</a>
+		}
+		if vm.Empty {
+			<div class="ssx-empty">NO SCRIPTS MATCH</div>
+		}
+		<a class="ssx-manage" href="/scripts">MANAGE SCRIPTS →</a>
+	</div>
+}

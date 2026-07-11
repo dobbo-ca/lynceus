@@ -63,7 +63,7 @@ func TestConfigAdvisorPage_rendersRecommendations(t *testing.T) {
 		"<!doctype html>",
 		`id="config-table"`,
 		`hx-get="/partial/config-advisor"`,
-		`href="/config-advisor"`,
+		`data-screen-label="Config Advisor"`,
 		"fsync",
 		"shared_buffers",
 	} {
@@ -93,8 +93,8 @@ func TestConfigAdvisorPartial_returnsFragmentOnly(t *testing.T) {
 	if !strings.Contains(html, `id="config-table"`) {
 		t.Error("partial missing the swap-target id (HTMX outerHTML reswap would break)")
 	}
-	if !strings.Contains(html, "<table>") {
-		t.Error("partial missing seeded recommendation table")
+	if !strings.Contains(html, "fsync") {
+		t.Error("partial missing seeded recommendation")
 	}
 }
 

@@ -17,7 +17,7 @@ func fleetShellView() ShellView {
 		ClearHref:  "/",
 		LogoHref:   "/",
 		Range:      DefaultRange,
-		Ranges:     RangeOptions(DefaultRange, sc),
+		Ranges:     RangeOptions(DefaultRange, sc, "fleet"),
 		PollSecs:   3,
 		Options: []ScopeOption{
 			{Label: "orders-prod", Kind: "CLUSTER", Depth: 0, ScopeKey: "cluster:c-1", Href: "/?scope=cluster%3Ac-1"},
@@ -49,10 +49,12 @@ func TestShell_SelfHostedTokenAssetsNoLegacy(t *testing.T) {
 	html := renderShell(t, fleetShellView())
 	for _, want := range []string{
 		`href="/static/css/tokens.css"`,
+		`href="/static/css/shape.css"`,
 		`href="/static/css/shell.css"`,
 		`src="/static/js/htmx.min.js"`,
 		`src="/static/js/theme.js"`,
 		`src="/static/js/shell.js"`,
+		`src="/static/js/onboarding.js"`,
 		`data-theme="dark"`,
 		"window.Lynceus",
 	} {
@@ -110,7 +112,7 @@ func TestShell_ScopedShowsResetAndAccentChip(t *testing.T) {
 	sc := scope.Scope{Kind: scope.Cluster, ClusterID: "c-1"}
 	vm := fleetShellView()
 	vm.Scope, vm.Scoped, vm.ScopeLabel = sc, true, "orders-prod"
-	vm.Ranges = RangeOptions(vm.Range, sc)
+	vm.Ranges = RangeOptions(vm.Range, sc, "clusterdetail")
 	html := renderShell(t, vm)
 	if !strings.Contains(html, "← FLEET") {
 		t.Error("scoped shell must show the ← FLEET reset")
@@ -158,7 +160,7 @@ func TestScopeButton_linksToScopeHref(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 	html := sb.String()
-	if !strings.Contains(html, `href="/?scope=node%3Ac-1%3An-1"`) {
+	if !strings.Contains(html, `href="/nodes?scope=node%3Ac-1%3An-1"`) {
 		t.Errorf("scope button href wrong: %s", html)
 	}
 	if !strings.Contains(html, "⌖") {

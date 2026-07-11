@@ -16,6 +16,7 @@ func TestThemeBootstrap_Contents(t *testing.T) {
 		"'#2dd4bf'", // teal preset present in the accent variant map
 		"'#22d3ee'", // cyan
 		"'#818cf8'", // indigo
+		"dataset.accent", // accent hex reflected onto <html> for the picker's active state
 	} {
 		if !strings.Contains(themeBootstrapJS, want) {
 			t.Errorf("themeBootstrapJS missing %q", want)

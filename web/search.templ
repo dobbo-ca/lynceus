@@ -1,0 +1,120 @@
+package web
+
+// engOS renders the inlined magnifier glyph (the #eng-os slot from F1; inlined
+// here so the screen is self-contained and does not depend on a global sprite
+// sheet). currentColor makes it theme-aware.
+templ engOS() {
+	<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true">
+		<circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="2"></circle>
+		<line x1="15" y1="15" x2="20" y2="20" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
+	</svg>
+}
+
+// SearchDomainsPage is the full Domains page rendered inside the design Shell
+// (ly-ae6.2): the shell owns the top bar + sidebar and the Domains body fills
+// the main-content slot. The body fragment is also swappable directly by HTMX.
+templ SearchDomainsPage(vm ShellView, v SearchDomainsView) {
+	@Shell(vm) {
+		@SearchDomainsBody(v)
+	}
+}
+
+templ SearchDomainsBody(v SearchDomainsView) {
+	<link rel="stylesheet" href="/static/css/search.css"/>
+	<div id="search-domains-body" style="padding: 18px 22px 32px; display: flex; flex-direction: column; gap: 14px; max-width: 1400px; font-family: var(--font-ui);">
+		<div style="display: flex; align-items: baseline; gap: 12px;">
+			<span style="font-size: 17px; font-weight: 600; color: var(--text);">Domains</span>
+			<span style="font-family: var(--font-mono); font-size: 10px; color: var(--acc); border: 1px solid var(--acc); padding: 0 5px; border-radius: var(--radius-badge);">LIVE</span>
+			<span style="font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); letter-spacing: .08em;">OPENSEARCH / ELASTICSEARCH — A DOMAIN GROUPS NODES BY ROLE</span>
+			<span style="flex: 1;"></span>
+			<a role="button" hx-get="/partial/add?kind=search" hx-target="#modal-root" hx-swap="innerHTML" style="font-family: var(--font-mono); font-size: 10.5px; color: var(--acc2); border: 1px solid var(--acc); padding: 4px 9px; border-radius: var(--radius); text-decoration: none; cursor: pointer;">+ ADD DOMAIN</a>
+		</div>
+		if len(v.Domains) == 0 {
+			<p style="font-family: var(--font-mono); font-size: 11.5px; color: var(--dim);">No search domains monitored yet — enable an OpenSearch or Elasticsearch collector (backend ly-wte).</p>
+		} else {
+			for _, d := range v.Domains {
+				<div style="border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);">
+					<div style="padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; font-family: var(--font-mono);">
+						<span style="width: 20px; height: 20px; border: 1.5px solid var(--acc2); color: var(--acc2); display: flex; align-items: center; justify-content: center; border-radius: var(--radius); flex-shrink: 0;" title="OPENSEARCH">
+							@engOS()
+						</span>
+						<span style="font-size: 13.5px; font-weight: 600; color: var(--text);">{ d.Name }</span>
+						<span style="font-size: 10px; color: var(--infoT);">{ "v" + d.Version }</span>
+						<span style="font-size: 9.5px; border: 1px solid var(--line); padding: 1px 6px; border-radius: var(--radius-badge); color: var(--infoT); letter-spacing: .06em;">{ d.Provider }</span>
+						<span style="flex: 1;"></span>
+						<span class={ d.Status.Class() } style="font-size: 10px;">[{ string(d.Status) }] { d.StatusReason }</span>
+					</div>
+					<div style="display: grid; grid-template-columns: repeat(5, 1fr);">
+						for _, st := range d.Stats {
+							<div style="padding: 10px 14px; border-right: 1px solid var(--line2); display: flex; flex-direction: column; gap: 2px;">
+								<span style="font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em; color: var(--faint);">{ st.Label }</span>
+								<span class={ "tone-" + st.Tone } style="font-family: var(--font-mono); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums;">{ st.Value }</span>
+								<span style="font-size: 10.5px; color: var(--dim);">{ st.Sub }</span>
+							</div>
+						}
+					</div>
+					<div style="padding: 9px 14px; border-top: 1px solid var(--line2); display: flex; gap: 12px; align-items: center; font-family: var(--font-mono); font-size: 10px; color: var(--dim); letter-spacing: .04em;">
+						<span>{ "ROLES: " + d.RoleSummary }</span>
+						<span style="flex: 1;"></span>
+						<a href={ templ.SafeURL("/search/nodes") } style="color: var(--acc2); text-decoration: none;">NODES BY ROLE →</a>
+					</div>
+				</div>
+			}
+		}
+	</div>
+}
+
+// SearchNodesPage is the full Nodes-by-role page rendered inside the design Shell.
+templ SearchNodesPage(vm ShellView, v SearchNodesView) {
+	@Shell(vm) {
+		@SearchNodesBody(v)
+	}
+}
+
+templ SearchNodesBody(v SearchNodesView) {
+	<link rel="stylesheet" href="/static/css/search.css"/>
+	<div id="search-nodes-body" style="padding: 18px 22px 32px; display: flex; flex-direction: column; gap: 14px; max-width: 1400px; font-family: var(--font-ui);">
+		<div style="display: flex; align-items: baseline; gap: 12px;">
+			<span style="font-size: 17px; font-weight: 600; color: var(--text);">Search Nodes</span>
+			<span style="font-family: var(--font-mono); font-size: 10px; color: var(--acc); border: 1px solid var(--acc); padding: 0 5px; border-radius: var(--radius-badge);">LIVE</span>
+			<span style="font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); letter-spacing: .08em;">NODE ROLES DETERMINE WHAT EACH NODE DOES</span>
+			<span style="flex: 1;"></span>
+			<a
+				href={ templ.SafeURL("/search/nodes?sort=" + v.NextSort()) }
+				hx-get={ "/partial/search/nodes?sort=" + v.NextSort() }
+				hx-target="#search-nodes-body"
+				hx-swap="outerHTML"
+				style="font-family: var(--font-mono); font-size: 10.5px; color: var(--dim); border: 1px solid var(--line); padding: 4px 9px; border-radius: var(--radius); text-decoration: none; cursor: pointer;"
+			>{ "SORT: " + v.SortLabel() } ⇅</a>
+		</div>
+		if len(v.Nodes) == 0 {
+			<p style="font-family: var(--font-mono); font-size: 11.5px; color: var(--dim);">No search nodes monitored yet — enable an OpenSearch or Elasticsearch collector (backend ly-wte).</p>
+		} else {
+			<div style="border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow-x: auto;">
+				<div style="min-width: 900px;">
+					<div style="display: grid; grid-template-columns: 170px minmax(240px, 1fr) 64px 70px 70px 70px 70px; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--line); font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em; color: var(--faint);">
+						<span>NODE</span><span>ROLES</span><span>VER</span>
+						<span style="text-align: right;">HEAP</span><span style="text-align: right;">CPU</span>
+						<span style="text-align: right;">DISK</span><span style="text-align: right;">SHARDS</span>
+					</div>
+					for _, n := range v.Nodes {
+						<div style="display: grid; grid-template-columns: 170px minmax(240px, 1fr) 64px 70px 70px 70px 70px; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--line2); align-items: center; font-variant-numeric: tabular-nums;">
+							<span style="font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; color: var(--text);">{ n.Name }</span>
+							<div style="display: flex; gap: 5px; flex-wrap: wrap;">
+								for _, r := range n.Roles {
+									<span style="font-family: var(--font-mono); font-size: 9px; border: 1px solid var(--line); padding: 1px 6px; border-radius: var(--radius-badge); color: var(--infoT); letter-spacing: .06em;">{ r }</span>
+								}
+							</div>
+							<span style="font-family: var(--font-mono); font-size: 10px; color: var(--dim);">{ "v" + n.Version }</span>
+							<span class="tone-mut" style="font-family: var(--font-mono); font-size: 11.5px; text-align: right;">{ n.Heap }</span>
+							<span class="tone-mut" style="font-family: var(--font-mono); font-size: 11.5px; text-align: right;">{ n.CPU }</span>
+							<span class="tone-mut" style="font-family: var(--font-mono); font-size: 11.5px; text-align: right;">{ n.Disk }</span>
+							<span class={ n.ShardsClass() } style="font-family: var(--font-mono); font-size: 11.5px; text-align: right;">{ n.Shards }</span>
+						</div>
+					}
+				</div>
+			</div>
+			<div style="font-family: var(--font-mono); font-size: 10px; color: var(--faint); letter-spacing: .04em;">DEDICATED CLUSTER_MANAGER NODES HOLD NO SHARDS; DATA NODES CARRY THE INDEX WORKLOAD; COORDINATING NODES FAN OUT QUERIES.</div>
+		}
+	</div>
+}

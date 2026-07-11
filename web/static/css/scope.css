@@ -1,0 +1,72 @@
+/* scope.css — token-based styling for the ly-ae6.6 scoped Overview / cluster
+   detail / capabilities screens. References tokens.css custom properties only;
+   discrete colors are modifier classes so no var() ever lands in a templ
+   dynamic style={}. Loaded by the design Shell (web/shell.templ). */
+
+.scope-screen { padding:18px 22px 32px; display:flex; flex-direction:column; gap:14px; max-width:1400px; }
+.scope-head { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+.scope-back { font-family:var(--font); font-size:11px; color:var(--acc); cursor:pointer; text-decoration:none; }
+.scope-back:hover { color:var(--acc2); }
+.scope-title { font-size:17px; font-weight:600; font-family:var(--font); }
+.scope-live { font-family:var(--font); font-size:10px; color:var(--acc); border:1px solid var(--acc); padding:0 5px; border-radius:var(--radius); }
+.scope-meta { font-family:var(--font); font-size:10.5px; color:var(--faint); letter-spacing:.08em; }
+.scope-spacer { flex:1; }
+.scope-health { font-family:var(--font); font-size:10px; letter-spacing:.04em; }
+.scope-health.is-crit { color:var(--critT); }
+.scope-health.is-warn { color:var(--warnT); }
+.scope-health.is-info { color:var(--infoT); }
+.scope-health.is-ok   { color:var(--ok); }
+
+/* --- stat strip --- */
+.scope-stats { display:flex; gap:14px; flex-wrap:wrap; }
+.scope-stat { border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); padding:9px 14px; min-width:120px; display:flex; flex-direction:column; gap:3px; }
+.scope-stat .stat-label { font-family:var(--font); font-size:9.5px; letter-spacing:.1em; color:var(--dim); text-transform:uppercase; }
+.scope-stat .stat-value { font-family:var(--font); font-size:16px; color:var(--text); }
+
+/* --- OPEN ISSUES ON THIS <scope> --- */
+.issues-card { border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); }
+.issues-head { padding:8px 12px; border-bottom:1px solid var(--line); font-family:var(--font); font-size:10.5px; letter-spacing:.1em; color:var(--dim); display:flex; gap:14px; align-items:center; }
+.issues-count { font-size:9.5px; color:var(--faint); }
+.issue-row { display:flex; align-items:center; gap:12px; padding:8px 12px; border-bottom:1px solid var(--line2); font-size:12.5px; color:var(--text); text-decoration:none; }
+.issue-row:hover { background:var(--raised); text-decoration:none; }
+.issue-sev { width:8px; height:8px; flex-shrink:0; border-radius:2px; }
+.issue-sev.sev-crit { background:var(--crit); }
+.issue-sev.sev-warn { background:var(--warn); }
+.issue-sev.sev-info { background:var(--info); }
+.issue-id { font-family:var(--font); font-size:12px; min-width:230px; color:var(--text); }
+.issue-detail { color:var(--mut); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.issue-server { font-family:var(--font); font-size:11px; color:var(--dim); flex-shrink:0; }
+.issue-age { font-family:var(--font); font-size:10px; color:var(--faint); width:30px; text-align:right; flex-shrink:0; }
+.issues-clean { border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); padding:10px 12px; font-family:var(--font); font-size:10.5px; color:var(--acc2); letter-spacing:.06em; }
+
+/* --- node / component cards (cluster detail) --- */
+.node-cards { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.node-card { border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); padding:11px 14px; display:flex; align-items:center; gap:12px; font-family:var(--font); }
+.node-role { font-size:9.5px; border:1px solid var(--line); padding:1px 6px; border-radius:var(--radius); min-width:58px; text-align:center; flex-shrink:0; color:var(--infoT); text-transform:uppercase; letter-spacing:.06em; }
+.node-role.is-primary { color:var(--acc2); }
+.node-role.is-replica { color:var(--infoT); }
+.node-role.is-pooler  { color:var(--infoT); }
+.node-body { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.node-name { font-size:12px; font-weight:600; }
+.node-name .node-ver { font-size:9.5px; color:var(--dim); margin-left:8px; }
+.node-meta { font-size:10px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.node-health { font-size:10px; flex-shrink:0; }
+.node-health.is-crit { color:var(--critT); }
+.node-health.is-warn { color:var(--warnT); }
+.node-health.is-info { color:var(--infoT); }
+.node-health.is-ok   { color:var(--acc2); }
+.scope-btn { width:24px; height:24px; border:1px solid var(--line); border-radius:var(--radius); display:flex; align-items:center; justify-content:center; color:var(--acc2); font-size:13px; cursor:pointer; user-select:none; flex-shrink:0; text-decoration:none; }
+.scope-btn:hover { border-color:var(--acc); background:var(--accbg); text-decoration:none; }
+
+/* --- capabilities matrix --- */
+.caps-card { border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); }
+.caps-row { display:flex; align-items:center; gap:12px; padding:8px 12px; border-bottom:1px solid var(--line2); font-family:var(--font); font-size:12px; }
+.caps-name { min-width:240px; color:var(--text); }
+.caps-avail { font-size:10px; letter-spacing:.06em; }
+.caps-avail.is-on  { color:var(--acc2); }
+.caps-avail.is-off { color:var(--faint); }
+.caps-final { font-size:10px; color:var(--dim); }
+
+/* --- shared empty state --- */
+.scope-empty { border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); padding:22px; font-family:var(--font); font-size:11px; color:var(--faint); text-align:center; letter-spacing:.04em; }
+.section-label { font-family:var(--font); font-size:10.5px; letter-spacing:.1em; color:var(--dim); text-transform:uppercase; }

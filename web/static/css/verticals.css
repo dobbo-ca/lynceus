@@ -1,0 +1,89 @@
+/* Database-vertical list screens (Clusters / Nodes / Databases).
+   Structural layout + token color classes. Colors resolve to tokens.css vars. */
+
+.vlist { padding:18px 22px 32px; display:flex; flex-direction:column; gap:14px; max-width:1400px; }
+.vlist-head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.vlist-title { font-size:17px; font-weight:600; color:var(--text); }
+.badge-live { font-family:var(--font-mono); font-size:10px; color:var(--acc); border:var(--border) solid var(--acc); padding:0 5px; border-radius:var(--radius-badge); }
+.vlist-strap { font-family:var(--font-mono); font-size:10.5px; color:var(--faint); letter-spacing:.08em; }
+.vlist-spacer { flex:1; }
+.vlist-btn { font-family:var(--font-mono); font-size:10.5px; color:var(--dim); border:var(--border) solid var(--line); padding:4px 9px; border-radius:var(--radius); cursor:pointer; user-select:none; background:none; text-decoration:none; white-space:nowrap; }
+.vlist-btn:hover { color:var(--text); }
+.vlist-btn--acc { color:var(--acc2); border-color:var(--acc); }
+.vlist-btn--acc:hover { background:var(--accdim); }
+.vlist-search { background:var(--surface); border:var(--border) solid var(--line); border-radius:var(--radius); color:var(--text); font-family:var(--font-mono); font-size:11px; padding:5px 10px; width:250px; }
+
+.vpanel { border:var(--border) solid var(--line); border-radius:var(--radius); background:var(--surface); }
+
+.eng-mark { width:20px; height:20px; border:1.5px solid var(--acc2); color:var(--acc2); display:flex; align-items:center; justify-content:center; border-radius:var(--radius); flex-shrink:0; }
+
+.scope-btn { width:24px; height:24px; border:var(--border) solid var(--line); border-radius:var(--radius); display:flex; align-items:center; justify-content:center; color:var(--acc2); font-size:13px; cursor:pointer; user-select:none; flex-shrink:0; text-decoration:none; }
+.scope-btn:hover { border-color:var(--acc); background:var(--accdim); }
+
+.hl-crit { color:var(--critT); }
+.hl-warn { color:var(--warnT); }
+.hl-info { color:var(--ok); }
+.hl-ok   { color:var(--ok); }
+
+/* ---- clusters flat list ---- */
+.cl-row { padding:10px 14px; border-bottom:var(--border) solid var(--line2); display:flex; align-items:center; gap:12px; font-family:var(--font-mono); }
+.cl-row:last-child { border-bottom:none; }
+.cl-name { font-size:13px; font-weight:600; min-width:150px; color:var(--text); }
+.cl-ver { font-size:10px; color:var(--acc2); }
+.cl-meta { font-size:10px; color:var(--faint); letter-spacing:.06em; }
+.cl-qps { font-size:10.5px; color:var(--dim); }
+.cl-health { font-size:10px; min-width:170px; text-align:right; }
+
+/* ---- group header (nodes + databases) ---- */
+.grp-head { padding:10px 14px; border-bottom:var(--border) solid var(--line); display:flex; align-items:center; gap:12px; font-family:var(--font-mono); flex-wrap:wrap; }
+.grp-name { font-size:13.5px; font-weight:600; color:var(--text); }
+.grp-ver { font-size:10px; color:var(--acc2); }
+.grp-provider { font-size:9.5px; border:var(--border) solid var(--line); padding:1px 6px; border-radius:var(--radius-badge); color:var(--infoT); letter-spacing:.06em; cursor:help; }
+.grp-rollup { font-size:9.5px; letter-spacing:.04em; }
+
+/* ---- nodes table ---- */
+.tbl-scroll { overflow-x:auto; }
+.nodes-grid { min-width:1020px; }
+.nodes-hd, .nodes-row { display:grid; grid-template-columns:74px minmax(240px,1fr) 64px 64px 64px 76px 210px 110px 34px; gap:12px; padding:7px 14px; border-bottom:var(--border) solid var(--line2); font-family:var(--font-mono); }
+.nodes-hd { font-size:9.5px; letter-spacing:.1em; color:var(--faint); }
+.nodes-row { padding:8px 14px; align-items:center; font-variant-numeric:tabular-nums; }
+.nodes-row:last-child { border-bottom:none; }
+.num-r { text-align:right; }
+.role-chip { font-family:var(--font-mono); font-size:9px; border:var(--border) solid var(--line); padding:1px 4px; border-radius:var(--radius-badge); text-align:center; letter-spacing:.04em; }
+.role-primary { color:var(--acc2); }
+.role-replica, .role-pooler, .role-unknown { color:var(--infoT); }
+.role-standby { color:var(--faint); }
+.node-id { display:flex; flex-direction:column; gap:1px; min-width:0; }
+.node-idline { display:flex; gap:8px; align-items:baseline; }
+.node-name { font-family:var(--font-mono); font-size:11.5px; font-weight:600; color:var(--text); }
+.node-name--blind { color:var(--dim); }
+.node-nodever { font-family:var(--font-mono); font-size:9.5px; color:var(--dim); }
+.node-src { font-family:var(--font-mono); font-size:9.5px; color:var(--faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.node-metric { font-family:var(--font-mono); font-size:11.5px; color:var(--mut); }
+.conns-wrap { display:flex; align-items:center; gap:8px; }
+.conns-bar { flex:1; height:8px; background:var(--raised); border-radius:var(--radius-badge); }
+.conns-fill { height:8px; background:var(--acc); }
+.conns-num { font-family:var(--font-mono); font-size:10.5px; color:var(--mut); white-space:nowrap; }
+.node-health { font-family:var(--font-mono); font-size:10px; text-align:right; }
+
+/* ---- databases table ---- */
+.dbs-grid { min-width:960px; }
+.dbs-hd, .dbs-row { display:grid; grid-template-columns:minmax(220px,1fr) 90px 90px 80px 80px 80px 34px; gap:12px; padding:7px 14px; border-bottom:var(--border) solid var(--line2); font-family:var(--font-mono); }
+.dbs-hd { font-size:9.5px; letter-spacing:.1em; color:var(--faint); }
+.dbs-row { padding:8px 14px; align-items:center; font-variant-numeric:tabular-nums; }
+.dbs-row:last-child { border-bottom:none; }
+.db-id { display:flex; flex-direction:column; gap:1px; min-width:0; }
+.db-name { font-family:var(--font-mono); font-size:12px; font-weight:600; color:var(--text); }
+.db-qual { font-family:var(--font-mono); font-size:9.5px; color:var(--faint); }
+.db-metric { font-family:var(--font-mono); font-size:11.5px; color:var(--mut); }
+.db-qps { color:var(--text); }
+.info-strip { border:var(--border) solid var(--info); border-radius:var(--radius); background:var(--infobg); padding:8px 12px; font-family:var(--font-mono); font-size:10.5px; color:var(--infoT); }
+.info-strip .prose { font-family:var(--font-ui); font-size:12px; color:var(--mut); }
+
+/* ---- pager + empty ---- */
+.vpager { display:flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:10px; color:var(--dim); letter-spacing:.04em; }
+.vpager a { cursor:pointer; border:var(--border) solid var(--line); padding:2px 8px; border-radius:var(--radius); color:var(--dim); user-select:none; text-decoration:none; }
+.vpager a:hover { border-color:var(--dim); }
+.vpager a.is-disabled { color:var(--faint); pointer-events:none; }
+.vpager .hint { color:var(--faint); }
+.vempty { border:var(--border) solid var(--line); border-radius:var(--radius); background:var(--surface); padding:22px; font-family:var(--font-mono); font-size:10.5px; color:var(--faint); text-align:center; letter-spacing:.06em; }

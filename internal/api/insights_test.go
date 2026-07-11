@@ -70,13 +70,13 @@ func TestInsightsPage_rendersDetectedInsights(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	html := string(body)
 	for _, want := range []string{
-		"<!doctype html>",            // full page (templ emits lowercase)
-		`id="insights-table"`,        // HTMX swap target
-		`hx-get="/partial/insights"`, // poll target
-		`href="/insights"`,           // nav link
-		"orders_audit",               // seeded relation
-		"slow_scan",                  // KindSlowScan (insight.go:16)
-		"high",                       // SeverityHigh (slowscan.go:73)
+		"<!doctype html>",                    // full page (templ emits lowercase)
+		`id="insights-table"`,                // HTMX swap target
+		`hx-get="/partial/insights"`,         // poll target
+		`data-screen-label="Query Insights"`, // retrofitted screen marker
+		"orders_audit",                       // seeded relation (in Detail)
+		"SLOW SEQ SCAN",                      // KindLabel(slow_scan)
+		"stripe-crit",                        // high → crit severity stripe
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("insights page missing %q", want)

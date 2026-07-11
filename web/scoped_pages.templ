@@ -1,0 +1,135 @@
+package web
+
+// ScopeStatVM is one metric tile in the scoped-overview stat strip.
+type ScopeStatVM struct {
+	Label string
+	Value string
+}
+
+// ScopeNodeVM is one node card on the cluster Overview: role badge, name, a
+// rolled-up meta line, a health dot, and a ⌖ button that sets scope to the node.
+type ScopeNodeVM struct {
+	Role      string // display text, e.g. "PRIMARY"
+	RoleMod   string // "primary" | "replica" | "pooler" — CSS modifier
+	Name      string
+	Meta      string
+	Health    string // "OK" | "WARN" | "CRIT" | "INFO"
+	HealthMod string // "ok" | "warn" | "crit" | "info"
+	ScopeHref templ.SafeURL
+}
+
+// ClusterOverviewVM is the scoped cluster Overview view-model. It renders inside
+// the design Shell (query-based scope), leads with the OPEN ISSUES card, and
+// exposes a health rollup, a stat strip, and per-node cards. T1 only.
+type ClusterOverviewVM struct {
+	Name       string
+	Meta       string
+	HealthLine string
+	HealthMod  string // "crit" | "warn" | "info" | "ok"
+	Issues     ScopedIssuesVM
+	Stats      []ScopeStatVM
+	Nodes      []ScopeNodeVM
+}
+
+// ClusterOverviewShell wraps the scoped cluster Overview body in the design Shell.
+templ ClusterOverviewShell(shell ShellView, vm ClusterOverviewVM) {
+	@Shell(shell) {
+		@clusterOverviewBody(vm)
+	}
+}
+
+templ clusterOverviewBody(vm ClusterOverviewVM) {
+	<div class="scope-screen">
+		<div class="scope-head">
+			<a class="scope-back" href="/">← FLEET</a>
+			<span class="scope-title">{ vm.Name }</span>
+			<span class="scope-live">LIVE</span>
+			<span class="scope-meta">{ vm.Meta }</span>
+			<span class="scope-spacer"></span>
+			<span class={ "scope-health is-" + vm.HealthMod }>{ vm.HealthLine }</span>
+		</div>
+		@ScopedIssues(vm.Issues)
+		<div class="scope-stats">
+			for i := range vm.Stats {
+				<div class="scope-stat">
+					<span class="stat-label">{ vm.Stats[i].Label }</span>
+					<span class="stat-value">{ vm.Stats[i].Value }</span>
+				</div>
+			}
+		</div>
+		<div class="section-label">NODES</div>
+		@NodeCards(vm.Nodes)
+	</div>
+}
+
+// NodeCards renders one card per node: role badge, name, meta, health dot, and a
+// ⌖ button that sets scope to the node (its href is the repointed ScopeHref).
+templ NodeCards(nodes []ScopeNodeVM) {
+	if len(nodes) == 0 {
+		<div class="scope-empty">NO NODES LINKED YET</div>
+	} else {
+		<div class="node-cards">
+			for i := range nodes {
+				<div class="node-card">
+					<span class={ "node-role is-" + nodes[i].RoleMod }>{ nodes[i].Role }</span>
+					<div class="node-body">
+						<span class="node-name">{ nodes[i].Name }</span>
+						if nodes[i].Meta != "" {
+							<span class="node-meta">{ nodes[i].Meta }</span>
+						}
+					</div>
+					<span class="scope-spacer"></span>
+					<span class={ "node-health is-" + nodes[i].HealthMod }>● { nodes[i].Health }</span>
+					<a class="scope-btn" title="Set scope to this node" href={ nodes[i].ScopeHref }>⌖</a>
+				</div>
+			}
+		</div>
+	}
+}
+
+// CapabilityRowVM is one row of the scoped capability matrix.
+type CapabilityRowVM struct {
+	Name      string
+	Available bool
+	Final     string // short effective-policy note
+}
+
+// CapabilitiesVM is the scoped Capabilities screen view-model. It answers the
+// SQL-console gate's "REQUEST SESSION GRANT" CTA. The full redesign is ly-4ov;
+// this surfaces declared capabilities and their discovered availability for the
+// active scope's servers. T1 — capability enums + package-authored reasons only.
+type CapabilitiesVM struct {
+	ScopeLabel string
+	Caps       []CapabilityRowVM
+	Empty      bool // no servers resolved for the scope
+}
+
+// CapabilitiesShell wraps the scoped Capabilities body in the design Shell.
+templ CapabilitiesShell(shell ShellView, vm CapabilitiesVM) {
+	@Shell(shell) {
+		<div class="scope-screen">
+			<div class="scope-head">
+				<span class="scope-title">CAPABILITIES</span>
+				<span class="scope-meta">{ vm.ScopeLabel }</span>
+			</div>
+			if vm.Empty {
+				<div class="scope-empty">SELECT A CLUSTER OR NODE SCOPE TO SEE ITS DISCOVERED CAPABILITIES. FULL MATRIX REDESIGN: ly-4ov.</div>
+			} else {
+				<div class="caps-card">
+					for i := range vm.Caps {
+						<div class="caps-row">
+							<span class="caps-name">{ vm.Caps[i].Name }</span>
+							if vm.Caps[i].Available {
+								<span class="caps-avail is-on">AVAILABLE</span>
+							} else {
+								<span class="caps-avail is-off">UNAVAILABLE</span>
+							}
+							<span class="scope-spacer"></span>
+							<span class="caps-final">{ vm.Caps[i].Final }</span>
+						</div>
+					}
+				</div>
+			}
+		</div>
+	}
+}

@@ -5,14 +5,27 @@
 // the API hands it.
 package web
 
+// QuerySort is the active column-sort state for the Top Queries table.
+// Nav carries the page-navigation base paths (Scope-Shell Integration
+// Contract); the fleet handler fills it, ly-ae6.3 refills it under scope.
+type QuerySort struct {
+	Col string // "calls" | "total" | "mean" | "rows" | "hit"
+	Dir string // "asc" | "desc"
+	Nav ScreenNav
+}
+
 // TopQuery is the view-model for one row in the top-queries table.
-// Field types deliberately mirror the API DTO so the handler does
-// not have to translate further.
 type TopQuery struct {
 	Fingerprint     string
 	NormalizedQuery string
 	Calls           int64
 	TotalTimeMs     float64
+	MeanTimeMs      float64 // computed via MeanMs
+	Rows            int64   // 0 until ly-58w.8; render "—"
+	CacheHitPct     float64 // <0 unknown (ly-xqf.3); render "—"
+	InsightCount    int     // per-fingerprint, computed from fetchInsights
+	ClusterID       string  // drilldown link target; "" at fleet scope
+	SparkPoints     string  // SVG polyline points; "" hides sparkline (ly-xqf.10)
 }
 
 templ Layout(title, subtitle string) {
@@ -24,9 +37,11 @@ templ Layout(title, subtitle string) {
 			<title>{ title }</title>
 			@templ.Raw(themeBootstrapTag())
 			<link rel="stylesheet" href="/static/css/tokens.css"/>
+			<link rel="stylesheet" href="/static/css/shape.css"/>
 			<link rel="stylesheet" href="/static/css/legacy.css"/>
 			<script src="/static/js/htmx.min.js" defer></script>
 			<script src="/static/js/theme.js" defer></script>
+			<script src="/static/js/onboarding.js" defer></script>
 		</head>
 		<body>
 			<h1>Lynceus</h1>
