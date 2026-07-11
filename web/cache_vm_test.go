@@ -2,7 +2,7 @@ package web
 
 import "testing"
 
-func TestSevClass(t *testing.T) {
+func TestCacheSevClass(t *testing.T) {
 	for in, want := range map[string]string{
 		"crit": "c-sev-crit", "warn": "c-sev-warn", "info": "c-sev-info",
 		"ok": "c-sev-ok", "": "c-sev-mut", "bogus": "c-sev-mut",

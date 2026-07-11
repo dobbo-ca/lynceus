@@ -74,9 +74,7 @@ func (s *Server) buildShellView(r *http.Request, activeScreen string) web.ShellV
 // (e.g. "topqueries", "insights"); ly-ae6.3 re-mounts these under scope with the
 // scope-resolved sidebar. The nav tree is rebuilt so the active item highlights.
 func (s *Server) shellViewFor(r *http.Request, activeScreen string) web.ShellView {
-	sv := s.buildShellView(r)
-	sv.Sidebar = web.Sidebar(sv.Scope, sv.ScopeLabel, web.DefaultEngines(), activeScreen)
-	return sv
+	return s.buildShellView(r, activeScreen)
 }
 
 // scopeOptions enumerates scopeable entities from the config store: clusters

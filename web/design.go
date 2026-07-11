@@ -102,9 +102,6 @@ func KindLabel(kind string) string {
 	return strings.ToUpper(strings.ReplaceAll(kind, "_", " "))
 }
 
-// intToStr avoids a fmt import churn in templ files for plain ints.
-func intToStr(n int) string { return fmt.Sprintf("%d", n) }
-
 // drilldownHref builds the drilldown URL for a query row. A set ClusterID
 // (scoped) yields the scoped drilldown page; empty ClusterID (fleet scope)
 // falls back to nav.Plan so the link is never dead and never hardcodes a
