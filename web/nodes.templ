@@ -22,7 +22,7 @@ type NodeRowVM struct {
 	Role        string // "PRIMARY" | "REPLICA" | "POOLER" | "STANDBY" | "UNKNOWN"
 	RoleClass   string // "role-primary" | ...
 	Name        string
-	NameBlind   bool   // dim the name when BlindSpot
+	NameBlind   bool   // dim the name for a blind-spot node
 	Version     string // "" -> version tag omitted
 	Source      string // data-source line; "" -> neutral fallback
 	CPU         string // "—" when unknown
@@ -33,7 +33,6 @@ type NodeRowVM struct {
 	ConnsPct    string // "44%" (bar width); "0%" when max unknown
 	Health      string // "● CRIT" | "● WARN" | "● OK" | "◌ BLIND SPOT"
 	HealthClass string // "hl-crit"|"hl-warn"|"hl-ok"|"hl-warn"(blind)
-	BlindSpot   bool
 	ScopeHref   string // web.ScopeHref(node scope)
 }
 

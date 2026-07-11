@@ -107,7 +107,6 @@ func BuildFleetView(
 	for i := range summaries {
 		sum := &summaries[i]
 		fv.NodeCount += sum.InstanceCount
-		fv.DatabaseCount += sum.StreamCount
 
 		serverIDs, err := cfg.ServerIDsForCluster(ctx, sum.Cluster.ID)
 		if err != nil {
@@ -117,8 +116,12 @@ func BuildFleetView(
 		if err != nil {
 			return FleetView{}, err
 		}
-		// serverID -> node (instance) display name
+		// serverID -> node (instance) display name; also collect distinct
+		// database names so the fleet DATABASES stat counts DISTINCT
+		// (cluster, database_name) — the same definition the Databases screen
+		// (ListDatabaseGroups) uses — rather than the raw server-stream count.
 		nameByServer := map[string]string{}
+		dbNames := map[string]struct{}{}
 		for j := range instances {
 			streams, err := cfg.ListServerStreams(ctx, instances[j].ID)
 			if err != nil {
@@ -126,8 +129,12 @@ func BuildFleetView(
 			}
 			for k := range streams {
 				nameByServer[streams[k].ServerID] = instances[j].Name
+				if name := streams[k].DatabaseName; name != "" {
+					dbNames[name] = struct{}{}
+				}
 			}
 		}
+		fv.DatabaseCount += len(dbNames)
 		nameOf := func(sid string) string {
 			if n := nameByServer[sid]; n != "" {
 				return n

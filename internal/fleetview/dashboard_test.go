@@ -13,9 +13,12 @@ func TestBuildFleetView_rollsUpSeverityHealthAndAttention(t *testing.T) {
 	cfg, stats, configPool := newStores(t)
 	ctx := context.Background()
 
-	// two servers under one cluster/instance
+	// two servers under one cluster/instance, both streaming the SAME database
+	// ("orders") — an HA primary+replica: 2 server streams, but 1 distinct
+	// (cluster, database_name) so the fleet DATABASES stat must read 1 (matching
+	// the Databases screen), not the raw stream count 2.
 	for _, id := range []string{"fv-srv-a", "fv-srv-b"} {
-		if _, err := configPool.Exec(ctx, `INSERT INTO servers (id, name) VALUES ($1, $1)`, id); err != nil {
+		if _, err := configPool.Exec(ctx, `INSERT INTO servers (id, name, database_name) VALUES ($1, $1, 'orders')`, id); err != nil {
 			t.Fatalf("seed server %s: %v", id, err)
 		}
 	}
@@ -70,8 +73,8 @@ func TestBuildFleetView_rollsUpSeverityHealthAndAttention(t *testing.T) {
 	if fv.OpenCrit != 2 || fv.OpenWarn != 1 || fv.OpenInfo != 0 {
 		t.Fatalf("fleet totals = %d/%d/%d, want 2/1/0", fv.OpenCrit, fv.OpenWarn, fv.OpenInfo)
 	}
-	if fv.ClusterCount != 1 || fv.NodeCount != 1 || fv.DatabaseCount != 2 {
-		t.Fatalf("counts clusters/nodes/dbs = %d/%d/%d, want 1/1/2", fv.ClusterCount, fv.NodeCount, fv.DatabaseCount)
+	if fv.ClusterCount != 1 || fv.NodeCount != 1 || fv.DatabaseCount != 1 {
+		t.Fatalf("counts clusters/nodes/dbs = %d/%d/%d, want 1/1/1", fv.ClusterCount, fv.NodeCount, fv.DatabaseCount)
 	}
 	if len(fv.Clusters) != 1 {
 		t.Fatalf("clusters = %d, want 1", len(fv.Clusters))

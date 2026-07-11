@@ -54,7 +54,7 @@ func TestNodesBody_BlindSpotDimmed(t *testing.T) {
 			Role: "STANDBY", RoleClass: "role-standby", Name: "analytics-standby-az2",
 			NameBlind: true, Source: "no endpoint — CloudWatch instance metrics only",
 			CPU: "—", Mem: "—", Disk: "—", IOWait: "—", Conns: "— / —", ConnsPct: "0%",
-			Health: "◌ BLIND SPOT", HealthClass: "hl-warn", BlindSpot: true,
+			Health: "◌ BLIND SPOT", HealthClass: "hl-warn",
 		}},
 	}}})
 	if !strings.Contains(html, "◌ BLIND SPOT") {
