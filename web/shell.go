@@ -108,3 +108,32 @@ type ShellView struct {
 	Sidebar      templ.Component
 	Title        string
 }
+
+// userInitials returns up to two uppercase initials from a username like
+// "s.dobson" -> "SD" for the user chip.
+func userInitials(name string) string {
+	parts := strings.FieldsFunc(name, func(r rune) bool { return r == '.' || r == ' ' || r == '_' || r == '-' })
+	var out []rune
+	for _, p := range parts {
+		if p == "" {
+			continue
+		}
+		out = append(out, []rune(strings.ToUpper(p))[0])
+		if len(out) == 2 {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return "?"
+	}
+	return string(out)
+}
+
+// userMeta is the identity sub-line: "GROUP: <group> · T2 GRANTED|T2 OFF".
+func userMeta(u ShellUser) string {
+	t2 := "T2 OFF"
+	if u.T2Granted {
+		t2 = "T2 GRANTED"
+	}
+	return "GROUP: " + strings.ToUpper(u.Group) + " · " + t2
+}
