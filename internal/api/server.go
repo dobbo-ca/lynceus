@@ -102,6 +102,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /partial/insights", s.handleInsightsPartial)
 	s.mux.HandleFunc("GET /audit", s.handleAuditPage)
 	s.mux.HandleFunc("GET /partial/audit", s.handleAuditPartial)
+	s.mux.HandleFunc("GET /access", s.handleAccessPage)
 	s.mux.HandleFunc("GET /plan", s.handlePlanPage)
 	s.mux.HandleFunc("GET /partial/plan", s.handlePlanPartial)
 	s.mux.HandleFunc("GET /index-advisor", s.handleIndexAdvisorPage)

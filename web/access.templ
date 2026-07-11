@@ -1,0 +1,62 @@
+package web
+
+// AccessGroupRow is one RBAC group's T2 rights. Shape matches what ly-8b0.4
+// (RBAC) + ly-8b0.2 (SCIM) will populate; today it drives a roadmap preview.
+type AccessGroupRow struct {
+	Name    string
+	Members string
+	T2Label string
+	T2Kind  string
+	Scope   string
+}
+
+type AccessRolesVM struct {
+	Groups []AccessGroupRow
+}
+
+// AccessRolesPage is the Access & Roles roadmap-preview screen, rendered inside
+// the design Shell: ROADMAP badge, OIDC sign-in card, and the RBAC
+// GROUPS → T2 RIGHTS table. All data is illustrative until the RBAC/SCIM/OIDC
+// backends land; nothing here is a monitored-DB literal (T1-safe).
+templ AccessRolesPage(sv ShellView, vm AccessRolesVM) {
+	@Shell(sv) {
+		<link rel="stylesheet" href="/static/css/governance.css"/>
+		<div class="gov-page">
+			<div class="gov-head">
+				<span class="gov-title">Access &amp; Roles</span>
+				<span class="badge badge--roadmap">ROADMAP</span>
+			</div>
+			<div class="gov-roadmap-strip">◧ ROADMAP PREVIEW — <em>OIDC login, SCIM-provisioned users, and RBAC groups governing T2 access per server.</em></div>
+			<div class="access-grid">
+				<div class="access-signin">
+					<div class="access-logo">L</div>
+					<span class="access-signin__title">Sign in to Lynceus</span>
+					<div class="access-oidc">CONTINUE WITH OIDC SSO →</div>
+					<span class="access-signin__note">NO LOCAL PASSWORDS. USERS PROVISIONED VIA SCIM 2.0.</span>
+				</div>
+				<div class="access-card">
+					<div class="access-card__head">RBAC GROUPS → T2 RIGHTS</div>
+					for _, g := range vm.Groups {
+						<div class="access-row">
+							<span class="access-row__name">{ g.Name }</span>
+							<span class="access-row__members">{ g.Members }</span>
+							<span class={ t2TagClass(g.T2Kind) }>{ g.T2Label }</span>
+							<span class="access-row__scope">{ g.Scope }</span>
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+func t2TagClass(kind string) string {
+	switch kind {
+	case "reveal":
+		return "t2-tag t2-tag--reveal"
+	case "audit":
+		return "t2-tag t2-tag--audit"
+	default:
+		return "t2-tag"
+	}
+}
