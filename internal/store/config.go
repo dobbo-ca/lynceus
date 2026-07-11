@@ -29,6 +29,13 @@ type Config interface {
 	EffectiveCapability(ctx context.Context, serverID, databaseName, capability string) (enabled bool, source PolicySource, found bool, err error)
 	ListCapabilityPolicies(ctx context.Context, serverID string) ([]CapabilityPolicy, error)
 	ServerT2Enabled(ctx context.Context, serverID string) (enabled, found bool, err error)
+	CreateScript(ctx context.Context, in CreateScriptInput) (SavedScript, error)
+	ListVisibleScripts(ctx context.Context, viewer, group string) ([]SavedScript, error)
+	GetScript(ctx context.Context, id int64) (SavedScript, bool, error)
+	GetVisibleScript(ctx context.Context, id int64, viewer, group string) (SavedScript, bool, error)
+	SetScriptScope(ctx context.Context, id int64, newScope, actor string, isAdmin bool) (SavedScript, error)
+	DeleteScript(ctx context.Context, id int64, actor string, isAdmin bool) error
+	ListScriptTargets(ctx context.Context) ([]ScriptTarget, error)
 }
 
 var _ Config = (*pgxConfig)(nil)
