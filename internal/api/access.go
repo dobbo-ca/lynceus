@@ -10,7 +10,7 @@ import (
 // shell. The group rows are illustrative until RBAC (ly-8b0.4) + SCIM (ly-8b0.2)
 // provide real data. T1-safe: no monitored-DB literal is rendered.
 func (s *Server) handleAccessPage(w http.ResponseWriter, r *http.Request) {
-	sv := s.buildShellView(r)
+	sv := s.buildShellView(r, "")
 	vm := web.AccessRolesVM{
 		Groups: []web.AccessGroupRow{
 			{Name: "dba-oncall", Members: "4 users", T2Label: "T2: REVEAL", T2Kind: "reveal", Scope: "orders-prod only"},

@@ -23,14 +23,21 @@ func TestScopeHref(t *testing.T) {
 		t.Errorf("fleet href = %q, want /", got)
 	}
 	got := string(ScopeHref(scope.Scope{Kind: scope.Cluster, ClusterID: "c-1"}))
-	if got != "/?scope=cluster%3Ac-1" {
-		t.Errorf("cluster href = %q, want /?scope=cluster%%3Ac-1", got)
+	if got != "/cluster?scope=cluster%3Ac-1" {
+		t.Errorf("cluster href = %q, want /cluster?scope=cluster%%3Ac-1", got)
+	}
+	// node/pooler land on /nodes, database on /databases/all (per-scope Overview).
+	if n := string(ScopeHref(scope.Scope{Kind: scope.Node, ClusterID: "c-1", NodeID: "n-1"})); n != "/nodes?scope=node%3Ac-1%3An-1" {
+		t.Errorf("node href = %q, want /nodes?scope=node%%3Ac-1%%3An-1", n)
+	}
+	if d := string(ScopeHref(scope.Scope{Kind: scope.Database, ClusterID: "c-1", Database: "orders"})); d != "/databases/all?scope=db%3Ac-1%3Aorders" {
+		t.Errorf("database href = %q, want /databases/all?scope=db%%3Ac-1%%3Aorders", d)
 	}
 }
 
 func TestRangeOptions_selectedAndScopePreserved(t *testing.T) {
 	sc := scope.Scope{Kind: scope.Cluster, ClusterID: "c-1"}
-	opts := RangeOptions("1h", sc)
+	opts := RangeOptions("1h", sc, "clusterdetail")
 	if len(opts) != len(ValidRanges) {
 		t.Fatalf("got %d options, want %d", len(opts), len(ValidRanges))
 	}
@@ -45,6 +52,9 @@ func TestRangeOptions_selectedAndScopePreserved(t *testing.T) {
 		if !containsSubstr(string(o.Href), "scope=cluster%3Ac-1") {
 			t.Errorf("href %q dropped the active scope", o.Href)
 		}
+		if !containsSubstr(string(o.Href), "/cluster?") {
+			t.Errorf("href %q dropped the current screen (want /cluster base)", o.Href)
+		}
 	}
 	if sel != 1 {
 		t.Errorf("selected count = %d, want 1", sel)
@@ -52,7 +62,7 @@ func TestRangeOptions_selectedAndScopePreserved(t *testing.T) {
 }
 
 func TestRangeOptions_fleetHasNoScopeParam(t *testing.T) {
-	for _, o := range RangeOptions("24H", scope.Scope{Kind: scope.Fleet}) {
+	for _, o := range RangeOptions("24H", scope.Scope{Kind: scope.Fleet}, "fleet") {
 		if containsSubstr(string(o.Href), "scope=") {
 			t.Errorf("fleet range href %q must not carry a scope param", o.Href)
 		}

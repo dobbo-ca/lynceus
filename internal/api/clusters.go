@@ -17,7 +17,7 @@ import (
 // buildShellView (scope + range + picker) and only re-points the sidebar's active
 // nav entry — no top-bar/nav is reinvented here.
 func (s *Server) verticalShell(r *http.Request, activeScreen string) web.ShellView {
-	vm := s.buildShellView(r)
+	vm := s.buildShellView(r, activeScreen)
 	vm.Sidebar = web.Sidebar(vm.Scope, vm.ScopeLabel, web.DefaultEngines(), activeScreen)
 	return vm
 }

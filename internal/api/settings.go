@@ -10,7 +10,7 @@ import (
 // accent picker persists via the F1 setter (localStorage); server-side per-user
 // persistence awaits the M5 users model.
 func (s *Server) handleSettingsPage(w http.ResponseWriter, r *http.Request) {
-	sv := s.buildShellView(r)
+	sv := s.buildShellView(r, "")
 	vm := web.SettingsVM{
 		Accents: []web.AccentSwatch{
 			{Hex: "#2dd4bf", Name: "TEAL"},

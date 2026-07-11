@@ -17,7 +17,7 @@ func (s *Server) handleCacheClusters(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = web.CacheClustersPage(s.buildShellView(r), s.fetchCacheClusters()).Render(r.Context(), w)
+	_ = web.CacheClustersPage(s.buildShellView(r, "cacheclusters"), s.fetchCacheClusters()).Render(r.Context(), w)
 }
 
 func (s *Server) handleCacheClustersPartial(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +44,7 @@ func (s *Server) handleCacheReplicasets(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = web.CacheReplicasetsPage(s.buildShellView(r), s.fetchCacheReplicasets(r)).Render(r.Context(), w)
+	_ = web.CacheReplicasetsPage(s.buildShellView(r, "cachereplicasets"), s.fetchCacheReplicasets(r)).Render(r.Context(), w)
 }
 
 func (s *Server) handleCacheReplicasetsPartial(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +91,7 @@ func (s *Server) handleCacheNodes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = web.CacheNodesPage(s.buildShellView(r), s.fetchCacheNodes(r)).Render(r.Context(), w)
+	_ = web.CacheNodesPage(s.buildShellView(r, "cachenodes"), s.fetchCacheNodes(r)).Render(r.Context(), w)
 }
 
 func (s *Server) handleCacheNodesPartial(w http.ResponseWriter, r *http.Request) {

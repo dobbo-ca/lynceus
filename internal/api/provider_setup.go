@@ -10,7 +10,7 @@ import (
 // design Shell. The ?provider= query pre-selects a guide (used by the wizard's
 // deep-link). Content is static T1 setup guidance only — no store reads.
 func (s *Server) handleProviderSetupPage(w http.ResponseWriter, r *http.Request) {
-	shell := s.buildShellView(r)
+	shell := s.buildShellView(r, "")
 	shell.Title = "Lynceus — provider setup"
 	v := web.BuildProviderSetupView(web.ProviderID(r.URL.Query().Get("provider")))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

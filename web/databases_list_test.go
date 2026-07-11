@@ -13,11 +13,11 @@ func TestDatabasesListBody_QualifiedIdentityAndInfoStrip(t *testing.T) {
 		Groups: []DatabaseGroupVM{{
 			Name: "orders-prod", EngineIcon: "eng-pg", EngineName: "POSTGRES",
 			Version: "16.3", HealthText: "[DEGRADED] 1 CRIT · 4 WARN", HealthClass: "hl-crit",
-			ScopeHref: "/?scope=cluster%3Ac1",
+			ScopeHref: "/cluster?scope=cluster%3Ac1",
 			Entries: []DatabaseEntryVM{{
 				Name: "orders", Qual: "orders-prod/orders", Size: "—", QPS: "1,102",
 				Conns: "64", Cache: "—", Tables: "—",
-				ScopeHref: "/?scope=db%3Ac1%3Aorders",
+				ScopeHref: "/databases/all?scope=db%3Ac1%3Aorders",
 			}},
 		}},
 	}
@@ -32,7 +32,7 @@ func TestDatabasesListBody_QualifiedIdentityAndInfoStrip(t *testing.T) {
 		`class="info-strip"`,
 		`orders-prod/orders`, // qualified identity sub-line
 		`class="db-name"`, `>orders<`,
-		`1,102`, `href="/?scope=db%3Ac1%3Aorders"`,
+		`1,102`, `href="/databases/all?scope=db%3Ac1%3Aorders"`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("DatabasesListBody missing %q", want)

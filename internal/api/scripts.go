@@ -49,7 +49,7 @@ func (s *Server) isAdminFromContext(r *http.Request) bool {
 // highlighting the given nav screen key ("scripts" or "scriptdetail") in the
 // per-scope sidebar and setting the page title.
 func (s *Server) scriptsShell(r *http.Request, activeScreen, title string) web.ShellView {
-	shell := s.buildShellView(r)
+	shell := s.buildShellView(r, activeScreen)
 	shell.Sidebar = web.Sidebar(shell.Scope, shell.ScopeLabel, web.DefaultEngines(), activeScreen)
 	shell.Title = title
 	return shell

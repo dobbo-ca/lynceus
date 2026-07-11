@@ -20,7 +20,7 @@ func TestClustersBody_RowAnatomy(t *testing.T) {
 		Name: "orders-prod", EngineIcon: "eng-pg", EngineName: "POSTGRES",
 		Version: "16.3", Meta: "3 INSTANCES · 4 STREAMS", QPS: "1,284",
 		HealthText: "[DEGRADED] 1 CRIT · 4 WARN", HealthClass: "hl-crit", SevRank: 2,
-		ScopeHref: "/?scope=cluster%3Ac1",
+		ScopeHref: "/cluster?scope=cluster%3Ac1",
 	}}})
 	for _, want := range []string{
 		`id="clusters-screen"`,
@@ -31,7 +31,7 @@ func TestClustersBody_RowAnatomy(t *testing.T) {
 		`1,284 QPS`,
 		`[DEGRADED] 1 CRIT · 4 WARN`,
 		`hl-crit`,
-		`class="scope-btn"`, `href="/?scope=cluster%3Ac1"`,
+		`class="scope-btn"`, `href="/cluster?scope=cluster%3Ac1"`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("ClustersBody missing %q", want)

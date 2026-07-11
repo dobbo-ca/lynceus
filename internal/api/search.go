@@ -13,7 +13,7 @@ func (s *Server) handleSearchDomains(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	vm := s.buildShellView(r)
+	vm := s.buildShellView(r, "searchdomains")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.SearchDomainsPage(vm, s.fetchSearchDomains(r)).Render(r.Context(), w)
 }
@@ -34,7 +34,7 @@ func (s *Server) handleSearchNodes(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	vm := s.buildShellView(r)
+	vm := s.buildShellView(r, "searchnodes")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.SearchNodesPage(vm, s.fetchSearchNodes(r)).Render(r.Context(), w)
 }

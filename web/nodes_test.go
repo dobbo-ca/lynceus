@@ -20,13 +20,13 @@ func TestNodesBody_GroupAndRow(t *testing.T) {
 		Name: "orders-prod", EngineIcon: "eng-pg", EngineName: "POSTGRES",
 		Version: "16.3", Provider: "SELF-HOSTED", ProviderNote: "Collector on host",
 		Rollup: "NODE HEALTH 1 CRIT · 2 OK → CLUSTER DEGRADED", RollupClass: "hl-crit",
-		ScopeHref: "/?scope=cluster%3Ac1",
+		ScopeHref: "/cluster?scope=cluster%3Ac1",
 		Nodes: []NodeRowVM{{
 			Role: "PRIMARY", RoleClass: "role-primary", Name: "srv-orders-primary",
 			Version: "16.3", Source: "collector on host · node + pg stats",
 			CPU: "—", Mem: "—", Disk: "—", IOWait: "—",
 			Conns: "87 / 200", ConnsPct: "44%", Health: "● CRIT", HealthClass: "hl-crit",
-			ScopeHref: "/?scope=node%3Ac1%3Ai1",
+			ScopeHref: "/nodes?scope=node%3Ac1%3Ai1",
 		}},
 	}}})
 	for _, want := range []string{
@@ -39,7 +39,7 @@ func TestNodesBody_GroupAndRow(t *testing.T) {
 		`collector on host · node + pg stats`,
 		`87 / 200`, `width:44%`,
 		`● CRIT`,
-		`href="/?scope=node%3Ac1%3Ai1"`,
+		`href="/nodes?scope=node%3Ac1%3Ai1"`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("NodesBody missing %q", want)

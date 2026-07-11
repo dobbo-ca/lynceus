@@ -20,7 +20,7 @@ const dateLayout = "2006-01-02"
 func (s *Server) handleAuditPage(w http.ResponseWriter, r *http.Request) {
 	values, rows := s.fetchAudit(r)
 	chain := s.auditChain(r.Context())
-	sv := s.buildShellView(r)
+	sv := s.buildShellView(r, "")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.AuditPage(sv, chain, values, rows).Render(r.Context(), w)
 }

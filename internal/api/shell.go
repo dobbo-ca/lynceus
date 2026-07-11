@@ -15,7 +15,13 @@ import (
 // top bar/nav come from the shell view (scoped by ?scope), the main body is the
 // Fleet dashboard (ly-ae6.4). Both consume the shared ?range param.
 func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
-	vm := s.buildShellView(r)
+	// The /fleet landing highlights the fleet Overview at fleet scope; a scoped
+	// ?scope= on this route highlights nothing (its dedicated screen is elsewhere).
+	activeScreen := ""
+	if scope.Parse(r.URL.Query().Get("scope")).IsFleet() {
+		activeScreen = "fleet"
+	}
+	vm := s.buildShellView(r, activeScreen)
 	fleet := s.fetchFleet(r)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.FleetShellPage(vm, fleet).Render(r.Context(), w)
@@ -32,7 +38,10 @@ func (s *Server) handleScopeOptions(w http.ResponseWriter, r *http.Request) {
 
 // buildShellView parses scope + range from the request, enumerates the picker
 // options, resolves the active scope's display label, and assembles ShellView.
-func (s *Server) buildShellView(r *http.Request) web.ShellView {
+// activeScreen is the design screen id of the page being rendered — it drives
+// both the sidebar's active highlight and the range control's on-screen hrefs
+// (RangeOptions), so changing the range keeps the user on the current screen.
+func (s *Server) buildShellView(r *http.Request, activeScreen string) web.ShellView {
 	qv := r.URL.Query()
 	active := scope.Parse(qv.Get("scope"))
 	rng := web.ParseRange(qv.Get("range"))
@@ -43,14 +52,6 @@ func (s *Server) buildShellView(r *http.Request) web.ShellView {
 		label = resolveScopeLabel(opts, active)
 	}
 
-	// The active nav screen for the /fleet landing is the fleet Overview; scoped
-	// landings have no dedicated destination screen yet (ly-ae6.6 owns the scoped
-	// overview), so nothing is highlighted. The sidebar tree itself rebuilds per
-	// scope regardless.
-	activeScreen := ""
-	if active.IsFleet() {
-		activeScreen = "fleet"
-	}
 	return web.ShellView{
 		Scope:      active,
 		ScopeLabel: label,
@@ -58,7 +59,7 @@ func (s *Server) buildShellView(r *http.Request) web.ShellView {
 		ClearHref:  templ.SafeURL("/"),
 		LogoHref:   templ.SafeURL("/"),
 		Range:      rng,
-		Ranges:     web.RangeOptions(rng, active),
+		Ranges:     web.RangeOptions(rng, active, activeScreen),
 		PollSecs:   3,
 		Options:    opts,
 		Sidebar:    web.Sidebar(active, label, web.DefaultEngines(), activeScreen),
