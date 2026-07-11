@@ -237,3 +237,93 @@ func ListNodeGroups(ctx context.Context, cfg store.Config, stats store.Stats, si
 	}
 	return out, nil
 }
+
+// DatabaseGroup is one cluster's set of individual databases for the
+// Database › Databases screen.
+type DatabaseGroup struct {
+	Cluster  store.Cluster
+	Version  string
+	CritOpen int
+	WarnOpen int
+	InfoOpen int
+	Entries  []DatabaseEntry
+}
+
+// DatabaseEntry is one database (cluster+name identity). SizeBytes/CacheHitPct/
+// TableCount are backend gaps (ly-xqf.6/ly-xqf.7 + pg_stat_database) — 0 today.
+type DatabaseEntry struct {
+	Name        string // database_name from the server stream
+	QPS         float64
+	ActiveConns int64
+	SizeBytes   int64
+	CacheHitPct float64
+	TableCount  int
+}
+
+// ListDatabaseGroups returns one group per cluster, each listing that cluster's
+// individual databases (identified by cluster + database_name). QPS/conns come
+// from the stats store; size/cache/table columns are backend gaps.
+func ListDatabaseGroups(ctx context.Context, cfg store.Config, stats store.Stats, since, until time.Time) ([]DatabaseGroup, error) {
+	clusters, err := cfg.ListClusters(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]DatabaseGroup, 0, len(clusters))
+	for _, cl := range clusters {
+		clusterIDs, err := cfg.ServerIDsForCluster(ctx, cl.ID)
+		if err != nil {
+			return nil, err
+		}
+		crit, warn, info, err := rollupOpenChecks(ctx, stats, clusterIDs, since, until)
+		if err != nil {
+			return nil, err
+		}
+		g := DatabaseGroup{Cluster: cl, CritOpen: crit, WarnOpen: warn, InfoOpen: info}
+		if len(clusterIDs) > 0 {
+			if g.Version, _, err = settingsForServer(ctx, stats, clusterIDs[0], until); err != nil {
+				return nil, err
+			}
+		}
+		// Collect stream serverIDs per database name within this cluster.
+		byDB := map[string][]string{}
+		order := []string{}
+		instances, err := cfg.ListInstances(ctx, cl.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, inst := range instances {
+			streams, err := cfg.ListServerStreams(ctx, inst.ID)
+			if err != nil {
+				return nil, err
+			}
+			for _, st := range streams {
+				if st.DatabaseName == "" {
+					continue
+				}
+				if _, seen := byDB[st.DatabaseName]; !seen {
+					order = append(order, st.DatabaseName)
+				}
+				byDB[st.DatabaseName] = append(byDB[st.DatabaseName], st.ServerID)
+			}
+		}
+		for _, name := range order {
+			ids := byDB[name]
+			e := DatabaseEntry{Name: name}
+			buckets, err := stats.QPSBucketsForServers(ctx, ids, since, until)
+			if err != nil {
+				return nil, err
+			}
+			if n := len(buckets); n > 0 {
+				e.QPS = float64(buckets[n-1].Calls) / 3600.0
+			}
+			act, err := stats.ActivitySummaryForServers(ctx, ids, since, until)
+			if err != nil {
+				return nil, err
+			}
+			e.ActiveConns = act.ActiveConns
+			g.Entries = append(g.Entries, e)
+		}
+		out = append(out, g)
+	}
+	return out, nil
+}

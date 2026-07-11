@@ -52,6 +52,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /partial/databases", s.handleClustersPartial)
 	s.mux.HandleFunc("GET /nodes", s.handleNodes)
 	s.mux.HandleFunc("GET /partial/nodes", s.handleNodesPartial)
+	s.mux.HandleFunc("GET /databases/all", s.handleDatabasesList)
+	s.mux.HandleFunc("GET /partial/databases/all", s.handleDatabasesListPartial)
 	s.mux.HandleFunc("GET /databases/{clusterID}", s.handleClusterOverview)
 	s.mux.HandleFunc("GET /databases/{clusterID}/queries", s.handleClusterQueries)
 	s.mux.HandleFunc("GET /databases/{clusterID}/insights", s.handleClusterInsights)

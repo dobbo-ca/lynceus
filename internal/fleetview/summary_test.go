@@ -246,3 +246,49 @@ func TestListNodeGroups_rollsUpNodesAndSettings(t *testing.T) {
 			n.Role, n.Version, n.ActiveConns, n.MaxConns)
 	}
 }
+
+func TestListDatabaseGroups_perDatabaseAndSkipsBlankName(t *testing.T) {
+	cfg, stats, configPool := newStores(t)
+	ctx := context.Background()
+
+	cl, err := cfg.CreateCluster(ctx, "orders-prod")
+	if err != nil {
+		t.Fatalf("CreateCluster: %v", err)
+	}
+	inst, err := cfg.CreateInstance(ctx, cl.ID, "node-a")
+	if err != nil {
+		t.Fatalf("CreateInstance: %v", err)
+	}
+	seed := func(serverID, dbName string) {
+		if _, err := configPool.Exec(ctx, `INSERT INTO servers (id, name) VALUES ($1, $1)`, serverID); err != nil {
+			t.Fatalf("seed server %s: %v", serverID, err)
+		}
+		if err := cfg.AssignServerToInstance(ctx, serverID, inst.ID); err != nil {
+			t.Fatalf("assign %s: %v", serverID, err)
+		}
+		if dbName != "" {
+			if _, err := configPool.Exec(ctx, `UPDATE servers SET database_name=$1 WHERE id=$2`, dbName, serverID); err != nil {
+				t.Fatalf("set database_name: %v", err)
+			}
+		}
+	}
+	seed("srv-orders", "orders")
+	seed("srv-billing", "billing")
+	seed("srv-blank", "") // blank database_name — no row expected
+
+	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+	groups, err := fleetview.ListDatabaseGroups(ctx, cfg, stats, now.Add(-time.Hour), now.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("ListDatabaseGroups: %v", err)
+	}
+	if len(groups) != 1 {
+		t.Fatalf("groups = %d, want 1", len(groups))
+	}
+	names := map[string]bool{}
+	for _, e := range groups[0].Entries {
+		names[e.Name] = true
+	}
+	if len(names) != 2 || !names["orders"] || !names["billing"] {
+		t.Fatalf("database names = %v, want {orders,billing} (blank-name stream skipped)", names)
+	}
+}
