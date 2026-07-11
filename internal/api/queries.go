@@ -3,9 +3,49 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/dobbo-ca/lynceus/web"
 )
+
+// sortAndFilterQueries applies a case-insensitive substring filter over
+// fingerprint+normalized SQL, then a stable sort by the chosen column.
+// Default sort is total-time descending (matches the store's own order).
+func (s *Server) sortAndFilterQueries(rows []web.TopQuery, q web.QuerySort, filter string) []web.TopQuery {
+	out := rows[:0:0]
+	f := strings.ToLower(strings.TrimSpace(filter))
+	for _, r := range rows {
+		if f == "" || strings.Contains(strings.ToLower(r.Fingerprint), f) ||
+			strings.Contains(strings.ToLower(r.NormalizedQuery), f) {
+			out = append(out, r)
+		}
+	}
+	less := func(i, j int) bool {
+		a, b := out[i], out[j]
+		switch q.Col {
+		case "calls":
+			return a.Calls < b.Calls
+		case "mean":
+			return a.MeanTimeMs < b.MeanTimeMs
+		case "rows":
+			return a.Rows < b.Rows
+		case "hit":
+			return a.CacheHitPct < b.CacheHitPct
+		default: // "total"
+			return a.TotalTimeMs < b.TotalTimeMs
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if q.Dir == "asc" {
+			return less(i, j)
+		}
+		return less(j, i)
+	})
+	return out
+}
 
 // topQueryDTO is the on-the-wire shape of a top-queries result. It
 // is intentionally tiny and snake-cased — see future API design.

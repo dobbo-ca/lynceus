@@ -2,41 +2,76 @@ package web
 
 import "fmt"
 
-// QueriesPage is the full top-queries dashboard.
-templ QueriesPage(rows []TopQuery) {
-	@Layout("Lynceus — top queries", "top queries by total time") {
-		@QueriesTable(rows)
+// queriesGrid is the shared grid-template-columns for header + rows.
+const queriesGrid = "grid-template-columns:84px minmax(280px,1fr) 92px 72px 84px 60px 68px 132px 58px;gap:10px;"
+
+// QueriesPage renders the Top Queries screen inside the design shell.
+templ QueriesPage(sv ShellView, sort QuerySort, rows []TopQuery) {
+	@Shell(sv) {
+		@QueriesScreen(sort, rows)
 	}
 }
 
-// QueriesTable is also served as a stand-alone HTMX fragment so the
-// table auto-refreshes (hx-get + outerHTML swap re-installs the same
-// hx-* attributes on every poll).
-templ QueriesTable(rows []TopQuery) {
+// QueriesScreen is the full Top Queries body without layout.
+templ QueriesScreen(sort QuerySort, rows []TopQuery) {
+	<div class="screen" data-screen-label="Top Queries">
+		@ScreenHeader("Top Queries", []HeaderBadge{
+			{Text: "LIVE", Kind: "live"},
+			{Text: "T1 · NORMALIZED FINGERPRINTS", Kind: "t1"},
+		})
+		<input class="filter-input" name="q" placeholder="filter by SQL or fingerprint"
+			hx-get="/partial/queries" hx-target="#queries-table" hx-swap="outerHTML"
+			hx-trigger="keyup changed delay:300ms" hx-include="[name='sort'],[name='dir']"/>
+		@QueriesTable(sort, rows)
+		<div class="mono-lbl" style="font-size:10px;">SAMPLE COLUMN IS TIER 2 (MAY CONTAIN LITERALS) — GATED PER SERVER, EVERY READ AUDITED. OPEN A QUERY TO REQUEST A REVEAL.</div>
+	</div>
+}
+
+templ QueriesTable(sort QuerySort, rows []TopQuery) {
 	<div id="queries-table" hx-get="/partial/queries" hx-trigger="every 10s" hx-swap="outerHTML">
 		if len(rows) == 0 {
-			<p class="empty">No data yet — start a collector and check back.</p>
+			@EmptyState("No data yet — start a collector and check back.")
 		} else {
-			<table>
-				<thead>
-					<tr>
-						<th>Fingerprint</th>
-						<th>Normalized query</th>
-						<th class="num">Calls</th>
-						<th class="num">Total time (ms)</th>
-					</tr>
-				</thead>
-				<tbody>
+			<div class="panel scroll-x">
+				<div style="min-width:1080px;">
+					<div class="grid-hd" style={ "display:grid;" + queriesGrid }>
+						<span>FINGERPRINT</span><span>NORMALIZED QUERY</span>
+						@sortHead("CALLS", "calls", sort)
+						@sortHead("TOTAL", "total", sort)
+						@sortHead("MEAN", "mean", sort)
+						@sortHead("ROWS", "rows", sort)
+						@sortHead("CACHE", "hit", sort)
+						<span>TREND</span><span>SAMPLE</span>
+					</div>
 					for _, r := range rows {
-						<tr>
-							<td><code>{ r.Fingerprint }</code></td>
-							<td><code>{ r.NormalizedQuery }</code></td>
-							<td class="num">{ fmt.Sprintf("%d", r.Calls) }</td>
-							<td class="num">{ fmt.Sprintf("%.2f", r.TotalTimeMs) }</td>
-						</tr>
+						<div class="grid-row" style={ "display:grid;" + queriesGrid }>
+							<span class="mono" style="font-size:11px;color:var(--dim);">{ r.Fingerprint }</span>
+							<span style="display:flex;align-items:center;gap:8px;min-width:0;">
+								<span class="mono" style="font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{ r.NormalizedQuery }</span>
+								if r.InsightCount > 0 {
+									<a class="badge badge--t2" style="flex-shrink:0;" href={ templ.SafeURL(drilldownHref(r, sort.Nav)) }>{ fmt.Sprintf("%d▲", r.InsightCount) }</a>
+								}
+							</span>
+							<span class="mono num-r" style="color:var(--mut);">{ fmt.Sprintf("%d", r.Calls) }</span>
+							<span class="mono num-r" style="color:var(--mut);">{ fmt.Sprintf("%.0f", r.TotalTimeMs) }</span>
+							<span class="mono num-r" style="color:var(--text);">{ fmt.Sprintf("%.1f", r.MeanTimeMs) }</span>
+							<span class="mono num-r" style="color:var(--mut);">{ dashInt(r.Rows) }</span>
+							<span class="mono num-r" style="color:var(--mut);">{ dashPct(r.CacheHitPct) }</span>
+							<span>
+								if r.SparkPoints != "" {
+									<svg width="120" height="24" viewBox="0 0 120 24"><polyline points={ r.SparkPoints } fill="none" stroke="var(--acc)" stroke-width="1.2"></polyline></svg>
+								}
+							</span>
+							<a class="badge" style="text-align:center;" href={ templ.SafeURL(drilldownHref(r, sort.Nav)) }>T2 ◈</a>
+						</div>
 					}
-				</tbody>
-			</table>
+				</div>
+			</div>
 		}
 	</div>
+}
+
+// sortHead renders a clickable column header carrying its sort arrow.
+templ sortHead(label, col string, sort QuerySort) {
+	<a class="num-r mono" style="cursor:pointer;color:var(--faint);" href={ templ.SafeURL(sortHref(col, sort)) }>{ label } { sortArrow(col, sort) }</a>
 }
