@@ -40,6 +40,15 @@ func (s *Server) buildShellView(r *http.Request) web.ShellView {
 	if !active.IsFleet() {
 		label = resolveScopeLabel(opts, active)
 	}
+
+	// The active nav screen for the /fleet landing is the fleet Overview; scoped
+	// landings have no dedicated destination screen yet (ly-ae6.6 owns the scoped
+	// overview), so nothing is highlighted. The sidebar tree itself rebuilds per
+	// scope regardless.
+	activeScreen := ""
+	if active.IsFleet() {
+		activeScreen = "fleet"
+	}
 	return web.ShellView{
 		Scope:      active,
 		ScopeLabel: label,
@@ -50,6 +59,7 @@ func (s *Server) buildShellView(r *http.Request) web.ShellView {
 		Ranges:     web.RangeOptions(rng, active),
 		PollSecs:   3,
 		Options:    opts,
+		Sidebar:    web.Sidebar(active, label, web.DefaultEngines(), activeScreen),
 		// Static dev identity until OIDC (ly-8b0.1); dev-only, T1.
 		User:  web.ShellUser{Name: "dev-admin", Group: "DBA-ONCALL", T2Granted: true},
 		Title: "Lynceus — " + label,

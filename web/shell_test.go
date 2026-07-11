@@ -65,6 +65,25 @@ func TestShell_SelfHostedTokenAssetsNoLegacy(t *testing.T) {
 	}
 }
 
+func TestShell_LinksNavCSS(t *testing.T) {
+	html := renderShell(t, fleetShellView())
+	if !strings.Contains(html, `href="/static/css/nav.css"`) {
+		t.Error("shell must link the self-hosted scope-rail stylesheet")
+	}
+}
+
+func TestShell_RendersSidebarWhenSet(t *testing.T) {
+	vm := fleetShellView()
+	vm.Sidebar = Sidebar(FleetScope(), "", DefaultEngines(), "fleet")
+	html := renderShell(t, vm)
+	if !strings.Contains(html, `class="ln-nav"`) {
+		t.Error("shell must render the supplied Sidebar component in the slot")
+	}
+	if strings.Contains(html, "sidebar-placeholder") {
+		t.Error("shell must not render the placeholder sidebar when a Sidebar is supplied")
+	}
+}
+
 func TestShell_TopBarChrome(t *testing.T) {
 	html := renderShell(t, fleetShellView())
 	for _, want := range []string{
