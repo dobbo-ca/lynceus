@@ -28,6 +28,7 @@ const themeBootstrapJS = `
     var st = document.documentElement.style;
     st.setProperty('--acc',v[0]); st.setProperty('--acc2',v[1]);
     st.setProperty('--accdim',v[2]); st.setProperty('--accbg',v[3]); st.setProperty('--ok',v[0]);
+    document.documentElement.dataset.accent = a;
   };
   try {
     var acc = localStorage.getItem('lynceus.accent');
