@@ -23,6 +23,13 @@ const (
 
 // handleConsolePage renders the full SQL Console screen inside the design Shell.
 func (s *Server) handleConsolePage(w http.ResponseWriter, r *http.Request) {
+	// Saved Scripts / Search RUN hand-off: /console?script=<id>&cluster=<name>&
+	// node=&db=&run=1 executes the preloaded statement (audited, grant-gated)
+	// before the VM is built, so the fresh run drives the render. Best-effort —
+	// any failure just leaves the console showing the loaded (un-run) script.
+	if r.URL.Query().Get("run") == "1" {
+		s.runConsoleHandoff(w, r)
+	}
 	vm, ok := s.buildConsoleVM(w, r)
 	if !ok {
 		http.NotFound(w, r)
@@ -56,24 +63,12 @@ func (s *Server) buildConsoleVM(w http.ResponseWriter, r *http.Request) (web.Con
 	q := r.URL.Query()
 	actor := actorFromContext(r)
 
-	sc := scope.Parse(q.Get("scope"))
-	clusterID := sc.ClusterID
-	if clusterID == "" {
-		return web.ConsoleVM{}, false
-	}
-
 	clusters, err := s.conf.ListClusters(ctx)
 	if err != nil {
 		return web.ConsoleVM{}, false
 	}
-	var clusterName string
-	for _, c := range clusters {
-		if c.ID == clusterID {
-			clusterName = c.Name
-			break
-		}
-	}
-	if clusterName == "" {
+	sc, clusterID, clusterName, ok := consoleClusterFromQuery(q, clusters)
+	if !ok {
 		return web.ConsoleVM{}, false
 	}
 
@@ -177,6 +172,10 @@ func (s *Server) buildConsoleVM(w http.ResponseWriter, r *http.Request) (web.Con
 			vm.HasResult = true
 			vm.Result = consoleResultVM(current, page, pageSize, scopeEnc)
 			vm.Editor.SQL = current.SQL // reload the restored/last statement into the editor
+		} else if sql := s.consoleScriptSQL(r, q.Get("script")); sql != "" {
+			// Saved Scripts / Search hand-off (no cached run to restore): preload
+			// the selected script's SQL into the editor. Visibility-gated.
+			vm.Editor.SQL = sql
 		}
 		vm.History = consoleHistoryVM(s.sessions.Recent(actor, clusterID), scopeEnc)
 	}
@@ -470,16 +469,48 @@ func (s *Server) handleConsoleRun(w http.ResponseWriter, r *http.Request) {
 
 	node := r.FormValue("node")
 	db := r.FormValue("db")
-	sql := strings.TrimSpace(r.FormValue("sql"))
-	serverID, _, ok, err := s.resolveConsoleTarget(ctx, clusterID, node, db)
+	executed, err := s.runConsoleStatement(ctx, clusterID, clusterName, node, db, r.FormValue("sql"), actor)
 	if err != nil {
-		http.Error(w, "resolve target", http.StatusInternalServerError)
+		// Fail closed: execution or its audit failed — withhold results.
+		http.Error(w, "run failed — result withheld", http.StatusInternalServerError)
 		return
 	}
-	if !ok || sql == "" {
-		// Target not fully resolved or empty statement — re-render (RUN inert).
+	if !executed {
+		// Target not fully resolved, empty statement, or the per-server T2 kill
+		// switch is off — re-render (RUN inert), no results, no audit.
 		s.renderConsoleBody(w, r)
 		return
+	}
+
+	// The freshly-cached run drives the re-render; carry the selection so the
+	// picker stays resolved (scope is already in the request URL).
+	r2 := r.Clone(ctx)
+	q := r2.URL.Query()
+	q.Set("node", node)
+	q.Set("db", db)
+	r2.URL.RawQuery = q.Encode()
+	s.renderConsoleBody(w, r2)
+}
+
+// runConsoleStatement executes one statement against the resolved target and
+// writes the fail-closed T2 audit row before caching the run. The caller MUST
+// have already verified an active session grant on clusterID.
+//
+// It enforces the per-server T2 kill switch (servers.t2_enabled): a target
+// whose stream has t2_enabled=false is refused with NO execution and NO audit,
+// mirroring the canonical T2Reader gateway's fast-reject. Returns:
+//   - executed=true when a run happened and was cached;
+//   - executed=false, err=nil when the target is unresolved, the statement is
+//     empty, or T2 is disabled on the target (nothing ran, nothing audited);
+//   - err!=nil on an internal execute/audit failure the caller fails closed on.
+func (s *Server) runConsoleStatement(ctx context.Context, clusterID, clusterName, node, db, sql, actor string) (bool, error) {
+	sql = strings.TrimSpace(sql)
+	serverID, t2Enabled, ok, err := s.resolveConsoleTarget(ctx, clusterID, node, db)
+	if err != nil {
+		return false, err
+	}
+	if !ok || sql == "" || !t2Enabled {
+		return false, nil
 	}
 
 	res, err := s.exec.Execute(ctx, console.Statement{
@@ -487,12 +518,11 @@ func (s *Server) handleConsoleRun(w http.ResponseWriter, r *http.Request) {
 		ServerID: serverID, SQL: sql, RowLimit: consoleRowLimit, TimeoutSecs: consoleTimeoutSecs, Actor: actor,
 	})
 	if err != nil {
-		http.Error(w, "execute", http.StatusInternalServerError)
-		return
+		return false, err
 	}
 
-	// Strict audit BEFORE returning results — fail closed. Detail is a T2
-	// governance artifact (statement text is permitted in the audit_log).
+	// Strict audit BEFORE caching/returning results — fail closed. Detail is a
+	// T2 governance artifact (statement text is permitted in the audit_log).
 	rec, err := s.conf.AppendAuditReturning(ctx, store.AuditEntry{
 		Actor: actor, Action: "console.query.execute", ServerID: serverID, DataTier: 2,
 		Detail: map[string]any{
@@ -508,9 +538,7 @@ func (s *Server) handleConsoleRun(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 	if err != nil {
-		// Fail closed: the run happened but could not be recorded — withhold results.
-		http.Error(w, "audit failed — result withheld", http.StatusInternalServerError)
-		return
+		return false, err
 	}
 
 	// ID is the FULL hex (URL-safe lookup key for restore/Get); ShortHash is
@@ -520,15 +548,80 @@ func (s *Server) handleConsoleRun(w http.ResponseWriter, r *http.Request) {
 		At: rec.At, SQL: sql, Node: node, Database: db,
 		Result: res, DurationMs: res.DurationMs,
 	})
+	return true, nil
+}
 
-	// The freshly-cached run drives the re-render; carry the selection so the
-	// picker stays resolved (scope is already in the request URL).
-	r2 := r.Clone(ctx)
-	q := r2.URL.Query()
-	q.Set("node", node)
-	q.Set("db", db)
-	r2.URL.RawQuery = q.Encode()
-	s.renderConsoleBody(w, r2)
+// runConsoleHandoff consumes a /console?script=<id>&cluster=<name>&node=&db=&
+// run=1 hand-off from Saved Scripts / Search: it resolves the cluster (by name),
+// loads the visible script's SQL, and — when an active grant exists on that
+// cluster — executes it through the same audited path as a manual RUN. It is
+// best-effort: any failure leaves the console showing the loaded (un-run)
+// script, so it never blocks the page render.
+func (s *Server) runConsoleHandoff(_ http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := r.URL.Query()
+	actor := actorFromContext(r)
+
+	clusters, err := s.conf.ListClusters(ctx)
+	if err != nil {
+		return
+	}
+	_, clusterID, clusterName, ok := consoleClusterFromQuery(q, clusters)
+	if !ok {
+		return
+	}
+	if _, granted, err := s.grants.ActiveGrant(ctx, clusterID, clusterName, actor); err != nil || !granted {
+		return
+	}
+	sql := s.consoleScriptSQL(r, q.Get("script"))
+	if sql == "" {
+		return
+	}
+	_, _ = s.runConsoleStatement(ctx, clusterID, clusterName, q.Get("node"), q.Get("db"), sql, actor)
+}
+
+// consoleClusterFromQuery resolves the target cluster for a console request from
+// either the scope= param (normal navigation) or the ?cluster=<NAME> hand-off
+// param (Saved Scripts / Search, which carries no scope=). For a name hand-off
+// it synthesizes a cluster scope so every downstream chip / run / export href
+// carries scope=cluster:<id>. Returns ok=false when neither yields a known
+// cluster.
+func consoleClusterFromQuery(q url.Values, clusters []store.Cluster) (sc scope.Scope, clusterID, clusterName string, ok bool) {
+	sc = scope.Parse(q.Get("scope"))
+	if sc.ClusterID != "" {
+		for _, c := range clusters {
+			if c.ID == sc.ClusterID {
+				return sc, c.ID, c.Name, true
+			}
+		}
+		return sc, "", "", false
+	}
+	if name := q.Get("cluster"); name != "" {
+		for _, c := range clusters {
+			if c.Name == name {
+				return scope.Scope{Kind: scope.Cluster, ClusterID: c.ID}, c.ID, c.Name, true
+			}
+		}
+	}
+	return sc, "", "", false
+}
+
+// consoleScriptSQL loads a saved script's SQL text for a console hand-off,
+// respecting the viewer's visibility (GetVisibleScript). Returns "" for an
+// absent/blank/invalid id or a script the viewer may not see.
+func (s *Server) consoleScriptSQL(r *http.Request, idStr string) string {
+	if idStr == "" {
+		return ""
+	}
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		return ""
+	}
+	sc, found, err := s.conf.GetVisibleScript(r.Context(), id, viewerFromContext(r), groupFromContext(r))
+	if err != nil || !found {
+		return ""
+	}
+	return sc.SQLText
 }
 
 // renderConsoleBody re-renders the swap unit for the current request.
@@ -560,27 +653,71 @@ func sha256Hex(s string) string {
 
 // handleConsoleExport streams the caller's latest cached result FOR THIS
 // CLUSTER as a CSV or SQL-INSERT download. The cluster comes from the ?scope=
-// param, scoping the read so an export cannot return another cluster's run (no
-// re-execution, no re-audit — the run was already audited when it ran).
+// param, scoping the read so an export cannot return another cluster's run.
+//
+// A download is a fresh bulk egress of the literal T2 rows, so — unlike a
+// paginated re-read of the same page — it is fail-closed re-gated on an active
+// session grant and written to the audit log before any byte is streamed. A
+// grant that has expired or been revoked since the run therefore cannot export
+// the cached result, and no T2 egress is unaudited ("EVERY T2 READ APPEARS
+// HERE — NO EXCEPTIONS").
 func (s *Server) handleConsoleExport(w http.ResponseWriter, r *http.Request) {
-	sc := scope.Parse(r.URL.Query().Get("scope"))
-	clusterID := sc.ClusterID
-	if clusterID == "" {
+	ctx := r.Context()
+	actor := actorFromContext(r)
+
+	clusters, err := s.conf.ListClusters(ctx)
+	if err != nil {
+		http.Error(w, "load clusters", http.StatusInternalServerError)
+		return
+	}
+	_, clusterID, clusterName, ok := consoleClusterFromQuery(r.URL.Query(), clusters)
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	run, ok := s.sessions.Latest(actorFromContext(r), clusterID)
+
+	// Fail-closed grant re-check — no grant, no export, no bytes.
+	if _, granted, err := s.grants.ActiveGrant(ctx, clusterID, clusterName, actor); err != nil {
+		http.Error(w, "grant check", http.StatusInternalServerError)
+		return
+	} else if !granted {
+		http.Error(w, "no active session grant on this cluster", http.StatusForbidden)
+		return
+	}
+
+	run, ok := s.sessions.Latest(actor, clusterID)
 	if !ok {
 		http.Error(w, "no result to export", http.StatusNotFound)
 		return
 	}
+
+	format := r.URL.Query().Get("format")
 	var body, filename, ctype string
-	switch r.URL.Query().Get("format") {
+	switch format {
 	case "sql":
 		body, filename, ctype = console.SQLInserts(run.Result, "result"), "lynceus-result.sql", "application/sql"
 	default:
+		format = "csv"
 		body, filename, ctype = console.CSV(run.Result), "lynceus-result.csv", "text/csv"
 	}
+
+	// Strict T2 audit BEFORE streaming any literal bytes — fail closed, mirroring
+	// handleConsoleRun. This export egress is its own tier-2 audit event.
+	serverID, _, _, _ := s.resolveConsoleTarget(ctx, clusterID, run.Node, run.Database)
+	if _, err := s.conf.AppendAuditReturning(ctx, store.AuditEntry{
+		Actor: actor, Action: "console.result.export", ServerID: serverID, DataTier: 2,
+		Detail: map[string]any{
+			"format":           format,
+			"row_count":        run.Result.RowCount(),
+			"statement_sha256": sha256Hex(run.SQL),
+			"target_node":      run.Node,
+			"target_database":  run.Database,
+		},
+	}); err != nil {
+		http.Error(w, "audit failed — export withheld", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", ctype+"; charset=utf-8")
 	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
 	_, _ = w.Write([]byte(body))

@@ -85,6 +85,15 @@ func TestConsolePage_grantedRendersPickerAndBanner(t *testing.T) {
 			t.Errorf("page missing %q", want)
 		}
 	}
+	// console.js loads once on the full page, OUTSIDE the #console-body swap unit
+	// (before it in document order), so HTMX body swaps don't re-execute it.
+	scriptIdx := strings.Index(html, `src="/static/js/console.js"`)
+	bodyIdx := strings.Index(html, `id="console-body"`)
+	if scriptIdx < 0 {
+		t.Error("full page missing console.js")
+	} else if bodyIdx >= 0 && scriptIdx > bodyIdx {
+		t.Error("console.js must render outside/before #console-body, not inside the swap unit")
+	}
 }
 
 func TestConsolePartial_returnsFragmentOnly(t *testing.T) {
@@ -97,6 +106,11 @@ func TestConsolePartial_returnsFragmentOnly(t *testing.T) {
 	}
 	if !strings.Contains(html, `id="console-body"`) {
 		t.Error("partial missing swap-target id")
+	}
+	// The partial IS the #console-body swap unit — it must not embed console.js,
+	// or every HTMX swap would re-execute it and stack duplicate listeners.
+	if strings.Contains(html, "console.js") {
+		t.Error("partial (#console-body swap unit) must not embed console.js")
 	}
 }
 
@@ -346,5 +360,124 @@ func TestConsole_historyRestoreLoadsStatement(t *testing.T) {
 	}
 	if strings.Contains(rh, "SELECT 2</textarea>") {
 		t.Error("restoring the older run must not reload the newer statement into the editor")
+	}
+}
+
+// TestConsoleRun_refusedWhenT2Disabled_writesNoAudit asserts the per-server T2
+// kill switch (servers.t2_enabled) is enforced on the console run path: even
+// with an active cluster grant, a run against a stream with t2_enabled=false
+// does not execute and writes no audit row (mirror T2Reader fast-reject).
+func TestConsoleRun_refusedWhenT2Disabled_writesNoAudit(t *testing.T) {
+	srv, clusterID, _, pool := setupConsole(t, "orders-prod") // cluster granted
+	// Flip the only stream's kill switch OFF.
+	if _, err := pool.Exec(context.Background(), `UPDATE servers SET t2_enabled=false WHERE id='srv-con'`); err != nil {
+		t.Fatalf("disable t2: %v", err)
+	}
+	runURL := consoleURL(srv.URL+"/partial/console/run", "cluster:"+clusterID, nil)
+	form := url.Values{"sql": {"SELECT relname FROM pg_stat_user_tables"}, "node": {"primary"}, "db": {"appdb"}}
+	resp, err := http.PostForm(runURL, form)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if html := readBody(t, resp); strings.Contains(html, "T2 READ LOGGED") {
+		t.Error("run must not produce a result when the target's t2_enabled=false")
+	}
+	recs, _ := store.NewConfig(pool).ListAudit(context.Background(), store.AuditFilter{Action: "console.query.execute"})
+	if len(recs) != 0 {
+		t.Errorf("t2-disabled RUN wrote %d execute audit rows, want 0", len(recs))
+	}
+}
+
+// TestConsoleExport_refusedWithoutGrant_writesNoAudit asserts the export path is
+// fail-closed re-gated on an active grant: an ungranted cluster export serves no
+// bytes and writes no data-export audit row.
+func TestConsoleExport_refusedWithoutGrant_writesNoAudit(t *testing.T) {
+	srv, clusterID, _, pool := setupConsole(t, "staging") // ungranted (StubGrantReader)
+	resp, err := http.Get(consoleURL(srv.URL+"/console/export", "cluster:"+clusterID, url.Values{"format": {"csv"}}))
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == 200 {
+		t.Errorf("ungranted export status = 200, want non-200 (fail closed)")
+	}
+	recs, _ := store.NewConfig(pool).ListAudit(context.Background(), store.AuditFilter{Action: "console.result.export"})
+	if len(recs) != 0 {
+		t.Errorf("ungranted export wrote %d export audit rows, want 0", len(recs))
+	}
+}
+
+// TestConsoleExport_withGrant_writesOneTier2AuditRow asserts a granted export
+// streams the download AND records exactly one tier-2 export audit row.
+func TestConsoleExport_withGrant_writesOneTier2AuditRow(t *testing.T) {
+	srv, clusterID, _, pool := setupConsole(t, "orders-prod") // granted
+	runOnce(t, srv, clusterID)                                // caches a result (1 execute audit)
+	resp, err := http.Get(consoleURL(srv.URL+"/console/export", "cluster:"+clusterID, url.Values{"format": {"csv"}}))
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != 200 {
+		t.Fatalf("granted export status = %d, want 200", resp.StatusCode)
+	}
+	if b := readBody(t, resp); !strings.HasPrefix(b, "relname,") {
+		t.Errorf("export body missing CSV header: %q", b[:min(40, len(b))])
+	}
+	recs, err := store.NewConfig(pool).ListAudit(context.Background(), store.AuditFilter{Action: "console.result.export"})
+	if err != nil {
+		t.Fatalf("ListAudit: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("export audit rows = %d, want exactly 1", len(recs))
+	}
+	if recs[0].DataTier != 2 || recs[0].Actor != "dev-admin" {
+		t.Errorf("export audit = %+v, want tier=2 actor=dev-admin", recs[0])
+	}
+}
+
+// TestConsole_scriptHandoffLoadsSQLIntoEditor asserts the Saved Scripts / Search
+// hand-off contract: /console?script=<id>&cluster=<NAME>&node=&db= resolves the
+// cluster by name (no scope=) and preloads the visible script's SQL into the
+// editor (200, not 404).
+func TestConsole_scriptHandoffLoadsSQLIntoEditor(t *testing.T) {
+	srv, _, _, pool := setupConsole(t, "orders-prod")
+	sc, err := store.NewConfig(pool).CreateScript(context.Background(), store.CreateScriptInput{
+		Name: "dead-tuples", SQLText: "SELECT relname FROM pg_stat_user_tables", Scope: "GLOBAL", Owner: "m.chen",
+	})
+	if err != nil {
+		t.Fatalf("CreateScript: %v", err)
+	}
+	u := srv.URL + "/console?" + url.Values{
+		"script": {itoaTest(sc.ID)}, "cluster": {"orders-prod"}, "node": {"primary"}, "db": {"appdb"},
+	}.Encode()
+	html := getBody200(t, u)
+	if !strings.Contains(html, "SELECT relname FROM pg_stat_user_tables</textarea>") {
+		t.Error("console hand-off did not preload the script SQL into the editor")
+	}
+}
+
+// TestConsole_scriptHandoffRunExecutesAndAudits asserts the RUN hand-off
+// (run=1) executes the preloaded script through the audited path when the
+// cluster grant is active.
+func TestConsole_scriptHandoffRunExecutesAndAudits(t *testing.T) {
+	srv, _, _, pool := setupConsole(t, "orders-prod")
+	sc, err := store.NewConfig(pool).CreateScript(context.Background(), store.CreateScriptInput{
+		Name: "run-me", SQLText: "SELECT relname FROM pg_stat_user_tables", Scope: "GLOBAL", Owner: "m.chen",
+	})
+	if err != nil {
+		t.Fatalf("CreateScript: %v", err)
+	}
+	u := srv.URL + "/console?" + url.Values{
+		"script": {itoaTest(sc.ID)}, "cluster": {"orders-prod"},
+		"node": {"primary"}, "db": {"appdb"}, "run": {"1"},
+	}.Encode()
+	html := getBody200(t, u)
+	if !strings.Contains(html, "T2 READ LOGGED ·") {
+		t.Error("run=1 hand-off must execute the script and render a result")
+	}
+	recs, _ := store.NewConfig(pool).ListAudit(context.Background(), store.AuditFilter{Action: "console.query.execute"})
+	if len(recs) != 1 {
+		t.Fatalf("run=1 hand-off execute-audit rows = %d, want 1", len(recs))
 	}
 }

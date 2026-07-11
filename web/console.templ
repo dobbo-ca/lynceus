@@ -6,6 +6,12 @@ import "fmt"
 // console body in the main-content slot.
 templ ConsolePage(vm ConsoleVM) {
 	@Shell(vm.Shell) {
+		// Load console.js ONCE here, outside #console-body (the HTMX outerHTML
+		// swap unit). Inside the body it would be re-executed on every chip /
+		// pagination / history swap, stacking duplicate document-level listeners
+		// (Ctrl+Enter → N duplicate RUNs). Mirrors EngineSprites rendered outside
+		// the swap body on the other screens.
+		<script src="/static/js/console.js" defer></script>
 		@ConsoleBody(vm)
 	}
 }
@@ -33,7 +39,6 @@ templ ConsoleBody(vm ConsoleVM) {
 				<a href={ templ.SafeURL(vm.CapabilitiesHref) } style="border:1px solid var(--acc);color:var(--acc2);background:var(--accbg);padding:7px 16px;border-radius:var(--radius);font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-decoration:none;">REQUEST SESSION GRANT →</a>
 			</div>
 		}
-		<script src="/static/js/console.js" defer></script>
 	</div>
 }
 

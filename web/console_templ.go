@@ -45,6 +45,10 @@ func ConsolePage(vm ConsoleVM) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "     <script src=\"/static/js/console.js\" defer></script> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			templ_7745c5c3_Err = ConsoleBody(vm).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -83,7 +87,7 @@ func ConsoleBody(vm ConsoleVM) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"console-body\" style=\"padding:18px 22px 32px;display:flex;flex-direction:column;gap:14px;max-width:1400px;\"><div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap;\"><span style=\"font-size:17px;font-weight:600;color:var(--text);\">SQL Console</span> <span style=\"font-family:var(--font-mono);font-size:10px;color:var(--warnT);border:1px solid var(--warn);padding:0 5px;border-radius:var(--radius-badge);\">T2 · SESSION-GRANTED</span> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.08em;\">DIRECT READ ACCESS TO ONE INSTANCE AT A TIME — EVERY STATEMENT AUDITED</span></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div id=\"console-body\" style=\"padding:18px 22px 32px;display:flex;flex-direction:column;gap:14px;max-width:1400px;\"><div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap;\"><span style=\"font-size:17px;font-weight:600;color:var(--text);\">SQL Console</span> <span style=\"font-family:var(--font-mono);font-size:10px;color:var(--warnT);border:1px solid var(--warn);padding:0 5px;border-radius:var(--radius-badge);\">T2 · SESSION-GRANTED</span> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.08em;\">DIRECT READ ACCESS TO ONE INSTANCE AT A TIME — EVERY STATEMENT AUDITED</span></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -96,7 +100,7 @@ func ConsoleBody(vm ConsoleVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -104,7 +108,7 @@ func ConsoleBody(vm ConsoleVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -112,7 +116,7 @@ func ConsoleBody(vm ConsoleVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, " ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -121,38 +125,38 @@ func ConsoleBody(vm ConsoleVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<div style=\"border:1px solid var(--warn);border-radius:var(--radius);background:var(--surface);padding:28px 22px;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;\"><span style=\"font-family:var(--font-mono);font-size:11px;color:var(--warnT);letter-spacing:.08em;\">◈ NO SESSION GRANT ON ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div style=\"border:1px solid var(--warn);border-radius:var(--radius);background:var(--surface);padding:28px 22px;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;\"><span style=\"font-family:var(--font-mono);font-size:11px;color:var(--warnT);letter-spacing:.08em;\">◈ NO SESSION GRANT ON ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Picker.ClusterLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 31, Col: 151}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 37, Col: 151}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</span> <span style=\"font-size:12.5px;color:var(--mut);max-width:540px;line-height:1.6;\">Direct SQL access is a Tier 2 capability, granted per instance and per session. Request a time-boxed grant — an approver from dba-oncall signs it, and every statement you run is written to the audit log.</span> <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</span> <span style=\"font-size:12.5px;color:var(--mut);max-width:540px;line-height:1.6;\">Direct SQL access is a Tier 2 capability, granted per instance and per session. Request a time-boxed grant — an approver from dba-oncall signs it, and every statement you run is written to the audit log.</span> <a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var5 templ.SafeURL
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.CapabilitiesHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 33, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 39, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" style=\"border:1px solid var(--acc);color:var(--acc2);background:var(--accbg);padding:7px 16px;border-radius:var(--radius);font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-decoration:none;\">REQUEST SESSION GRANT →</a></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" style=\"border:1px solid var(--acc);color:var(--acc2);background:var(--accbg);padding:7px 16px;border-radius:var(--radius);font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-decoration:none;\">REQUEST SESSION GRANT →</a></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<script src=\"/static/js/console.js\" defer></script></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -182,61 +186,61 @@ func consolePicker(p ConsolePickerVM) templ.Component {
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div style=\"border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:12px 14px;display:flex;flex-direction:column;gap:10px;\"><div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap;\"><span style=\"font-family:var(--font-mono);font-size:11px;color:var(--faint);letter-spacing:.08em;\">TARGET — ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div style=\"border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:12px 14px;display:flex;flex-direction:column;gap:10px;\"><div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap;\"><span style=\"font-family:var(--font-mono);font-size:11px;color:var(--faint);letter-spacing:.08em;\">TARGET — ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(p.ClusterLabel)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 44, Col: 129}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 49, Col: 129}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if p.Granted {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);letter-spacing:.06em;\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);letter-spacing:.06em;\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(p.GrantChip)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 46, Col: 117}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 51, Col: 117}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em;\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em;\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(p.GrantChip)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 48, Col: 118}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 53, Col: 118}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div><div style=\"display:flex;align-items:center;gap:8px;flex-wrap:wrap;\"><span style=\"font-family:var(--font-mono);font-size:10px;color:var(--faint);width:70px;\">NODE</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</div><div style=\"display:flex;align-items:center;gap:8px;flex-wrap:wrap;\"><span style=\"font-family:var(--font-mono);font-size:10px;color:var(--faint);width:70px;\">NODE</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -246,7 +250,7 @@ func consolePicker(p ConsolePickerVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</div><div style=\"display:flex;align-items:center;gap:8px;flex-wrap:wrap;\"><span style=\"font-family:var(--font-mono);font-size:10px;color:var(--faint);width:70px;\">DATABASE</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div><div style=\"display:flex;align-items:center;gap:8px;flex-wrap:wrap;\"><span style=\"font-family:var(--font-mono);font-size:10px;color:var(--faint);width:70px;\">DATABASE</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -256,7 +260,7 @@ func consolePicker(p ConsolePickerVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -289,128 +293,128 @@ func consoleChip(c ConsoleChip) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		if c.Href == "" {
 			if c.Selected {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<span data-console-chip-fixed aria-disabled=\"true\" style=\"display:inline-block;padding:3px 9px;border-radius:var(--radius-badge);font-family:var(--font-mono);font-size:11px;border:1px solid var(--acc);color:var(--acc2);background:var(--accbg);\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<span data-console-chip-fixed aria-disabled=\"true\" style=\"display:inline-block;padding:3px 9px;border-radius:var(--radius-badge);font-family:var(--font-mono);font-size:11px;border:1px solid var(--acc);color:var(--acc2);background:var(--accbg);\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(c.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 71, Col: 257}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 76, Col: 257}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<span data-console-chip-fixed aria-disabled=\"true\" style=\"display:inline-block;padding:3px 9px;border-radius:var(--radius-badge);font-family:var(--font-mono);font-size:11px;border:1px solid var(--line);color:var(--mut);\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<span data-console-chip-fixed aria-disabled=\"true\" style=\"display:inline-block;padding:3px 9px;border-radius:var(--radius-badge);font-family:var(--font-mono);font-size:11px;border:1px solid var(--line);color:var(--mut);\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(c.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 73, Col: 233}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 78, Col: 233}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
 		} else {
 			if c.Selected {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<a href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var13 templ.SafeURL
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(c.Href))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 77, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 82, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\" hx-get=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\" hx-get=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Href)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 77, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 82, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"display:inline-block;padding:3px 9px;border-radius:var(--radius-badge);font-family:var(--font-mono);font-size:11px;text-decoration:none;border:1px solid var(--acc);color:var(--acc2);background:var(--accbg);\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"display:inline-block;padding:3px 9px;border-radius:var(--radius-badge);font-family:var(--font-mono);font-size:11px;text-decoration:none;border:1px solid var(--acc);color:var(--acc2);background:var(--accbg);\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var15 string
 				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(c.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 77, Col: 325}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 82, Col: 325}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</a>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</a>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<a href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var16 templ.SafeURL
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(c.Href))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 79, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 84, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\" hx-get=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "\" hx-get=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var17 string
 				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Href)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 79, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 84, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"display:inline-block;padding:3px 9px;border-radius:var(--radius-badge);font-family:var(--font-mono);font-size:11px;text-decoration:none;border:1px solid var(--line);color:var(--mut);\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"display:inline-block;padding:3px 9px;border-radius:var(--radius-badge);font-family:var(--font-mono);font-size:11px;text-decoration:none;border:1px solid var(--line);color:var(--mut);\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var18 string
 				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(c.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 79, Col: 301}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 84, Col: 301}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</a>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</a>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -442,59 +446,59 @@ func consoleGrantBanner(g ConsoleGrantVM) templ.Component {
 			templ_7745c5c3_Var19 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<div style=\"border:1px solid var(--acc);border-radius:var(--radius);background:var(--accbg);padding:9px 13px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;\"><span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);letter-spacing:.06em;\">● SESSION GRANT ACTIVE</span> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);\">GROUP ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<div style=\"border:1px solid var(--acc);border-radius:var(--radius);background:var(--accbg);padding:9px 13px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;\"><span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);letter-spacing:.06em;\">● SESSION GRANT ACTIVE</span> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);\">GROUP ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(g.Group)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 88, Col: 95}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 93, Col: 95}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</span> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);\">READ-ONLY — WRITES &amp; DDL BLOCKED BY POLICY</span> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);\">EXPIRES IN ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</span> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);\">READ-ONLY — WRITES &amp; DDL BLOCKED BY POLICY</span> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);\">EXPIRES IN ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(g.Expires)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 90, Col: 102}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 95, Col: 102}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</span> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);\">REF ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</span> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);\">REF ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(g.Incident)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 91, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 96, Col: 96}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</span> <a href=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</span> <a href=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var23 templ.SafeURL
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(g.AuditHref))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 92, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 97, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "\" style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);text-decoration:none;\">AUDIT TRAIL →</a></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "\" style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);text-decoration:none;\">AUDIT TRAIL →</a></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -525,126 +529,126 @@ func consoleEditor(e ConsoleEditorVM) templ.Component {
 			templ_7745c5c3_Var24 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "<form id=\"console-editor-form\" style=\"border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);display:flex;flex-direction:column;gap:0;overflow:hidden;\"><div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);\"><span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em;\">EDITOR — ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<form id=\"console-editor-form\" style=\"border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);display:flex;flex-direction:column;gap:0;overflow:hidden;\"><div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);\"><span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em;\">EDITOR — ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(e.TargetName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 101, Col: 129}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 106, Col: 129}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</span> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</span> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("ROW LIMIT %d · STATEMENT TIMEOUT %dS", e.RowLimit, e.TimeoutSecs))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 102, Col: 164}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 107, Col: 164}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</span> <span style=\"flex:1;\"></span> <input type=\"search\" placeholder=\"search saved scripts…\" hx-get=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</span> <span style=\"flex:1;\"></span> <input type=\"search\" placeholder=\"search saved scripts…\" hx-get=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.ResolveAttributeValue(e.SearchScriptsHref)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 104, Col: 90}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 109, Col: 90}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "\" hx-target=\"#console-scripts-list\" hx-trigger=\"keyup changed delay:200ms, search\" style=\"font-family:var(--font-mono);font-size:11px;background:var(--raised);border:1px solid var(--line);color:var(--text);border-radius:var(--radius-badge);padding:3px 8px;\"> <a href=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "\" hx-target=\"#console-scripts-list\" hx-trigger=\"keyup changed delay:200ms, search\" style=\"font-family:var(--font-mono);font-size:11px;background:var(--raised);border:1px solid var(--line);color:var(--text);border-radius:var(--radius-badge);padding:3px 8px;\"> <a href=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var28 templ.SafeURL
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(e.SaveScriptsHref))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 105, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 110, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "\" style=\"font-family:var(--font-mono);font-size:11px;color:var(--mut);text-decoration:none;border:1px solid var(--line);border-radius:var(--radius-badge);padding:3px 9px;\">SAVE ▾</a> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "\" style=\"font-family:var(--font-mono);font-size:11px;color:var(--mut);text-decoration:none;border:1px solid var(--line);border-radius:var(--radius-badge);padding:3px 9px;\">SAVE ▾</a> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if e.Ready {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<button type=\"button\" data-console-run hx-post=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<button type=\"button\" data-console-run hx-post=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.ResolveAttributeValue(e.RunHref)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 107, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 112, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "\" hx-include=\"#console-editor-form\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"border:1px solid var(--acc);color:var(--acc2);background:var(--accbg);padding:6px 14px;border-radius:var(--radius);font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;cursor:pointer;\">RUN ⌘↵</button>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "\" hx-include=\"#console-editor-form\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"border:1px solid var(--acc);color:var(--acc2);background:var(--accbg);padding:6px 14px;border-radius:var(--radius);font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;cursor:pointer;\">RUN ⌘↵</button>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<span aria-disabled=\"true\" style=\"border:1px solid var(--line);color:var(--faint);background:transparent;padding:6px 14px;border-radius:var(--radius);font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;\">RUN ⌘↵</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<span aria-disabled=\"true\" style=\"border:1px solid var(--line);color:var(--faint);background:transparent;padding:6px 14px;border-radius:var(--radius);font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;\">RUN ⌘↵</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</div><input type=\"hidden\" name=\"node\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "</div><input type=\"hidden\" name=\"node\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue(e.Node)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 112, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 117, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "\"> <input type=\"hidden\" name=\"db\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "\"> <input type=\"hidden\" name=\"db\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var31 string
 		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.ResolveAttributeValue(e.Database)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 113, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 118, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "\"> <textarea name=\"sql\" spellcheck=\"false\" style=\"font-family:var(--font-mono);font-size:12.5px;line-height:1.7;background:var(--raised);color:var(--text);border:0;padding:12px;min-height:150px;resize:vertical;outline:none;\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "\"> <textarea name=\"sql\" spellcheck=\"false\" style=\"font-family:var(--font-mono);font-size:12.5px;line-height:1.7;background:var(--raised);color:var(--text);border:0;padding:12px;min-height:150px;resize:vertical;outline:none;\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var32 string
 		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(e.SQL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 114, Col: 231}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 119, Col: 231}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</textarea> <span id=\"console-scripts-list\"></span></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "</textarea> <span id=\"console-scripts-list\"></span></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -675,154 +679,154 @@ func consoleResult(vm ConsoleVM) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if vm.HasResult {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "<div style=\"border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);display:flex;flex-direction:column;overflow:hidden;\"><div style=\"display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);\"><span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em;\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "<div style=\"border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);display:flex;flex-direction:column;overflow:hidden;\"><div style=\"display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);\"><span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em;\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("RESULT — %d ROWS · %.1f MS", vm.Result.TotalRows, vm.Result.DurationMs))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 124, Col: 194}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 129, Col: 194}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</span> <span style=\"flex:1;\"></span> <span data-console-copy style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);cursor:pointer;\">⧉ COPY</span> <span id=\"console-copy-note\" style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);\"></span> <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "</span> <span style=\"flex:1;\"></span> <span data-console-copy style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);cursor:pointer;\">⧉ COPY</span> <span id=\"console-copy-note\" style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);\"></span> <a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var35 templ.SafeURL
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.Result.CsvHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 128, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 133, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "\" style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);text-decoration:none;\">↓ CSV</a> <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "\" style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);text-decoration:none;\">↓ CSV</a> <a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var36 templ.SafeURL
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vm.Result.SqlHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 129, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 134, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "\" style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);text-decoration:none;\">↓ SQL</a> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--ok);letter-spacing:.06em;\">T2 READ LOGGED · ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "\" style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--mut);text-decoration:none;\">↓ SQL</a> <span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--ok);letter-spacing:.06em;\">T2 READ LOGGED · ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var37 string
 			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Result.Hash)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 130, Col: 136}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 135, Col: 136}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "</span></div><div id=\"console-copy-src\" data-console-copy-payload data-too-large=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</span></div><div id=\"console-copy-src\" data-console-copy-payload data-too-large=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var38 string
 			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.ResolveAttributeValue(boolAttr(vm.Result.CopyTooLarge))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 132, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 137, Col: 105}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var38)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "\" style=\"display:none;\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "\" style=\"display:none;\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var39 string
 			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Result.CopyTSV)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 132, Col: 149}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 137, Col: 149}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</div><div style=\"overflow-x:auto;\"><table style=\"border-collapse:collapse;min-width:860px;width:100%;font-family:var(--font-mono);font-size:12px;\"><thead><tr>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "</div><div style=\"overflow-x:auto;\"><table style=\"border-collapse:collapse;min-width:860px;width:100%;font-family:var(--font-mono);font-size:12px;\"><thead><tr>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, col := range vm.Result.Columns {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "<th style=\"text-align:left;padding:6px 12px;color:var(--faint);font-weight:600;letter-spacing:.06em;border-bottom:1px solid var(--line);white-space:nowrap;\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<th style=\"text-align:left;padding:6px 12px;color:var(--faint);font-weight:600;letter-spacing:.06em;border-bottom:1px solid var(--line);white-space:nowrap;\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var40 string
 				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(upper(col))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 138, Col: 177}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 143, Col: 177}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "</th>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "</th>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "</tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "</tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, row := range vm.Result.Rows {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "<tr>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "<tr>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				for _, cell := range row {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "<td style=\"padding:5px 12px;color:var(--text);border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums;white-space:nowrap;\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "<td style=\"padding:5px 12px;color:var(--text);border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums;white-space:nowrap;\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var41 string
 					templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(cell)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 146, Col: 153}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 151, Col: 153}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "</td>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "</td>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "</tr>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</tr>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</tbody></table></div><div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--line);\"><span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</tbody></table></div><div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--line);\"><span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var42 string
 			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Result.PageLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 154, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 159, Col: 105}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -834,7 +838,7 @@ func consoleResult(vm ConsoleVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "<span style=\"flex:1;\"></span> <span style=\"font-family:var(--font-mono);font-size:10px;color:var(--faint);\">ROWS / PAGE</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "<span style=\"flex:1;\"></span> <span style=\"font-family:var(--font-mono);font-size:10px;color:var(--faint);\">ROWS / PAGE</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -844,12 +848,12 @@ func consoleResult(vm ConsoleVM) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "<span style=\"font-family:var(--font-mono);font-size:9.5px;color:var(--faint);\">· SAVED TO YOUR PROFILE</span></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "<span style=\"font-family:var(--font-mono);font-size:9.5px;color:var(--faint);\">· SAVED TO YOUR PROFILE</span></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "<div style=\"border:1px dashed var(--line);border-radius:var(--radius);background:var(--surface);padding:22px;text-align:center;\"><span style=\"font-family:var(--font-mono);font-size:11px;color:var(--faint);letter-spacing:.06em;\">NO STATEMENT EXECUTED THIS SESSION — RUN TO SEE RESULTS</span></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<div style=\"border:1px dashed var(--line);border-radius:var(--radius);background:var(--surface);padding:22px;text-align:center;\"><span style=\"font-family:var(--font-mono);font-size:11px;color:var(--faint);letter-spacing:.06em;\">NO STATEMENT EXECUTED THIS SESSION — RUN TO SEE RESULTS</span></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -881,64 +885,64 @@ func consolePageLink(href, label string, active bool) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if active {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "<a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var44 templ.SafeURL
 			templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 175, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 180, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "\" hx-get=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "\" hx-get=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var45 string
 			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.ResolveAttributeValue(href)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 175, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 180, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);text-decoration:none;\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);text-decoration:none;\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var46 string
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 175, Col: 197}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 180, Col: 197}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "</a>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</a>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "<span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var47 string
 			templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 177, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 182, Col: 89}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -970,90 +974,90 @@ func consolePageSize(ps ConsolePageSize) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if ps.Selected {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "<a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "<a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var49 templ.SafeURL
 			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(ps.Href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 184, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 189, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "\" hx-get=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "\" hx-get=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var50 string
 			templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.ResolveAttributeValue(ps.Href)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 184, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 189, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var50)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"font-family:var(--font-mono);font-size:10.5px;text-decoration:none;color:var(--acc2);border:1px solid var(--acc);border-radius:var(--radius-badge);padding:1px 7px;\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"font-family:var(--font-mono);font-size:10.5px;text-decoration:none;color:var(--acc2);border:1px solid var(--acc);border-radius:var(--radius-badge);padding:1px 7px;\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var51 string
 			templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(ps.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 184, Col: 284}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 189, Col: 284}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "</a>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "</a>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "<a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "<a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var52 templ.SafeURL
 			templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(ps.Href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 186, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 191, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "\" hx-get=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "\" hx-get=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var53 string
 			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.ResolveAttributeValue(ps.Href)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 186, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 191, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var53)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"font-family:var(--font-mono);font-size:10.5px;text-decoration:none;color:var(--mut);border:1px solid var(--line);border-radius:var(--radius-badge);padding:1px 7px;\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"font-family:var(--font-mono);font-size:10.5px;text-decoration:none;color:var(--mut);border:1px solid var(--line);border-radius:var(--radius-badge);padding:1px 7px;\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var54 string
 			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(ps.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 186, Col: 284}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 191, Col: 284}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "</a>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "</a>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1084,102 +1088,102 @@ func consoleHistory(rows []ConsoleHistoryRow) templ.Component {
 			templ_7745c5c3_Var55 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "<div style=\"border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);display:flex;flex-direction:column;overflow:hidden;\"><div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);\"><span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em;\">STATEMENT HISTORY — STRICT AUDIT: ACTOR, TARGET &amp; HASH RECORDED PER RUN</span> <span style=\"flex:1;\"></span> <span style=\"font-family:var(--font-mono);font-size:9.5px;color:var(--faint);\">CLICK A ROW TO RETRIEVE ITS RESULT</span></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "<div style=\"border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);display:flex;flex-direction:column;overflow:hidden;\"><div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);\"><span style=\"font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em;\">STATEMENT HISTORY — STRICT AUDIT: ACTOR, TARGET &amp; HASH RECORDED PER RUN</span> <span style=\"flex:1;\"></span> <span style=\"font-family:var(--font-mono);font-size:9.5px;color:var(--faint);\">CLICK A ROW TO RETRIEVE ITS RESULT</span></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if len(rows) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "<div style=\"padding:14px 12px;font-family:var(--font-mono);font-size:10.5px;color:var(--faint);\">NO STATEMENTS RUN THIS SESSION</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "<div style=\"padding:14px 12px;font-family:var(--font-mono);font-size:10.5px;color:var(--faint);\">NO STATEMENTS RUN THIS SESSION</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
 			for _, l := range rows {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "<a href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "<a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var56 templ.SafeURL
 				templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(l.Href))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 202, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 207, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "\" hx-get=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "\" hx-get=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var57 string
 				templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.Href)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 202, Col: 53}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 207, Col: 53}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var57)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"display:flex;align-items:center;gap:14px;padding:6px 12px;border-bottom:1px solid var(--line2);text-decoration:none;font-family:var(--font-mono);font-size:10.5px;\"><span style=\"color:var(--faint);width:74px;\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "\" hx-target=\"#console-body\" hx-swap=\"outerHTML\" style=\"display:flex;align-items:center;gap:14px;padding:6px 12px;border-bottom:1px solid var(--line2);text-decoration:none;font-family:var(--font-mono);font-size:10.5px;\"><span style=\"color:var(--faint);width:74px;\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var58 string
 				templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(l.TS)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 203, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 208, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "</span> <span style=\"color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "</span> <span style=\"color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var59 string
 				templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(l.Stmt)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 204, Col: 111}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 209, Col: 111}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "</span> <span style=\"color:var(--faint);\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "</span> <span style=\"color:var(--faint);\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var60 string
 				templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(l.Ms)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 205, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 210, Col: 45}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "</span> <span style=\"color:var(--dim);\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "</span> <span style=\"color:var(--dim);\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var61 string
 				templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(l.Hash)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 206, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/console.templ`, Line: 211, Col: 45}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 88, "</span> <span style=\"color:var(--acc2);\">↩</span></a>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "</span> <span style=\"color:var(--acc2);\">↩</span></a>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -47,11 +47,16 @@ func TestConsoleBody_grantedRendersBannerEditorTokens(t *testing.T) {
 		`hx-post="/partial/console/run"`,         // RUN wired when Ready
 		"var(--acc)",                             // tokens, not legacy classes
 		"var(--font-mono)",                       // mono data font via token
-		`src="/static/js/console.js"`,            // self-hosted JS
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("granted body missing %q", want)
 		}
+	}
+	// console.js must NOT live inside #console-body (the HTMX swap unit): it is
+	// loaded once by ConsolePage, outside the swap target, so it does not
+	// re-execute and stack duplicate listeners on every body swap.
+	if strings.Contains(html, "console.js") {
+		t.Error("console.js must not be embedded in the #console-body swap unit")
 	}
 	if strings.Contains(html, "class=\"empty\"") {
 		t.Error("must not use legacy component classes")
