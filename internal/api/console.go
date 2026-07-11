@@ -161,13 +161,22 @@ func (s *Server) buildConsoleVM(w http.ResponseWriter, r *http.Request) (web.Con
 			SaveScriptsHref:   "/scripts",                // seam → ly-ae6.9
 			SearchScriptsHref: "/partial/scripts/search", // seam → ly-ae6.9
 		}
-		// Result + history are wired from the (actor, cluster) session cache.
-		// The restore-aware version of this block lands in Task 5.
-		page, pageSize := consolePage(r), consolePageSize(r)
-		if run, ok := s.sessions.Latest(actor, clusterID); ok {
+		// Restore a cached run by full-hex id (history click) — else the latest
+		// run for THIS (actor, cluster). Get/Latest/Recent are cluster-scoped so
+		// a restore/latest/history read cannot cross scope.
+		page := consolePage(r)
+		pageSize := s.consolePageSize(w, r)
+		var current console.Run
+		var haveCurrent bool
+		if id := q.Get("restore"); id != "" {
+			current, haveCurrent = s.sessions.Get(actor, clusterID, id)
+		} else {
+			current, haveCurrent = s.sessions.Latest(actor, clusterID)
+		}
+		if haveCurrent {
 			vm.HasResult = true
-			vm.Result = consoleResultVM(run, page, pageSize, scopeEnc)
-			vm.Editor.SQL = run.SQL
+			vm.Result = consoleResultVM(current, page, pageSize, scopeEnc)
+			vm.Editor.SQL = current.SQL // reload the restored/last statement into the editor
 		}
 		vm.History = consoleHistoryVM(s.sessions.Recent(actor, clusterID), scopeEnc)
 	}
@@ -282,31 +291,91 @@ func (s *Server) resolveConsoleTarget(ctx context.Context, clusterID, node, db s
 	return "", false, false, nil
 }
 
-// consoleResultVM renders the cached run's full result as page 0. Real
-// pagination (prev/next math, pagesize chips, copy guard) lands in Task 5.
-func consoleResultVM(run console.Run, _, _ int, scopeEnc string) web.ConsoleResultVM {
+// consoleResultVM slices the cached run's full result to the requested page and
+// builds the pagination + export controls (all scoped to the run's target).
+func consoleResultVM(run console.Run, page, pageSize int, scopeEnc string) web.ConsoleResultVM {
 	res := run.Result
 	total := res.RowCount()
-	base := consoleChipHref("/partial/console", scopeEnc, run.Node, run.Database)
+	if pageSize <= 0 {
+		pageSize = 25
+	}
+	pageCount := (total + pageSize - 1) / pageSize
+	if pageCount < 1 {
+		pageCount = 1
+	}
+	if page < 0 {
+		page = 0
+	}
+	if page > pageCount-1 {
+		page = pageCount - 1
+	}
+	start := page * pageSize
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+	pageRows := res.Rows[start:end]
+	lower := 0
+	if total > 0 {
+		lower = start + 1
+	}
+	tsv, tooLarge := console.CopyTSV(res)
+	sizes := make([]web.ConsolePageSize, 0, 4)
+	for _, n := range []int{10, 25, 50, 100} {
+		sizes = append(sizes, web.ConsolePageSize{
+			Label:    strconv.Itoa(n),
+			Href:     consolePagedHref(scopeEnc, run.Node, run.Database, "pagesize", n),
+			Selected: n == pageSize,
+		})
+	}
 	return web.ConsoleResultVM{
-		Columns:    res.Columns,
-		Rows:       res.Rows,
-		TotalRows:  total,
-		DurationMs: res.DurationMs,
-		Hash:       run.ShortHash,
-		PageLabel:  fmt.Sprintf("ROWS %d–%d OF %d", min1(total), total, total),
-		PrevHref:   base,
-		NextHref:   base,
-		CsvHref:    consoleExportHref(scopeEnc, "csv"),
-		SqlHref:    consoleExportHref(scopeEnc, "sql"),
+		Columns:      res.Columns,
+		Rows:         pageRows,
+		TotalRows:    total,
+		DurationMs:   res.DurationMs,
+		Hash:         run.ShortHash,
+		PageLabel:    fmt.Sprintf("ROWS %d–%d OF %d", lower, end, total),
+		PrevHref:     consolePagedHref(scopeEnc, run.Node, run.Database, "page", max0(page-1)),
+		NextHref:     consolePagedHref(scopeEnc, run.Node, run.Database, "page", minInt(page+1, pageCount-1)),
+		PrevActive:   page > 0,
+		NextActive:   page < pageCount-1,
+		PageSizes:    sizes,
+		CopyTSV:      tsv,
+		CopyTooLarge: tooLarge,
+		CsvHref:      consoleExportHref(scopeEnc, "csv"),
+		SqlHref:      consoleExportHref(scopeEnc, "sql"),
 	}
 }
 
-func min1(n int) int {
-	if n == 0 {
+// consolePagedHref builds a partial URL carrying the scope + resolved target
+// plus one paging parameter (page | pagesize).
+func consolePagedHref(scopeEnc, node, db, key string, val int) string {
+	q := url.Values{}
+	if scopeEnc != "" {
+		q.Set("scope", scopeEnc)
+	}
+	if node != "" {
+		q.Set("node", node)
+	}
+	if db != "" {
+		q.Set("db", db)
+	}
+	q.Set(key, strconv.Itoa(val))
+	return "/partial/console?" + q.Encode()
+}
+
+func max0(n int) int {
+	if n < 0 {
 		return 0
 	}
-	return 1
+	return n
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // consoleExportHref builds the scoped CSV/SQL download URL.
@@ -333,10 +402,21 @@ func consoleHistoryVM(runs []console.Run, scopeEnc string) []web.ConsoleHistoryR
 	return out
 }
 
-// consolePageSize is finalized in Task 5 (cookie persistence); default 25 now.
-func consolePageSize(r *http.Request) int {
-	if n, err := strconv.Atoi(r.URL.Query().Get("pagesize")); err == nil && consoleValidPageSize(n) {
-		return n
+const consolePageSizeCookie = "lynceus.console.pagesize"
+
+// consolePageSize resolves rows-per-page from (1) a ?pagesize= override, which
+// it persists to a per-user cookie, then (2) the cookie, else 25.
+func (s *Server) consolePageSize(w http.ResponseWriter, r *http.Request) int {
+	if raw := r.URL.Query().Get("pagesize"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && consoleValidPageSize(n) {
+			http.SetCookie(w, &http.Cookie{Name: consolePageSizeCookie, Value: raw, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
+			return n
+		}
+	}
+	if ck, err := r.Cookie(consolePageSizeCookie); err == nil {
+		if n, err := strconv.Atoi(ck.Value); err == nil && consoleValidPageSize(n) {
+			return n
+		}
 	}
 	return 25
 }
@@ -478,7 +558,30 @@ func sha256Hex(s string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// handleConsoleExport is implemented in Task 5.
-func (s *Server) handleConsoleExport(w http.ResponseWriter, _ *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
+// handleConsoleExport streams the caller's latest cached result FOR THIS
+// CLUSTER as a CSV or SQL-INSERT download. The cluster comes from the ?scope=
+// param, scoping the read so an export cannot return another cluster's run (no
+// re-execution, no re-audit — the run was already audited when it ran).
+func (s *Server) handleConsoleExport(w http.ResponseWriter, r *http.Request) {
+	sc := scope.Parse(r.URL.Query().Get("scope"))
+	clusterID := sc.ClusterID
+	if clusterID == "" {
+		http.NotFound(w, r)
+		return
+	}
+	run, ok := s.sessions.Latest(actorFromContext(r), clusterID)
+	if !ok {
+		http.Error(w, "no result to export", http.StatusNotFound)
+		return
+	}
+	var body, filename, ctype string
+	switch r.URL.Query().Get("format") {
+	case "sql":
+		body, filename, ctype = console.SQLInserts(run.Result, "result"), "lynceus-result.sql", "application/sql"
+	default:
+		body, filename, ctype = console.CSV(run.Result), "lynceus-result.csv", "text/csv"
+	}
+	w.Header().Set("Content-Type", ctype+"; charset=utf-8")
+	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+	_, _ = w.Write([]byte(body))
 }

@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -228,5 +229,122 @@ func TestConsoleRun_refusedWithoutGrant_writesNoAudit(t *testing.T) {
 	recs, _ := store.NewConfig(pool).ListAudit(context.Background(), store.AuditFilter{Action: "console.query.execute"})
 	if len(recs) != 0 {
 		t.Errorf("ungranted RUN wrote %d audit rows, want 0", len(recs))
+	}
+}
+
+func runOnce(t *testing.T, srv *httptest.Server, clusterID string) {
+	t.Helper()
+	runURL := consoleURL(srv.URL+"/partial/console/run", "cluster:"+clusterID, nil)
+	form := url.Values{"sql": {"SELECT relname FROM pg_stat_user_tables"}, "node": {"primary"}, "db": {"appdb"}}
+	resp, err := http.PostForm(runURL, form)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	_ = resp.Body.Close()
+}
+
+func TestConsole_paginationAndPageSizeCookie(t *testing.T) {
+	srv, clusterID, _, _ := setupConsole(t, "orders-prod")
+	runOnce(t, srv, clusterID) // 54 rows cached
+
+	jar, _ := cookiejar.New(nil)
+	client := &http.Client{Jar: jar}
+	sc := "cluster:" + clusterID
+	get := func(extra url.Values) string {
+		resp, err := client.Get(consoleURL(srv.URL+"/partial/console", sc, extra))
+		if err != nil {
+			t.Fatalf("GET: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+		return readBody(t, resp)
+	}
+	sel := url.Values{"node": {"primary"}, "db": {"appdb"}}
+	// Default page size 25 → "ROWS 1–25 OF 54".
+	if !strings.Contains(get(sel), "ROWS 1–25 OF 54") {
+		t.Error("default page label wrong")
+	}
+	// Choose 50 → sets cookie + "ROWS 1–50 OF 54".
+	if !strings.Contains(get(url.Values{"node": {"primary"}, "db": {"appdb"}, "pagesize": {"50"}}), "ROWS 1–50 OF 54") {
+		t.Error("pagesize=50 not applied")
+	}
+	// Subsequent request without the param uses the persisted 50.
+	if !strings.Contains(get(sel), "ROWS 1–50 OF 54") {
+		t.Error("rows-per-page not persisted per user (cookie)")
+	}
+	// Page 1 at size 50 → "ROWS 51–54 OF 54".
+	if !strings.Contains(get(url.Values{"node": {"primary"}, "db": {"appdb"}, "page": {"1"}}), "ROWS 51–54 OF 54") {
+		t.Error("second page label wrong")
+	}
+}
+
+func TestConsoleExport_csvAndSql(t *testing.T) {
+	srv, clusterID, _, _ := setupConsole(t, "orders-prod")
+	runOnce(t, srv, clusterID)
+	sc := "cluster:" + clusterID
+	csv, _ := http.Get(consoleURL(srv.URL+"/console/export", sc, url.Values{"format": {"csv"}}))
+	defer func() { _ = csv.Body.Close() }()
+	if cd := csv.Header.Get("Content-Disposition"); !strings.Contains(cd, "attachment") {
+		t.Errorf("csv missing attachment disposition: %q", cd)
+	}
+	if b := readBody(t, csv); !strings.HasPrefix(b, "relname,n_dead_tup,last_autovacuum") {
+		t.Errorf("csv header wrong: %q", b[:40])
+	}
+	sqlResp, _ := http.Get(consoleURL(srv.URL+"/console/export", sc, url.Values{"format": {"sql"}}))
+	defer func() { _ = sqlResp.Body.Close() }()
+	if b := readBody(t, sqlResp); !strings.Contains(b, "INSERT INTO result") {
+		t.Error("sql export missing INSERTs")
+	}
+}
+
+// restoreTokens extracts every `restore=<fullhex>` token from rendered history
+// HTML, in document order (newest-first). templ escapes `&` as `&amp;` in
+// attribute values, so a token ends at the first `&`, `"` or `'`.
+func restoreTokens(html string) []string {
+	var toks []string
+	s := html
+	for {
+		i := strings.Index(s, "restore=")
+		if i < 0 {
+			break
+		}
+		s = s[i+len("restore="):]
+		end := strings.IndexAny(s, "&\"'")
+		if end < 0 {
+			break
+		}
+		toks = append(toks, s[:end])
+		s = s[end:]
+	}
+	return toks
+}
+
+func TestConsole_historyRestoreLoadsStatement(t *testing.T) {
+	srv, clusterID, _, _ := setupConsole(t, "orders-prod")
+	sc := "cluster:" + clusterID
+	// Two distinct runs, oldest first.
+	for _, q := range []string{"SELECT 1", "SELECT 2"} {
+		form := url.Values{"sql": {q}, "node": {"primary"}, "db": {"appdb"}}
+		resp, _ := http.PostForm(consoleURL(srv.URL+"/partial/console/run", sc, nil), form)
+		_ = resp.Body.Close()
+	}
+	// History is newest-first → tokens are [SELECT 2, SELECT 1].
+	list, _ := http.Get(consoleURL(srv.URL+"/partial/console", sc, url.Values{"node": {"primary"}, "db": {"appdb"}}))
+	defer func() { _ = list.Body.Close() }()
+	toks := restoreTokens(readBody(t, list))
+	if len(toks) < 2 {
+		t.Fatalf("want >=2 restore tokens in history, got %d", len(toks))
+	}
+	oldest := toks[len(toks)-1] // the run whose SQL was "SELECT 1"
+
+	// GET the restore URL for the OLDER run — the editor must reload exactly that
+	// statement (SELECT 1), not the newer one.
+	rr, _ := http.Get(consoleURL(srv.URL+"/partial/console", sc, url.Values{"node": {"primary"}, "db": {"appdb"}, "restore": {oldest}}))
+	defer func() { _ = rr.Body.Close() }()
+	rh := readBody(t, rr)
+	if !strings.Contains(rh, "SELECT 1</textarea>") {
+		t.Error("restore must reload the older statement (SELECT 1) into the editor")
+	}
+	if strings.Contains(rh, "SELECT 2</textarea>") {
+		t.Error("restoring the older run must not reload the newer statement into the editor")
 	}
 }
