@@ -1,0 +1,212 @@
+package web
+
+import "fmt"
+
+// ConsolePage is the full SQL Console screen: the design Shell wrapping the
+// console body in the main-content slot.
+templ ConsolePage(vm ConsoleVM) {
+	@Shell(vm.Shell) {
+		@ConsoleBody(vm)
+	}
+}
+
+// ConsoleBody is the HTMX swap unit — target picker, grant gate, editor,
+// results and history. Node/DB chips, pagination and history-restore all
+// re-render this whole div (outerHTML). Explicitly the T2 surface.
+templ ConsoleBody(vm ConsoleVM) {
+	<div id="console-body" style="padding:18px 22px 32px;display:flex;flex-direction:column;gap:14px;max-width:1400px;">
+		<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+			<span style="font-size:17px;font-weight:600;color:var(--text);">SQL Console</span>
+			<span style="font-family:var(--font-mono);font-size:10px;color:var(--warnT);border:1px solid var(--warn);padding:0 5px;border-radius:var(--radius-badge);">T2 · SESSION-GRANTED</span>
+			<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.08em;">DIRECT READ ACCESS TO ONE INSTANCE AT A TIME — EVERY STATEMENT AUDITED</span>
+		</div>
+		@consolePicker(vm.Picker)
+		if vm.Granted {
+			@consoleGrantBanner(vm.Grant)
+			@consoleEditor(vm.Editor)
+			@consoleResult(vm)
+			@consoleHistory(vm.History)
+		} else {
+			<div style="border:1px solid var(--warn);border-radius:var(--radius);background:var(--surface);padding:28px 22px;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;">
+				<span style="font-family:var(--font-mono);font-size:11px;color:var(--warnT);letter-spacing:.08em;">◈ NO SESSION GRANT ON { vm.Picker.ClusterLabel }</span>
+				<span style="font-size:12.5px;color:var(--mut);max-width:540px;line-height:1.6;">Direct SQL access is a Tier 2 capability, granted per instance and per session. Request a time-boxed grant — an approver from dba-oncall signs it, and every statement you run is written to the audit log.</span>
+				<a href={ templ.SafeURL(vm.CapabilitiesHref) } style="border:1px solid var(--acc);color:var(--acc2);background:var(--accbg);padding:7px 16px;border-radius:var(--radius);font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-decoration:none;">REQUEST SESSION GRANT →</a>
+			</div>
+		}
+		<script src="/static/js/console.js" defer></script>
+	</div>
+}
+
+// consolePicker renders the target header + node/database axes.
+templ consolePicker(p ConsolePickerVM) {
+	<div style="border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+		<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+			<span style="font-family:var(--font-mono);font-size:11px;color:var(--faint);letter-spacing:.08em;">TARGET — { p.ClusterLabel }</span>
+			if p.Granted {
+				<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);letter-spacing:.06em;">{ p.GrantChip }</span>
+			} else {
+				<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em;">{ p.GrantChip }</span>
+			}
+		</div>
+		<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+			<span style="font-family:var(--font-mono);font-size:10px;color:var(--faint);width:70px;">NODE</span>
+			for _, c := range p.Nodes {
+				@consoleChip(c)
+			}
+		</div>
+		<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+			<span style="font-family:var(--font-mono);font-size:10px;color:var(--faint);width:70px;">DATABASE</span>
+			for _, c := range p.Databases {
+				@consoleChip(c)
+			}
+		</div>
+	</div>
+}
+
+// consoleChip renders one axis value: a clickable HTMX link, or (empty Href)
+// an inert span for a fixed axis.
+templ consoleChip(c ConsoleChip) {
+	if c.Href == "" {
+		if c.Selected {
+			<span data-console-chip-fixed aria-disabled="true" style="display:inline-block;padding:3px 9px;border-radius:var(--radius-badge);font-family:var(--font-mono);font-size:11px;border:1px solid var(--acc);color:var(--acc2);background:var(--accbg);">{ c.Label }</span>
+		} else {
+			<span data-console-chip-fixed aria-disabled="true" style="display:inline-block;padding:3px 9px;border-radius:var(--radius-badge);font-family:var(--font-mono);font-size:11px;border:1px solid var(--line);color:var(--mut);">{ c.Label }</span>
+		}
+	} else {
+		if c.Selected {
+			<a href={ templ.SafeURL(c.Href) } hx-get={ c.Href } hx-target="#console-body" hx-swap="outerHTML" style="display:inline-block;padding:3px 9px;border-radius:var(--radius-badge);font-family:var(--font-mono);font-size:11px;text-decoration:none;border:1px solid var(--acc);color:var(--acc2);background:var(--accbg);">{ c.Label }</a>
+		} else {
+			<a href={ templ.SafeURL(c.Href) } hx-get={ c.Href } hx-target="#console-body" hx-swap="outerHTML" style="display:inline-block;padding:3px 9px;border-radius:var(--radius-badge);font-family:var(--font-mono);font-size:11px;text-decoration:none;border:1px solid var(--line);color:var(--mut);">{ c.Label }</a>
+		}
+	}
+}
+
+// consoleGrantBanner renders the active session-grant strip.
+templ consoleGrantBanner(g ConsoleGrantVM) {
+	<div style="border:1px solid var(--acc);border-radius:var(--radius);background:var(--accbg);padding:9px 13px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+		<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);letter-spacing:.06em;">● SESSION GRANT ACTIVE</span>
+		<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--mut);">GROUP { g.Group }</span>
+		<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--mut);">READ-ONLY — WRITES &amp; DDL BLOCKED BY POLICY</span>
+		<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--mut);">EXPIRES IN { g.Expires }</span>
+		<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--mut);">REF { g.Incident }</span>
+		<a href={ templ.SafeURL(g.AuditHref) } style="font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);text-decoration:none;">AUDIT TRAIL →</a>
+	</div>
+}
+
+// consoleEditor renders the editor toolbar + textarea. RUN is inert until the
+// target (node + database) resolves.
+templ consoleEditor(e ConsoleEditorVM) {
+	<form id="console-editor-form" style="border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);display:flex;flex-direction:column;gap:0;overflow:hidden;">
+		<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);">
+			<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em;">EDITOR — { e.TargetName }</span>
+			<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--faint);">{ fmt.Sprintf("ROW LIMIT %d · STATEMENT TIMEOUT %dS", e.RowLimit, e.TimeoutSecs) }</span>
+			<span style="flex:1;"></span>
+			<input type="search" placeholder="search saved scripts…" hx-get={ e.SearchScriptsHref } hx-target="#console-scripts-list" hx-trigger="keyup changed delay:200ms, search" style="font-family:var(--font-mono);font-size:11px;background:var(--raised);border:1px solid var(--line);color:var(--text);border-radius:var(--radius-badge);padding:3px 8px;"/>
+			<a href={ templ.SafeURL(e.SaveScriptsHref) } style="font-family:var(--font-mono);font-size:11px;color:var(--mut);text-decoration:none;border:1px solid var(--line);border-radius:var(--radius-badge);padding:3px 9px;">SAVE ▾</a>
+			if e.Ready {
+				<button type="button" data-console-run hx-post={ e.RunHref } hx-include="#console-editor-form" hx-target="#console-body" hx-swap="outerHTML" style="border:1px solid var(--acc);color:var(--acc2);background:var(--accbg);padding:6px 14px;border-radius:var(--radius);font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;cursor:pointer;">RUN ⌘↵</button>
+			} else {
+				<span aria-disabled="true" style="border:1px solid var(--line);color:var(--faint);background:transparent;padding:6px 14px;border-radius:var(--radius);font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;">RUN ⌘↵</span>
+			}
+		</div>
+		<input type="hidden" name="node" value={ e.Node }/>
+		<input type="hidden" name="db" value={ e.Database }/>
+		<textarea name="sql" spellcheck="false" style="font-family:var(--font-mono);font-size:12.5px;line-height:1.7;background:var(--raised);color:var(--text);border:0;padding:12px;min-height:150px;resize:vertical;outline:none;">{ e.SQL }</textarea>
+		<span id="console-scripts-list"></span>
+	</form>
+}
+
+// consoleResult renders the current result page + pagination/export controls.
+templ consoleResult(vm ConsoleVM) {
+	if vm.HasResult {
+		<div style="border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);display:flex;flex-direction:column;overflow:hidden;">
+			<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);">
+				<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em;">{ fmt.Sprintf("RESULT — %d ROWS · %.1f MS", vm.Result.TotalRows, vm.Result.DurationMs) }</span>
+				<span style="flex:1;"></span>
+				<span data-console-copy style="font-family:var(--font-mono);font-size:10.5px;color:var(--mut);cursor:pointer;">⧉ COPY</span>
+				<span id="console-copy-note" style="font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);"></span>
+				<a href={ templ.SafeURL(vm.Result.CsvHref) } style="font-family:var(--font-mono);font-size:10.5px;color:var(--mut);text-decoration:none;">↓ CSV</a>
+				<a href={ templ.SafeURL(vm.Result.SqlHref) } style="font-family:var(--font-mono);font-size:10.5px;color:var(--mut);text-decoration:none;">↓ SQL</a>
+				<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--ok);letter-spacing:.06em;">T2 READ LOGGED · { vm.Result.Hash }</span>
+			</div>
+			<div id="console-copy-src" data-console-copy-payload data-too-large={ boolAttr(vm.Result.CopyTooLarge) } style="display:none;">{ vm.Result.CopyTSV }</div>
+			<div style="overflow-x:auto;">
+				<table style="border-collapse:collapse;min-width:860px;width:100%;font-family:var(--font-mono);font-size:12px;">
+					<thead>
+						<tr>
+							for _, col := range vm.Result.Columns {
+								<th style="text-align:left;padding:6px 12px;color:var(--faint);font-weight:600;letter-spacing:.06em;border-bottom:1px solid var(--line);white-space:nowrap;">{ upper(col) }</th>
+							}
+						</tr>
+					</thead>
+					<tbody>
+						for _, row := range vm.Result.Rows {
+							<tr>
+								for _, cell := range row {
+									<td style="padding:5px 12px;color:var(--text);border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums;white-space:nowrap;">{ cell }</td>
+								}
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--line);">
+				<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--faint);">{ vm.Result.PageLabel }</span>
+				@consolePageLink(vm.Result.PrevHref, "‹ PREV", vm.Result.PrevActive)
+				@consolePageLink(vm.Result.NextHref, "NEXT ›", vm.Result.NextActive)
+				<span style="flex:1;"></span>
+				<span style="font-family:var(--font-mono);font-size:10px;color:var(--faint);">ROWS / PAGE</span>
+				for _, ps := range vm.Result.PageSizes {
+					@consolePageSize(ps)
+				}
+				<span style="font-family:var(--font-mono);font-size:9.5px;color:var(--faint);">· SAVED TO YOUR PROFILE</span>
+			</div>
+		</div>
+	} else {
+		<div style="border:1px dashed var(--line);border-radius:var(--radius);background:var(--surface);padding:22px;text-align:center;">
+			<span style="font-family:var(--font-mono);font-size:11px;color:var(--faint);letter-spacing:.06em;">NO STATEMENT EXECUTED THIS SESSION — RUN TO SEE RESULTS</span>
+		</div>
+	}
+}
+
+// consolePageLink renders a prev/next pagination link, coloured by active.
+templ consolePageLink(href, label string, active bool) {
+	if active {
+		<a href={ templ.SafeURL(href) } hx-get={ href } hx-target="#console-body" hx-swap="outerHTML" style="font-family:var(--font-mono);font-size:10.5px;color:var(--acc2);text-decoration:none;">{ label }</a>
+	} else {
+		<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--faint);">{ label }</span>
+	}
+}
+
+// consolePageSize renders one rows-per-page chip.
+templ consolePageSize(ps ConsolePageSize) {
+	if ps.Selected {
+		<a href={ templ.SafeURL(ps.Href) } hx-get={ ps.Href } hx-target="#console-body" hx-swap="outerHTML" style="font-family:var(--font-mono);font-size:10.5px;text-decoration:none;color:var(--acc2);border:1px solid var(--acc);border-radius:var(--radius-badge);padding:1px 7px;">{ ps.Label }</a>
+	} else {
+		<a href={ templ.SafeURL(ps.Href) } hx-get={ ps.Href } hx-target="#console-body" hx-swap="outerHTML" style="font-family:var(--font-mono);font-size:10.5px;text-decoration:none;color:var(--mut);border:1px solid var(--line);border-radius:var(--radius-badge);padding:1px 7px;">{ ps.Label }</a>
+	}
+}
+
+// consoleHistory renders the strict-audit statement history (click to restore).
+templ consoleHistory(rows []ConsoleHistoryRow) {
+	<div style="border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);display:flex;flex-direction:column;overflow:hidden;">
+		<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);">
+			<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em;">STATEMENT HISTORY — STRICT AUDIT: ACTOR, TARGET &amp; HASH RECORDED PER RUN</span>
+			<span style="flex:1;"></span>
+			<span style="font-family:var(--font-mono);font-size:9.5px;color:var(--faint);">CLICK A ROW TO RETRIEVE ITS RESULT</span>
+		</div>
+		if len(rows) == 0 {
+			<div style="padding:14px 12px;font-family:var(--font-mono);font-size:10.5px;color:var(--faint);">NO STATEMENTS RUN THIS SESSION</div>
+		} else {
+			for _, l := range rows {
+				<a href={ templ.SafeURL(l.Href) } hx-get={ l.Href } hx-target="#console-body" hx-swap="outerHTML" style="display:flex;align-items:center;gap:14px;padding:6px 12px;border-bottom:1px solid var(--line2);text-decoration:none;font-family:var(--font-mono);font-size:10.5px;">
+					<span style="color:var(--faint);width:74px;">{ l.TS }</span>
+					<span style="color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{ l.Stmt }</span>
+					<span style="color:var(--faint);">{ l.Ms }</span>
+					<span style="color:var(--dim);">{ l.Hash }</span>
+					<span style="color:var(--acc2);">↩</span>
+				</a>
+			}
+		}
+	</div>
+}
