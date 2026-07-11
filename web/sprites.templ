@@ -1,0 +1,25 @@
+package web
+
+// EngineSprites renders the hidden inline SVG symbol set referenced by engine
+// icons via <use href="#eng-pg|#eng-os|#eng-vk">. Original glyphs stroked in
+// currentColor so they follow the active theme's accent. Render once per page,
+// outside any HTMX swap target, so <use> refs survive body swaps.
+templ EngineSprites() {
+	<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+		<symbol id="eng-pg" viewBox="0 0 24 24">
+			<path d="M5 6 v12 a7 3 0 0 0 14 0 V6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+			<ellipse cx="12" cy="6" rx="7" ry="3" fill="none" stroke="currentColor" stroke-width="2"></ellipse>
+			<path d="M5 12 a7 3 0 0 0 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+		</symbol>
+		<symbol id="eng-os" viewBox="0 0 24 24">
+			<circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="2"></circle>
+			<line x1="15" y1="15" x2="20" y2="20" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
+		</symbol>
+		<symbol id="eng-vk" viewBox="0 0 24 24">
+			<circle cx="8" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"></circle>
+			<line x1="12" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
+			<line x1="17" y1="12" x2="17" y2="15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
+			<line x1="20" y1="12" x2="20" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
+		</symbol>
+	</svg>
+}
