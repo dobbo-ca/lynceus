@@ -130,6 +130,16 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /partial/modal/close", s.handleModalClose)
 	s.mux.HandleFunc("GET /admin/provider-setup", s.handleProviderSetupPage)
 	s.mux.HandleFunc("GET /partial/provider-setup", s.handleProviderSetupPartial)
+	// Saved Scripts (ly-ae6.9) — scope-independent CONSOLE surface. The nav
+	// entry (screenPath "scripts" -> /scripts) is supplied by the shell.
+	s.mux.HandleFunc("GET /scripts", s.handleSavedScriptsPage)
+	s.mux.HandleFunc("GET /partial/scripts", s.handleSavedScriptsTable)
+	s.mux.HandleFunc("GET /partial/scripts/search", s.handleScriptSearch)
+	s.mux.HandleFunc("GET /scripts/{id}", s.handleScriptDetailPage)
+	s.mux.HandleFunc("GET /partial/scripts/{id}/run", s.handleScriptRunCard)
+	s.mux.HandleFunc("POST /scripts", s.handleScriptCreate)
+	s.mux.HandleFunc("POST /scripts/{id}/scope", s.handleScriptScopeChange)
+	s.mux.HandleFunc("POST /scripts/{id}/delete", s.handleScriptDelete)
 	s.mux.HandleFunc("GET /api/queries/top", s.handleTopQueries)
 	s.mux.HandleFunc("GET /api/servers/{id}/capabilities", s.handleCapabilityMatrix)
 	s.mux.HandleFunc("POST /api/servers/{id}/capabilities/{cap}", s.handleCapabilityToggle)
