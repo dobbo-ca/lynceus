@@ -237,3 +237,26 @@ func checkExpandHref(c ChecksRow) string {
 func checkMuteHref(c ChecksRow) string {
 	return "/partial/checks/mute?server=" + c.ServerID + "&check=" + c.CheckID + "&object=" + c.Object
 }
+
+func planNodeStripe(n *PlanNodeVM) string {
+	if n.Problem {
+		return "stripe-crit"
+	}
+	return ""
+}
+
+func planNodeStyle(n *PlanNodeVM) string {
+	return fmt.Sprintf("margin-left:%dpx;border:1px solid var(--line);background:var(--surface);border-radius:2px;padding:7px 10px;display:flex;align-items:center;gap:10px;text-decoration:none;", n.Depth*18)
+}
+
+func planTypeColor(n *PlanNodeVM) string {
+	if n.Problem {
+		return "var(--critT)"
+	}
+	return "var(--text)"
+}
+
+// planNodeHref selects node idx within the current plan variant (VariantIdx).
+func planNodeHref(vm PlanVM, idx int) string {
+	return fmt.Sprintf("/plan?server=%s&fp=%s&plan=%d&node=%d", vm.ServerID, vm.Fingerprint, vm.VariantIdx, idx)
+}

@@ -73,14 +73,14 @@ func TestPlanPage_rendersTreeAndGrid(t *testing.T) {
 	html := string(body)
 
 	for _, want := range []string{
-		"<!doctype html>",   // full page (templ lowercases the doctype)
-		`id="plan-view"`,    // HTMX swap target
-		`class="plan-tree"`, // the recursive tree container
-		"Aggregate",         // root node type (tree + grid)
-		"Seq Scan",          // child node type (recursion worked)
-		"orders",            // relation identifier
-		"Plan rows",         // grid header
-		"(total &gt; $1)",   // normalized condition, HTML-escaped
+		"<!doctype html>",           // full page (templ lowercases the doctype)
+		`id="plan-view"`,            // HTMX swap target
+		"PLAN TREE — CLICK A NODE",  // two-pane tree header
+		"NODE DETAIL",               // two-pane detail header
+		"EST ROWS",                  // node-detail grid label
+		"Aggregate",                 // root node type
+		"Seq Scan",                  // child node type (flat list)
+		"orders",                    // relation identifier
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered HTML is missing %q", want)
@@ -122,7 +122,7 @@ func TestPlanPartial_returnsFragmentOnly(t *testing.T) {
 	}
 }
 
-func TestPlan_recursionRendersNestedTree(t *testing.T) {
+func TestPlan_flatListRendersAllNodes(t *testing.T) {
 	pool, srv := setup(t, api.Config{DevAuth: true})
 	seedPlanRows(t, pool)
 
@@ -134,11 +134,14 @@ func TestPlan_recursionRendersNestedTree(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	html := string(body)
 
-	// The recursive component nests <ul class="plan-tree"> inside the root
-	// <ul class="plan-tree">, so the substring appears at least twice
-	// (once for the root list, once for the child list).
-	if got := strings.Count(html, `class="plan-tree"`); got < 2 {
-		t.Errorf(`plan-tree count = %d, want >= 2 (recursion did not nest a child <ul>)`, got)
+	// The two-pane flat list renders every node as a clickable row: the root
+	// Aggregate and its Seq Scan child both appear (depth-first pre-order).
+	if !strings.Contains(html, "Aggregate") || !strings.Contains(html, "Seq Scan") {
+		t.Error("two-pane flat list did not render all plan nodes")
+	}
+	// Each node row deep-links back to /plan with a ?node= selector.
+	if !strings.Contains(html, "&amp;node=1") {
+		t.Error("flat list node rows missing per-node ?node= selector")
 	}
 }
 
