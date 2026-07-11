@@ -1,0 +1,25 @@
+package web
+
+// HeaderBadge is one pill in a screen header. Kind selects the token color:
+// "live" (accent), "t1" (faint/line), "t2" (warn), "scope" (muted bordered).
+type HeaderBadge struct {
+	Text string
+	Kind string
+}
+
+// ScreenHeader renders the title + badge row shared by every retrofitted
+// screen (Lynceus.dc.html:860-866 pattern).
+templ ScreenHeader(title string, badges []HeaderBadge) {
+	<div class="screen-hd">
+		<span class="screen-title">{ title }</span>
+		for _, b := range badges {
+			<span class={ "badge", "badge--" + b.Kind }>{ b.Text }</span>
+		}
+		<span style="flex:1;"></span>
+	</div>
+}
+
+// EmptyState is the token-styled "no data" row used by every fragment.
+templ EmptyState(msg string) {
+	<div class="empty-state">{ msg }</div>
+}
