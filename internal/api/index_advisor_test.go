@@ -79,12 +79,12 @@ func TestIndexAdvisorPage_rendersRecommendations(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	html := string(body)
 	for _, want := range []string{
-		"<!doctype html>",                 // full page (templ emits lowercase)
-		`id="idx-table"`,                  // HTMX swap target
-		`hx-get="/partial/index-advisor"`, // poll target
-		`href="/index-advisor"`,           // nav link
-		"orders_audit",                    // seeded relation
-		"status",                          // extracted index column
+		"<!doctype html>",                    // full page (templ emits lowercase)
+		`id="idx-list"`,                      // HTMX swap target
+		`hx-get="/partial/index-advisor"`,    // poll target
+		`data-screen-label="Index Advisor"`,  // retrofitted screen marker
+		"CREATE INDEX ON orders_audit",       // DDL includes the seeded relation
+		"status",                             // extracted index column
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("index advisor page missing %q", want)
@@ -115,11 +115,11 @@ func TestIndexAdvisorPartial_returnsFragmentOnly(t *testing.T) {
 	if strings.Contains(html, "<!doctype html>") {
 		t.Error("partial returned a full document; expected a fragment only")
 	}
-	if !strings.Contains(html, `id="idx-table"`) {
+	if !strings.Contains(html, `id="idx-list"`) {
 		t.Error("partial missing the swap-target id (HTMX outerHTML reswap would break)")
 	}
-	if !strings.Contains(html, "<table>") {
-		t.Error("partial missing seeded recommendation table")
+	if !strings.Contains(html, "CREATE INDEX ON orders_audit") {
+		t.Error("partial missing seeded recommendation card")
 	}
 }
 

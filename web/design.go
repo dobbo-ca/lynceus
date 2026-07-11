@@ -191,3 +191,21 @@ func insightDrilldownHref(r InsightRow, nav ScreenNav) string {
 	}
 	return "/databases/" + r.ClusterID + "/query/" + r.Fingerprint
 }
+
+// idxEvidenceHref links an index recommendation's evidence to the drilldown.
+// Scoped rows use the scoped drilldown page; fleet rows fall back to r.Nav.Plan
+// (no hardcoded fleet literal in this helper).
+func idxEvidenceHref(r IndexAdvisorRow) string {
+	if r.ClusterID == "" {
+		return r.Nav.Plan + "?server=" + r.Server + "&fp=" + r.EvidenceFP
+	}
+	return "/databases/" + r.ClusterID + "/query/" + r.EvidenceFP
+}
+
+// dashPctInt renders 0% benefit as an em-dash (not yet quantified).
+func dashPctInt(p int) string {
+	if p <= 0 {
+		return "—"
+	}
+	return fmt.Sprintf("%d%%", p)
+}
