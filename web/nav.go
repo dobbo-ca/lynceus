@@ -117,3 +117,145 @@ func isActive(screen, active string, sc scope.Scope) bool {
 	}
 	return false
 }
+
+// navItem builds a NavItem, resolving its href and active state (via isActive,
+// including the prototype's detail-screen aliases) and applying "soon"/"t2".
+func navItem(sc scope.Scope, active, label, screen string, flags ...string) NavItem {
+	it := NavItem{
+		Label:  label,
+		Screen: screen,
+		Href:   NavHref(sc, screen),
+		Active: isActive(screen, active, sc),
+	}
+	for _, f := range flags {
+		switch f {
+		case "soon":
+			it.Soon = true
+		case "t2":
+			it.T2 = true
+		}
+	}
+	return it
+}
+
+// BuildNav returns the sidebar nav tree for the current scope. It mirrors the
+// prototype's navDef builder (docs/design/Lynceus.dc.html:2366-2406) and
+// enforces the three gating rules: low-level sections never appear at fleet;
+// Saved Scripts at every scope; SQL Console only at cluster/node/database scope.
+// label is the resolved display name for the scope (the shell threads it in via
+// ShellView.ScopeLabel), used only for the scoped identity-group header.
+func BuildNav(sc scope.Scope, label string, eng EngineFlags, active string) []NavGroup {
+	itm := func(itemLabel, screen string, flags ...string) NavItem {
+		return navItem(sc, active, itemLabel, screen, flags...)
+	}
+	hdr := headerLabel(sc, label)
+
+	// shared low-level groups (never used at fleet scope)
+	queries := NavGroup{Label: "QUERIES", Items: []NavItem{
+		itm("Top Queries", "topqueries"),
+		itm("Query Insights", "insights"),
+		itm("Plans", "plans"),
+	}}
+	advisors := func(configLabel string) NavGroup {
+		items := []NavItem{itm("Index", "indexadvisor"), itm("Vacuum", "vacuumadvisor")}
+		if configLabel != "" {
+			items = append(items, itm(configLabel, "configadvisor"))
+		}
+		return NavGroup{Label: "ADVISORS", Items: items}
+	}
+	activityFull := NavGroup{Label: "ACTIVITY", Items: []NavItem{
+		itm("Wait Events", "waits"),
+		itm("Connections", "connections", "soon", "t2"),
+	}}
+	consoleFull := NavGroup{Label: "CONSOLE", Items: []NavItem{
+		itm("SQL Console", "console", "t2"),
+		itm("Saved Scripts", "scripts"),
+	}}
+	consoleScriptsOnly := NavGroup{Label: "CONSOLE", Items: []NavItem{
+		itm("Saved Scripts", "scripts"),
+	}}
+	checksFull := NavGroup{Label: "CHECKS & ALERTS", Items: []NavItem{
+		itm("Checks", "checks"),
+		itm("Alerts", "alerts", "soon"),
+	}}
+	schema := NavGroup{Label: "SCHEMA", Items: []NavItem{
+		itm("Inventory", "inventory", "soon"),
+		itm("Table Growth", "tablegrowth", "soon"),
+		itm("Indexes", "indexes", "soon"),
+	}}
+	logs := NavGroup{Label: "LOGS", Items: []NavItem{
+		itm("Log Insights", "loginsights", "soon"),
+	}}
+
+	switch sc.Kind {
+	case scope.Cluster:
+		return []NavGroup{
+			{Label: hdr, Items: []NavItem{
+				itm("Overview", "clusterdetail"),
+				itm("Nodes", "nodes"),
+				itm("Databases", "databases"),
+				itm("Capabilities", "capabilities"),
+			}},
+			queries,
+			advisors("Config · per node"),
+			activityFull, consoleFull, checksFull, schema, logs,
+		}
+	case scope.Node:
+		return []NavGroup{
+			{Label: hdr, Items: []NavItem{
+				itm("Overview", "nodes"),
+				itm("Config", "configadvisor"),
+				itm("Capabilities", "capabilities"),
+			}},
+			queries,
+			advisors(""),
+			activityFull, consoleFull, checksFull, logs,
+		}
+	case scope.Pooler:
+		return []NavGroup{
+			{Label: hdr, Items: []NavItem{
+				itm("Overview", "nodes"),
+				itm("Config · pgbouncer", "configadvisor"),
+			}},
+			{Label: "ACTIVITY", Items: []NavItem{itm("Connections", "connections", "soon", "t2")}},
+			consoleScriptsOnly, checksFull, logs,
+		}
+	case scope.Database:
+		return []NavGroup{
+			{Label: hdr, Items: []NavItem{
+				itm("Overview", "databases"),
+				itm("Capabilities", "capabilities"),
+			}},
+			queries,
+			advisors(""),
+			consoleFull,
+			{Label: "CHECKS & ALERTS", Items: []NavItem{itm("Checks", "checks")}},
+			schema,
+		}
+	default: // fleet — low-level sections suppressed; verticals gate on engines
+		groups := []NavGroup{
+			{Label: "OVERVIEW", Items: []NavItem{itm("Fleet", "fleet")}},
+		}
+		if eng.Postgres {
+			groups = append(groups, NavGroup{Label: "DATABASE", Items: []NavItem{
+				itm("Clusters", "clusters"),
+				itm("Nodes", "nodes"),
+				itm("Databases", "databases"),
+			}})
+		}
+		if eng.Search {
+			groups = append(groups, NavGroup{Label: "SEARCH", Items: []NavItem{
+				itm("Domains", "searchdomains"),
+				itm("Nodes", "searchnodes"),
+			}})
+		}
+		if eng.Cache {
+			groups = append(groups, NavGroup{Label: "CACHE", Items: []NavItem{
+				itm("Clusters", "cacheclusters"),
+				itm("Replicasets", "cachereplicasets"),
+				itm("Nodes", "cachenodes"),
+			}})
+		}
+		return append(groups, consoleScriptsOnly)
+	}
+}
