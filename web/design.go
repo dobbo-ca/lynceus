@@ -209,3 +209,31 @@ func dashPctInt(p int) string {
 	}
 	return fmt.Sprintf("%d%%", p)
 }
+
+func mutedOpacity(m bool) string {
+	if m {
+		return ".5"
+	}
+	return "1"
+}
+
+func muteLabel(m bool) string {
+	if m {
+		return "MUTED"
+	}
+	return "MUTE"
+}
+
+// checkExpandHref toggles the expanded row; re-clicking the open row collapses
+// it. Base comes from c.Nav (fleet "/checks" today; scoped route under ly-ae6.3).
+func checkExpandHref(c ChecksRow) string {
+	if c.Expanded {
+		return c.Nav.Base
+	}
+	return c.Nav.Base + "?expand=" + c.CheckID
+}
+
+// checkMuteHref points the mute toggle at the mute endpoint.
+func checkMuteHref(c ChecksRow) string {
+	return "/partial/checks/mute?server=" + c.ServerID + "&check=" + c.CheckID + "&object=" + c.Object
+}

@@ -47,6 +47,7 @@ type Stats interface {
 	WriteChecksResults(ctx context.Context, rows []ChecksResultRow) error
 	LatestChecksResults(ctx context.Context, serverID string, since, until time.Time) ([]ChecksResultRow, error)
 	SetMute(ctx context.Context, serverID, checkID, object string, until time.Time, reason string) error
+	ClearMute(ctx context.Context, serverID, checkID, object string) error
 	ListMutes(ctx context.Context, serverID string) ([]MuteRow, error)
 	WriteLogEvents(ctx context.Context, rows []LogEventRow) error
 }

@@ -78,6 +78,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /partial/waits", s.handleWaitsPartial)
 	s.mux.HandleFunc("GET /checks", s.handleChecksPage)
 	s.mux.HandleFunc("GET /partial/checks", s.handleChecksPartial)
+	s.mux.HandleFunc("POST /partial/checks/mute", s.handleChecksMute)
 	s.mux.HandleFunc("GET /api/queries/top", s.handleTopQueries)
 	s.mux.HandleFunc("GET /api/servers/{id}/capabilities", s.handleCapabilityMatrix)
 	s.mux.HandleFunc("POST /api/servers/{id}/capabilities/{cap}", s.handleCapabilityToggle)
