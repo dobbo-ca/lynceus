@@ -48,8 +48,8 @@ func (s *Server) Handler() http.Handler { return s.withAuth(s.mux) }
 
 func (s *Server) routes() {
 	s.mux.Handle("GET /static/", web.StaticHandler())
-	s.mux.HandleFunc("GET /databases", s.handleDatabases)
-	s.mux.HandleFunc("GET /partial/databases", s.handleDatabasesPartial)
+	s.mux.HandleFunc("GET /databases", s.handleClusters)
+	s.mux.HandleFunc("GET /partial/databases", s.handleClustersPartial)
 	s.mux.HandleFunc("GET /databases/{clusterID}", s.handleClusterOverview)
 	s.mux.HandleFunc("GET /databases/{clusterID}/queries", s.handleClusterQueries)
 	s.mux.HandleFunc("GET /databases/{clusterID}/insights", s.handleClusterInsights)

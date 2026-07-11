@@ -1,0 +1,76 @@
+package web
+
+// ClusterListRow is one row of the Database › Clusters flat list. ScopeHref is
+// the landed scope encoder's URL (web.ScopeHref) for this cluster — the ⌖ button
+// sets scope exactly like the top-bar picker; rows themselves are not clickable.
+type ClusterListRow struct {
+	Name        string
+	EngineIcon  string // "eng-pg"
+	EngineName  string // "POSTGRES" (title tooltip on the chip)
+	Version     string // "16.3"; "" -> version chip omitted
+	Meta        string // "3 INSTANCES · 4 STREAMS"
+	QPS         string // "1,284" (thousands-grouped)
+	HealthText  string // "[DEGRADED] 1 CRIT · 4 WARN"
+	HealthClass string // "hl-crit" | "hl-warn" | "hl-info" | "hl-ok"
+	SevRank     int    // for HEALTH sort
+	ScopeHref   string // web.ScopeHref(cluster scope)
+}
+
+type ClustersView struct {
+	Rows         []ClusterListRow
+	Sort         string // "health" | "name"
+	SortLabel    string // "HEALTH" | "NAME"
+	SortHref     string // "/partial/databases?sort=<next>"
+	SortPageHref string // "/databases?sort=<next>" (no-JS fallback)
+	AddHref      string // "/onboarding?vertical=database"
+}
+
+// ClustersShellPage renders the Clusters list inside the design shell. Engine
+// sprites sit OUTSIDE #clusters-screen so HTMX body swaps keep their <use> refs.
+templ ClustersShellPage(vm ShellView, v ClustersView) {
+	@Shell(vm) {
+		@EngineSprites()
+		@ClustersBody(v)
+	}
+}
+
+templ ClustersBody(v ClustersView) {
+	<div id="clusters-screen" class="vlist">
+		<div class="vlist-head">
+			<span class="vlist-title">Clusters</span>
+			<span class="badge-live">LIVE</span>
+			<span class="vlist-strap">A CLUSTER GROUPS A PRIMARY WITH ITS REPLICAS AND POOLERS</span>
+			<span class="vlist-spacer"></span>
+			<a
+				class="vlist-btn"
+				href={ templ.SafeURL(v.SortPageHref) }
+				hx-get={ v.SortHref }
+				hx-target="#clusters-screen"
+				hx-swap="outerHTML"
+			>SORT: { v.SortLabel } ⇅</a>
+			<a class="vlist-btn vlist-btn--acc" href={ templ.SafeURL(v.AddHref) } title="Deploy a collector for a new cluster">+ ADD CLUSTER</a>
+		</div>
+		<div class="vpanel">
+			if len(v.Rows) == 0 {
+				<div class="vempty">NO CLUSTERS MONITORED YET — RUN A COLLECTOR AND CHECK BACK</div>
+			} else {
+				for _, c := range v.Rows {
+					<div class="cl-row">
+						<span class="eng-mark" title={ c.EngineName }>
+							<svg width="12" height="12" viewBox="0 0 24 24"><use href={ "#" + c.EngineIcon }></use></svg>
+						</span>
+						<span class="cl-name">{ c.Name }</span>
+						if c.Version != "" {
+							<span class="cl-ver">{ "v" + c.Version }</span>
+						}
+						<span class="cl-meta">{ c.Meta }</span>
+						<span class="vlist-spacer"></span>
+						<span class="cl-qps">{ c.QPS } QPS</span>
+						<span class={ "cl-health " + c.HealthClass }>{ c.HealthText }</span>
+						<a class="scope-btn" href={ templ.SafeURL(c.ScopeHref) } title="Set scope to this cluster">⌖</a>
+					</div>
+				}
+			}
+		</div>
+	</div>
+}
