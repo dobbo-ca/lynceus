@@ -78,6 +78,7 @@ func TestStaticHandler_ServesThemeJSAndLegacyCSS(t *testing.T) {
 		{"/static/js/settings.js", "setAccent"},
 		{"/static/js/settings.js", "data-accent"},
 		{"/static/js/settings.js", "lynceus.accent"},
+		{"/static/css/screens.css", ".screen-hd"},
 	}
 	for _, c := range cases {
 		req := httptest.NewRequest(http.MethodGet, c.path, nil)

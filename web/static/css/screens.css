@@ -1,0 +1,48 @@
+/* Lynceus retrofitted-screen component layer — token-driven (ly-ae6.7).
+   Colors come only from tokens.css custom properties; never hardcode hex. */
+
+.screen { padding:18px 22px 32px; display:flex; flex-direction:column; gap:14px; max-width:1400px; }
+.screen-hd { display:flex; align-items:center; gap:12px; }
+.screen-title { font-size:17px; font-weight:600; color:var(--text); }
+
+.badge { font-family:var(--font-mono); font-size:10px; padding:0 5px; border-radius:var(--radius-badge);
+         border:var(--border) solid var(--line); color:var(--faint); }
+.badge--live  { color:var(--acc);   border-color:var(--acc); }
+.badge--t1    { color:var(--faint); border-color:var(--line); }
+.badge--t2    { color:var(--warnT); border-color:var(--warn); }
+.badge--scope { color:var(--mut);   border-color:var(--line); letter-spacing:.06em; padding:2px 8px; }
+
+.panel { border:var(--border) solid var(--line); border-radius:var(--radius); background:var(--surface); }
+.panel-hd { padding:8px 12px; border-bottom:var(--border) solid var(--line);
+            font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; color:var(--dim); }
+.scroll-x { overflow-x:auto; }
+
+.grid-hd { font-family:var(--font-mono); font-size:9.5px; letter-spacing:.1em; color:var(--faint);
+           padding:8px 12px; border-bottom:var(--border) solid var(--line); align-items:center; }
+.grid-row { padding:7px 12px; border-bottom:var(--border) solid var(--line2); align-items:center;
+            font-variant-numeric:tabular-nums; }
+.grid-row:hover { background:var(--raised); }
+
+.sev-crit { color:var(--critT); } .sev-warn { color:var(--warnT); } .sev-info { color:var(--infoT); }
+.stripe-crit { border-left:3px solid var(--crit); }
+.stripe-warn { border-left:3px solid var(--warn); }
+.stripe-info { border-left:3px solid var(--info); }
+
+.bar { flex:1; height:10px; background:var(--raised); border-radius:var(--radius-badge); }
+.bar-fill { height:10px; background:var(--acc); border-radius:var(--radius-badge); }
+
+.chip { font-family:var(--font-mono); font-size:10.5px; padding:3px 9px; border:var(--border) solid var(--line);
+        color:var(--dim); background:transparent; border-radius:var(--radius); cursor:pointer; user-select:none; text-decoration:none; }
+.chip--on { color:var(--acc2); border-color:var(--acc); background:var(--accbg); }
+
+.filter-input { background:var(--surface); border:var(--border) solid var(--line); border-radius:var(--radius);
+                color:var(--text); font-family:var(--font-mono); font-size:11.5px; padding:6px 10px; width:280px; }
+
+.icon-btn { width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center;
+            border:var(--border) solid var(--line); border-radius:var(--radius); color:var(--dim);
+            background:transparent; cursor:pointer; }
+.icon-btn:hover { color:var(--acc); border-color:var(--acc); }
+
+.empty-state { padding:24px 12px; font-family:var(--font-mono); font-size:11px; color:var(--faint); text-align:center; }
+.num-r { text-align:right; }
+.mono-lbl { font-family:var(--font-mono); letter-spacing:.08em; color:var(--faint); }

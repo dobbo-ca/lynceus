@@ -56,7 +56,7 @@ var screenPath = map[string]string{
 	"clusterdetail": "/cluster",      // scoped cluster overview (ly-ae6.6)
 	"capabilities":  "/capabilities", // ly-ae6.6
 	// queries
-	"topqueries": "/",         // top-queries (exists at /)
+	"topqueries": "/queries",  // legacy global top-queries (root is now the fleet shell)
 	"insights":   "/insights", // exists
 	"plans":      "/plan",     // exists
 	// advisors (exist)
