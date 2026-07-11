@@ -137,3 +137,20 @@ func userMeta(u ShellUser) string {
 	}
 	return "GROUP: " + strings.ToUpper(u.Group) + " · " + t2
 }
+
+// scopeKindLabel is the human label for the current scope kind, shown in the
+// placeholder main until the real bodies land.
+func scopeKindLabel(sc scope.Scope) string {
+	switch sc.Kind {
+	case scope.Cluster:
+		return "CLUSTER SCOPE"
+	case scope.Node:
+		return "NODE SCOPE"
+	case scope.Pooler:
+		return "POOLER SCOPE"
+	case scope.Database:
+		return "DATABASE SCOPE"
+	default:
+		return "FLEET"
+	}
+}
