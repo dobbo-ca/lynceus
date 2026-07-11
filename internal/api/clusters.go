@@ -49,7 +49,6 @@ func (s *Server) fetchClusters(r *http.Request) web.ClustersView {
 		SortLabel:    strings.ToUpper(sortKey),
 		SortHref:     "/partial/databases?sort=" + next,
 		SortPageHref: "/databases?sort=" + next,
-		AddHref:      "/onboarding?vertical=database",
 	}
 
 	now := time.Now().UTC()

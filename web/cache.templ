@@ -50,7 +50,7 @@ templ CacheClustersBody(v CacheClustersView) {
 			<span class="c-live">LIVE</span>
 			<span class="c-meta">VALKEY / REDIS — A CLUSTER (SENTINEL) GROUPS REPLICASETS</span>
 			<span class="c-spacer"></span>
-			<button type="button" class="c-btn c-btn-add" data-add-cache="valkey">+ ADD CLUSTER</button>
+			<button type="button" class="c-btn c-btn-add" hx-get="/partial/add?kind=cache" hx-target="#modal-root" hx-swap="innerHTML">+ ADD CLUSTER</button>
 		</div>
 		if len(v.Clusters) == 0 {
 			<div class="c-empty">NO CACHE CLUSTERS REPORTING YET — DEPLOY A COLLECTOR WITH TARGET_KIND=VALKEY.</div>

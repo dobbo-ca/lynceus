@@ -22,7 +22,6 @@ type ClustersView struct {
 	SortLabel    string // "HEALTH" | "NAME"
 	SortHref     string // "/partial/databases?sort=<next>"
 	SortPageHref string // "/databases?sort=<next>" (no-JS fallback)
-	AddHref      string // "/onboarding?vertical=database"
 }
 
 // ClustersShellPage renders the Clusters list inside the design shell. Engine
@@ -48,7 +47,7 @@ templ ClustersBody(v ClustersView) {
 				hx-target="#clusters-screen"
 				hx-swap="outerHTML"
 			>SORT: { v.SortLabel } ⇅</a>
-			<a class="vlist-btn vlist-btn--acc" href={ templ.SafeURL(v.AddHref) } title="Deploy a collector for a new cluster">+ ADD CLUSTER</a>
+			<a class="vlist-btn vlist-btn--acc" role="button" hx-get="/partial/add?kind=database" hx-target="#modal-root" hx-swap="innerHTML" title="Deploy a collector for a new cluster">+ ADD CLUSTER</a>
 		</div>
 		<div class="vpanel">
 			if len(v.Rows) == 0 {

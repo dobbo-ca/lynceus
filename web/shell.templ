@@ -41,6 +41,9 @@ templ Shell(vm ShellView) {
 						{ children... }
 					</main>
 				</div>
+				<!-- HTMX modal target: fragments (the + ADD wizard) swap into here.
+				     Lives outside <main> so a main-content body swap never clears it. -->
+				<div id="modal-root"></div>
 			</div>
 		</body>
 	</html>
@@ -163,7 +166,7 @@ templ userMenu(vm ShellView) {
 			<a class="menu-item" href="/audit"><span>Audit Log</span></a>
 			<a class="menu-item" href="/access"><span>Access &amp; Roles</span><span class="badge-soon">SOON</span></a>
 			<div class="menu-head" style="border-top: var(--border) solid var(--line2); margin-top: 5px;">ADMIN</div>
-			<a class="menu-item" href="#"><span>Provider Setup</span><span class="badge-soon">SOON</span></a>
+			<a class="menu-item" href="/admin/provider-setup"><span>Provider Setup</span></a>
 			<a class="menu-item" href="#"><span>Collectors</span><span class="badge-soon">SOON</span></a>
 			<a class="menu-item" href="#"><span>Data &amp; Retention</span><span class="badge-soon">SOON</span></a>
 			<a class="menu-item" href="/settings"><span>Settings</span><span class="badge-soon">SOON</span></a>

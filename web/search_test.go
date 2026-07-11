@@ -158,7 +158,7 @@ func TestSearchDomainsBody_parity(t *testing.T) {
 		"tone-warn", "tone-text", // stat tones
 		"3× CLUSTER_MANAGER · 2× DATA+INGEST · 1× COORDINATING", // role summary
 		"NODES BY ROLE", `/search/nodes`,                        // link to Nodes
-		"+ ADD DOMAIN", `/onboarding?kind=opensearch`,           // wizard hook (ly-ae6.12 contract)
+		"+ ADD DOMAIN", `hx-get="/partial/add?kind=search"`, `hx-target="#modal-root"`, // wizard hook (ly-ae6.12 contract)
 		"LIVE", // live badge
 	} {
 		if !strings.Contains(html, want) {

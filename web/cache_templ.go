@@ -120,7 +120,7 @@ func CacheClustersBody(v CacheClustersView) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div id=\"cache-body\" class=\"c-page\"><div class=\"c-head\"><span class=\"c-title\">Cache Clusters</span> <span class=\"c-live\">LIVE</span> <span class=\"c-meta\">VALKEY / REDIS — A CLUSTER (SENTINEL) GROUPS REPLICASETS</span> <span class=\"c-spacer\"></span> <button type=\"button\" class=\"c-btn c-btn-add\" data-add-cache=\"valkey\">+ ADD CLUSTER</button></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div id=\"cache-body\" class=\"c-page\"><div class=\"c-head\"><span class=\"c-title\">Cache Clusters</span> <span class=\"c-live\">LIVE</span> <span class=\"c-meta\">VALKEY / REDIS — A CLUSTER (SENTINEL) GROUPS REPLICASETS</span> <span class=\"c-spacer\"></span> <button type=\"button\" class=\"c-btn c-btn-add\" hx-get=\"/partial/add?kind=cache\" hx-target=\"#modal-root\" hx-swap=\"innerHTML\">+ ADD CLUSTER</button></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

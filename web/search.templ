@@ -27,7 +27,7 @@ templ SearchDomainsBody(v SearchDomainsView) {
 			<span style="font-family: var(--font-mono); font-size: 10px; color: var(--acc); border: 1px solid var(--acc); padding: 0 5px; border-radius: var(--radius-badge);">LIVE</span>
 			<span style="font-family: var(--font-mono); font-size: 10.5px; color: var(--faint); letter-spacing: .08em;">OPENSEARCH / ELASTICSEARCH — A DOMAIN GROUPS NODES BY ROLE</span>
 			<span style="flex: 1;"></span>
-			<a href={ templ.SafeURL("/onboarding?kind=opensearch") } style="font-family: var(--font-mono); font-size: 10.5px; color: var(--acc2); border: 1px solid var(--acc); padding: 4px 9px; border-radius: var(--radius); text-decoration: none;">+ ADD DOMAIN</a>
+			<a role="button" hx-get="/partial/add?kind=search" hx-target="#modal-root" hx-swap="innerHTML" style="font-family: var(--font-mono); font-size: 10.5px; color: var(--acc2); border: 1px solid var(--acc); padding: 4px 9px; border-radius: var(--radius); text-decoration: none; cursor: pointer;">+ ADD DOMAIN</a>
 		</div>
 		if len(v.Domains) == 0 {
 			<p style="font-family: var(--font-mono); font-size: 11.5px; color: var(--dim);">No search domains monitored yet — enable an OpenSearch or Elasticsearch collector (backend ly-wte).</p>
