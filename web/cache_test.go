@@ -72,3 +72,48 @@ func TestCacheClustersBody_Card(t *testing.T) {
 		}
 	}
 }
+
+func TestCacheReplicasetsBody(t *testing.T) {
+	v := CacheReplicasetsView{Enabled: true, Sort: "health", Rows: []CacheReplicasetRow{
+		{Name: "rs-sessions", Cluster: "cache-prod", Topo: "1P + 2R",
+			Keys: "1.2M", Mem: "2.1G", Ops: "18,400", Evictions: "0", Health: "● HEALTHY", Sev: "ok"},
+	}}
+	html := renderBody(t, CacheReplicasetsBody(v))
+	for _, want := range []string{
+		"Replicasets", "REPLICASET", "TOPOLOGY", "EVICTIONS",
+		"rs-sessions", "cache-prod", "c-sev-ok",
+		"SORT: HEALTH", `hx-get="/partial/cache/replicasets?sort=name"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("replicasets body missing %q", want)
+		}
+	}
+}
+
+func TestCacheReplicasetsBody_EmptyState(t *testing.T) {
+	html := renderBody(t, CacheReplicasetsBody(CacheReplicasetsView{Enabled: true, Sort: "health"}))
+	if !strings.Contains(html, "NO REPLICASETS REPORTING YET") {
+		t.Error("missing replicasets empty state")
+	}
+}
+
+func TestCacheNodesBody_AccessBadges(t *testing.T) {
+	v := CacheNodesView{Enabled: true, Sort: "ops", Rows: []CacheNodeRow{
+		{Role: "PRIMARY", Name: "rs-sessions-0", Replicaset: "rs-sessions",
+			Version: "8.1", Mem: "2.1G", Ops: "12,000", Clients: "340", Hit: "94%", Access: "READ-WRITE"},
+		{Role: "REPLICA", Name: "rs-sessions-1", Replicaset: "rs-sessions",
+			Version: "8.1", Mem: "2.0G", Ops: "6,400", Clients: "120", Hit: "95%", Access: "READ-ONLY"},
+	}}
+	html := renderBody(t, CacheNodesBody(v))
+	for _, want := range []string{
+		"Cache Nodes", "ROLE", "ACCESS",
+		"c-role c-role-primary", "c-role c-role-replica",
+		"c-access c-access-rw", "READ-WRITE",
+		"c-access c-access-ro", "READ-ONLY",
+		"SORT: OPS", `hx-get="/partial/cache/nodes?sort=name"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("nodes body missing %q", want)
+		}
+	}
+}

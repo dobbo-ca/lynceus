@@ -1,5 +1,7 @@
 package web
 
+import "strings"
+
 type CacheStat struct {
 	Label string
 	Value string
@@ -109,4 +111,143 @@ templ cacheEngineSprite() {
 			<line x1="20" y1="12" x2="20" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
 		</symbol>
 	</svg>
+}
+
+type CacheReplicasetRow struct {
+	Name      string
+	Cluster   string
+	Topo      string
+	Keys      string
+	Mem       string
+	Ops       string
+	Evictions string
+	Health    string
+	Sev       string
+	SevRank   int
+}
+
+type CacheReplicasetsView struct {
+	Enabled bool
+	Rows    []CacheReplicasetRow
+	Sort    string
+}
+
+templ CacheReplicasetsPage(shell ShellView, v CacheReplicasetsView) {
+	@Shell(shell) {
+		@CacheReplicasetsBody(v)
+	}
+}
+
+templ CacheReplicasetsBody(v CacheReplicasetsView) {
+	<div id="cache-body" class="c-page">
+		<div class="c-head">
+			<span class="c-title">Replicasets</span>
+			<span class="c-live">LIVE</span>
+			<span class="c-meta">1 PRIMARY + N REPLICAS · WRITES LAND ON THE PRIMARY ONLY</span>
+			<span class="c-spacer"></span>
+			<button
+				type="button"
+				class="c-btn"
+				hx-get={ "/partial/cache/replicasets?sort=" + nextSort(v.Sort, "health", "name") }
+				hx-target="#cache-body"
+				hx-swap="outerHTML"
+			>SORT: { strings.ToUpper(v.Sort) } ⇅</button>
+		</div>
+		<div class="c-table-wrap">
+			<div class="c-rs-min">
+				<div class="c-rs-grid c-rs-head">
+					<span>REPLICASET</span><span>CLUSTER</span><span>TOPOLOGY</span>
+					<span class="c-num">KEYS</span><span class="c-num">MEMORY</span>
+					<span class="c-num">OPS/S</span><span class="c-num">EVICTIONS</span>
+					<span class="c-num">HEALTH</span>
+				</div>
+				if len(v.Rows) == 0 {
+					<div class="c-empty">NO REPLICASETS REPORTING YET.</div>
+				} else {
+					for _, r := range v.Rows {
+						<div class="c-rs-grid c-rs-row2">
+							<span class="c-rs-name">{ r.Name }</span>
+							<span class="c-dim">{ r.Cluster }</span>
+							<span class="c-faint">{ r.Topo }</span>
+							<span class="c-num c-mut">{ r.Keys }</span>
+							<span class="c-num c-mut">{ r.Mem }</span>
+							<span class="c-num c-mut">{ r.Ops }</span>
+							<span class="c-num c-mut">{ r.Evictions }</span>
+							<span class={ "c-num " + sevClass(r.Sev) }>{ r.Health }</span>
+						</div>
+					}
+				}
+			</div>
+		</div>
+	</div>
+}
+
+type CacheNodeRow struct {
+	Role       string
+	Name       string
+	Replicaset string
+	Version    string
+	Mem        string
+	Ops        string
+	Clients    string
+	Hit        string
+	Access     string
+	OpsVal     float64
+}
+
+type CacheNodesView struct {
+	Enabled bool
+	Rows    []CacheNodeRow
+	Sort    string
+}
+
+templ CacheNodesPage(shell ShellView, v CacheNodesView) {
+	@Shell(shell) {
+		@CacheNodesBody(v)
+	}
+}
+
+templ CacheNodesBody(v CacheNodesView) {
+	<div id="cache-body" class="c-page">
+		<div class="c-head">
+			<span class="c-title">Cache Nodes</span>
+			<span class="c-live">LIVE</span>
+			<span class="c-meta">PRIMARIES ACCEPT WRITES · REPLICAS ARE READ-ONLY UNTIL PROMOTED</span>
+			<span class="c-spacer"></span>
+			<button
+				type="button"
+				class="c-btn"
+				hx-get={ "/partial/cache/nodes?sort=" + nextSort(v.Sort, "ops", "name") }
+				hx-target="#cache-body"
+				hx-swap="outerHTML"
+			>SORT: { strings.ToUpper(v.Sort) } ⇅</button>
+		</div>
+		<div class="c-table-wrap">
+			<div class="c-node-min">
+				<div class="c-node-grid c-node-head">
+					<span>ROLE</span><span>NODE</span><span>REPLICASET</span><span>VER</span>
+					<span class="c-num">MEMORY</span><span class="c-num">OPS/S</span>
+					<span class="c-num">CLIENTS</span><span class="c-num">HIT</span>
+					<span class="c-num">ACCESS</span>
+				</div>
+				if len(v.Rows) == 0 {
+					<div class="c-empty">NO CACHE NODES REPORTING YET.</div>
+				} else {
+					for _, n := range v.Rows {
+						<div class="c-node-grid c-node-row">
+							<span class={ roleClass(n.Role) }>{ n.Role }</span>
+							<span class="c-node-name">{ n.Name }</span>
+							<span class="c-dim">{ n.Replicaset }</span>
+							<span class="c-dim">v{ n.Version }</span>
+							<span class="c-num c-mut">{ n.Mem }</span>
+							<span class="c-num c-mut">{ n.Ops }</span>
+							<span class="c-num c-mut">{ n.Clients }</span>
+							<span class="c-num c-mut">{ n.Hit }</span>
+							<span class={ accessClass(n.Access) }>{ n.Access }</span>
+						</div>
+					}
+				}
+			</div>
+		</div>
+	</div>
 }
