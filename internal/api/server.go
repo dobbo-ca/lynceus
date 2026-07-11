@@ -18,7 +18,19 @@ type Config struct {
 	// every request as authenticated as a static dev admin. Only safe
 	// in development — gated by the LYNCEUS_DEV_AUTH env var.
 	DevAuth bool
+
+	// EnableOpensearch / EnableElasticsearch gate the Search vertical
+	// (Domains + Nodes-by-role) UI. When both are false the /search/*
+	// routes 404 and the fleet nav omits the SEARCH section. Per-tenant
+	// config is M5+; these are process-level flags for now.
+	EnableOpensearch    bool
+	EnableElasticsearch bool
 }
+
+// SearchEnabled reports whether the Search vertical UI should be served. The
+// scoped nav (ly-ae6.3) reads the same predicate to decide whether to render
+// the SEARCH nav section.
+func (c Config) SearchEnabled() bool { return c.EnableOpensearch || c.EnableElasticsearch }
 
 // Server bundles routes and dependencies.
 type Server struct {
@@ -60,6 +72,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /databases/{clusterID}/activity", s.handleClusterActivity)
 	s.mux.HandleFunc("GET /databases/{clusterID}/settings", s.handleClusterSettings)
 	s.mux.HandleFunc("GET /partial/databases/{clusterID}/query/{fingerprint}", s.handleClusterQueryDrilldown)
+	s.mux.HandleFunc("GET /search/domains", s.handleSearchDomains)
+	s.mux.HandleFunc("GET /partial/search/domains", s.handleSearchDomainsPartial)
+	s.mux.HandleFunc("GET /search/nodes", s.handleSearchNodes)
+	s.mux.HandleFunc("GET /partial/search/nodes", s.handleSearchNodesPartial)
 	s.mux.HandleFunc("GET /{$}", s.handleFleet)          // root IS the fleet landing shell
 	s.mux.HandleFunc("GET /fleet", s.handleFleet)        // hidden alias (old links/bookmarks)
 	s.mux.HandleFunc("GET /queries", s.handleDashboard)  // legacy global top-queries (retrofit: ly-ae6.7)

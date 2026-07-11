@@ -40,6 +40,8 @@ func main() {
 		addr = ":8080"
 	}
 	devAuth := os.Getenv("LYNCEUS_DEV_AUTH") == "true"
+	enableOpensearch := os.Getenv("LYNCEUS_ENABLE_OPENSEARCH") == "true"
+	enableElasticsearch := os.Getenv("LYNCEUS_ENABLE_ELASTICSEARCH") == "true"
 
 	ctx, stop := signal.NotifyContext(context.Background(),
 		syscall.SIGTERM, syscall.SIGINT)
@@ -62,7 +64,11 @@ func main() {
 	configRO := openReadPool(ctx, configRODSN, "config")
 	defer closePool(configRO)
 
-	srv := api.NewServer(api.Config{DevAuth: devAuth},
+	srv := api.NewServer(api.Config{
+		DevAuth:             devAuth,
+		EnableOpensearch:    enableOpensearch,
+		EnableElasticsearch: enableElasticsearch,
+	},
 		store.NewStats(pool).WithReadPool(statsRO),
 		store.NewConfig(configPool).WithReadPool(configRO))
 
