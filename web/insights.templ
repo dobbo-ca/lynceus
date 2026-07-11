@@ -1,7 +1,5 @@
 package web
 
-import "fmt"
-
 // InsightRow is the view-model for one detected insight row. Every field is a
 // structural identifier or an aggregate count — the same literal-free shape as
 // insight.Insight (internal/insight/insight.go:31-41); the engine guarantees no
@@ -16,51 +14,66 @@ type InsightRow struct {
 	RowsReturned int64
 	Detail       string
 	ServerID     string
+	ClusterID    string
 }
 
-// InsightsPage is the full insights dashboard.
-templ InsightsPage(rows []InsightRow) {
-	@Layout("Lynceus — insights", "query plan insights from the detection engine") {
-		@InsightsTable(rows)
+// InsightFilter narrows the insights list. Empty fields impose no constraint.
+// Nav carries the page-navigation base paths (fleet default; ly-ae6.3 refills).
+type InsightFilter struct {
+	Sev  string // mapped severity class: "crit"|"warn"|"info"|""
+	Kind string // insight kind string, "" = all
+	Nav  ScreenNav
+}
+
+// insightSevChips / insightKindChips are the fixed filter vocabularies.
+var insightSevChips = []string{"crit", "warn", "info"}
+var insightKindChips = []string{"slow_scan", "disk_sort", "hash_batches", "mis_estimate", "stale_stats", "nested_loop"}
+
+// InsightsPage renders the Query Insights screen inside the design shell.
+templ InsightsPage(sv ShellView, f InsightFilter, rows []InsightRow) {
+	@Shell(sv) {
+		@InsightsScreen(f, rows)
 	}
 }
 
-// InsightsTable is also served as a stand-alone HTMX fragment so the table
-// auto-refreshes (hx-get + outerHTML swap re-installs the same hx-* attributes
-// on every poll), mirroring QueriesTable (queries.templ:15-16).
-templ InsightsTable(rows []InsightRow) {
+templ InsightsScreen(f InsightFilter, rows []InsightRow) {
+	<div class="screen" data-screen-label="Query Insights">
+		@ScreenHeader("Query Insights", []HeaderBadge{{Text: "LIVE", Kind: "live"}})
+		<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+			<span class="mono-lbl" style="font-size:9.5px;letter-spacing:.1em;">SEVERITY</span>
+			for _, sv := range insightSevChips {
+				<a class={ chipClass(f.Sev == sv) } href={ templ.SafeURL(insightChipHref("sev", sv, f)) }>{ SevLabel(sv) }</a>
+			}
+			<span style="width:14px;"></span>
+			<span class="mono-lbl" style="font-size:9.5px;letter-spacing:.1em;">KIND</span>
+			for _, kd := range insightKindChips {
+				<a class={ chipClass(f.Kind == kd) } href={ templ.SafeURL(insightChipHref("kind", kd, f)) }>{ KindLabel(kd) }</a>
+			}
+		</div>
+		@InsightsTable(f, rows)
+	</div>
+}
+
+templ InsightsTable(f InsightFilter, rows []InsightRow) {
 	<div id="insights-table" hx-get="/partial/insights" hx-trigger="every 10s" hx-swap="outerHTML">
-		if len(rows) == 0 {
-			<p class="empty">No insights detected yet — start a collector and check back.</p>
-		} else {
-			<table>
-				<thead>
-					<tr>
-						<th>Severity</th>
-						<th>Kind</th>
-						<th>Relation</th>
-						<th>Node path</th>
-						<th class="num">Rows scanned</th>
-						<th class="num">Rows returned</th>
-						<th>Detail</th>
-						<th>Fingerprint</th>
-					</tr>
-				</thead>
-				<tbody>
-					for _, r := range rows {
-						<tr>
-							<td><code>{ r.Severity }</code></td>
-							<td><code>{ r.Kind }</code></td>
-							<td><code>{ r.Relation }</code></td>
-							<td><code>{ r.NodePath }</code></td>
-							<td class="num">{ fmt.Sprintf("%d", r.RowsScanned) }</td>
-							<td class="num">{ fmt.Sprintf("%d", r.RowsReturned) }</td>
-							<td>{ r.Detail }</td>
-							<td><code>{ r.Fingerprint }</code></td>
-						</tr>
+		<div class="panel">
+			if len(rows) == 0 {
+				@EmptyState("NO INSIGHTS MATCH THIS FILTER — NICE.")
+			}
+			for _, r := range rows {
+				<div class={ "stripe-" + SevClass(r.Severity) } style="padding:10px 14px;border-bottom:1px solid var(--line2);display:flex;flex-direction:column;gap:4px;">
+					<div style="display:flex;gap:12px;align-items:center;">
+						<span class={ "mono", "sev-" + SevClass(r.Severity) } style="font-size:12px;font-weight:600;">{ KindLabel(r.Kind) }</span>
+						<span class="mono" style="font-size:10.5px;color:var(--faint);">{ r.NodePath }</span>
+						<span style="flex:1;"></span>
+						<a class="mono" style="font-size:10.5px;" href={ templ.SafeURL(insightDrilldownHref(r, f.Nav)) }>{ r.Fingerprint } →</a>
+					</div>
+					<span style="font-size:12.5px;color:var(--mut);">{ r.Detail }</span>
+					if RecommendationFor(r.Kind) != "" {
+						<span style="font-size:12.5px;color:var(--text);">→ { RecommendationFor(r.Kind) }</span>
 					}
-				</tbody>
-			</table>
-		}
+				</div>
+			}
+		</div>
 	</div>
 }
