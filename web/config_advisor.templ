@@ -1,44 +1,79 @@
 package web
 
+// ConfigServerTab is one entry in the per-server picker.
+type ConfigServerTab struct {
+	ID       string
+	Label    string
+	Sub      string // "N findings"
+	Selected bool
+}
+
 // ConfigAdvisorRow is the view-model for one config-tuning recommendation.
 // Identifiers + bounded-config values + package-authored guidance only — no
 // monitored-DB literal.
 type ConfigAdvisorRow struct {
+	Group     string // category (GROUP column)
 	Setting   string
-	Category  string
-	Severity  string
+	SevClass  string // "crit"|"warn"|"info"
 	Current   string
 	Suggested string
 	Detail    string
 }
 
-templ ConfigAdvisorPage(rows []ConfigAdvisorRow) {
-	@Layout("Lynceus — config advisor", "settings-derived tuning recommendations (memory / durability / autovacuum / planner)") {
-		<p hx-get="/partial/config-advisor" hx-trigger="every 30s" hx-target="#config-table" hx-swap="outerHTML"></p>
-		@ConfigAdvisorTable(rows)
+// ConfigAdvisorVM is the per-server config-advisor view-model.
+type ConfigAdvisorVM struct {
+	Servers   []ConfigServerTab
+	ScopeName string // "<selected server> · CONFIG"
+	Rows      []ConfigAdvisorRow
+	Nav       ScreenNav // per-server tab base path (fleet default; ly-ae6.3 refills)
+}
+
+const cfgGrid = "grid-template-columns:120px 220px 110px 110px 1fr;gap:10px;"
+
+// ConfigAdvisorPage renders the Config Advisor screen inside the design shell.
+templ ConfigAdvisorPage(sv ShellView, vm ConfigAdvisorVM) {
+	@Shell(sv) {
+		@ConfigAdvisorScreen(vm)
 	}
 }
 
-templ ConfigAdvisorTable(rows []ConfigAdvisorRow) {
-	<div id="config-table">
-		if len(rows) == 0 {
-			<p class="empty">No config findings — settings look well-tuned.</p>
-		} else {
-			<table>
-				<thead><tr><th>Severity</th><th>Category</th><th>Setting</th><th>Current</th><th>Suggested</th><th>Detail</th></tr></thead>
-				<tbody>
-					for _, r := range rows {
-						<tr>
-							<td><code>{ r.Severity }</code></td>
-							<td><code>{ r.Category }</code></td>
-							<td><code>{ r.Setting }</code></td>
-							<td><code>{ r.Current }</code></td>
-							<td>{ r.Suggested }</td>
-							<td>{ r.Detail }</td>
-						</tr>
-					}
-				</tbody>
-			</table>
+templ ConfigAdvisorScreen(vm ConfigAdvisorVM) {
+	<div class="screen" data-screen-label="Config Advisor">
+		@ScreenHeader("Config Advisor", []HeaderBadge{
+			{Text: "LIVE", Kind: "live"},
+			{Text: "T1 · VALUES FROM A CURATED PG_SETTINGS ALLOWLIST", Kind: "t1"},
+			{Text: "SETTINGS APPLY PER SERVER INSTANCE", Kind: "scope"},
+		})
+		<div style="display:flex;gap:8px;flex-wrap:wrap;">
+			for _, cs := range vm.Servers {
+				<a class={ chipClass(cs.Selected) } style="display:flex;flex-direction:column;gap:2px;padding:6px 12px;" href={ templ.SafeURL(vm.Nav.Base + "?server=" + cs.ID) }>
+					<span style="font-size:11.5px;font-weight:600;">{ cs.Label }</span>
+					<span style="font-size:9px;color:var(--faint);letter-spacing:.06em;">{ cs.Sub }</span>
+				</a>
+			}
+		</div>
+		@ConfigAdvisorTable(vm)
+		<div class="mono-lbl" style="font-size:10px;">ONLY ALLOWLISTED GUC VALUES (NUMBERS / BOOLS / ENUMS) ARE COLLECTED — FREE-TEXT SETTINGS NEVER LEAVE THE SERVER.</div>
+	</div>
+}
+
+templ ConfigAdvisorTable(vm ConfigAdvisorVM) {
+	<div id="config-table" class="panel" hx-get="/partial/config-advisor" hx-trigger="every 30s" hx-swap="outerHTML">
+		<div class="panel-hd">{ vm.ScopeName }</div>
+		<div class="grid-hd" style={ "display:grid;" + cfgGrid }>
+			<span>GROUP</span><span>SETTING</span><span>CURRENT</span><span>SUGGESTED</span><span>RATIONALE</span>
+		</div>
+		if len(vm.Rows) == 0 {
+			@EmptyState("No config findings — settings look well-tuned.")
+		}
+		for _, c := range vm.Rows {
+			<div class={ "stripe-" + c.SevClass } style={ "display:grid;" + cfgGrid + "padding:8px 12px;border-bottom:1px solid var(--line2);align-items:baseline;" }>
+				<span class="mono-lbl" style="font-size:9.5px;">{ c.Group }</span>
+				<span class="mono" style="font-size:11.5px;">{ c.Setting }</span>
+				<span class="mono" style="font-size:11.5px;color:var(--critT);">{ c.Current }</span>
+				<span class="mono" style="font-size:11.5px;color:var(--acc2);">{ c.Suggested }</span>
+				<span style="font-size:12px;color:var(--mut);line-height:1.5;">{ c.Detail }</span>
+			</div>
 		}
 	</div>
 }
