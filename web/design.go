@@ -152,3 +152,42 @@ func dashPct(p float64) string {
 	}
 	return fmt.Sprintf("%.0f%%", p)
 }
+
+// chipClass returns the token chip class, "on" variant when selected.
+func chipClass(on bool) string {
+	if on {
+		return "chip chip--on"
+	}
+	return "chip"
+}
+
+// insightChipHref toggles one facet of the insights filter, preserving the
+// other. Base comes from f.Nav (fleet "/insights" today; scoped route under
+// ly-ae6.3) — never a hardcoded literal.
+func insightChipHref(facet, val string, f InsightFilter) string {
+	sev, kind := f.Sev, f.Kind
+	if facet == "sev" {
+		if sev == val {
+			sev = ""
+		} else {
+			sev = val
+		}
+	} else {
+		if kind == val {
+			kind = ""
+		} else {
+			kind = val
+		}
+	}
+	return f.Nav.Base + "?sev=" + sev + "&kind=" + kind
+}
+
+// insightDrilldownHref links an insight row to its query drilldown. Scoped rows
+// (ClusterID set) use the scoped drilldown page; fleet rows fall back to
+// nav.Plan (no hardcoded fleet literal in this helper).
+func insightDrilldownHref(r InsightRow, nav ScreenNav) string {
+	if r.ClusterID == "" {
+		return nav.Plan + "?server=" + r.ServerID + "&fp=" + r.Fingerprint
+	}
+	return "/databases/" + r.ClusterID + "/query/" + r.Fingerprint
+}
