@@ -11,12 +11,14 @@ import (
 	"github.com/dobbo-ca/lynceus/web"
 )
 
-// handleFleet serves the /fleet landing wrapped in the design shell. A ?scope
-// param scopes the top bar (the main body is a placeholder until ly-ae6.4/.6).
+// handleFleet serves the fleet-scope landing wrapped in the design shell: the
+// top bar/nav come from the shell view (scoped by ?scope), the main body is the
+// Fleet dashboard (ly-ae6.4). Both consume the shared ?range param.
 func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 	vm := s.buildShellView(r)
+	fleet := s.fetchFleet(r)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = web.FleetShellPage(vm).Render(r.Context(), w)
+	_ = web.FleetShellPage(vm, fleet).Render(r.Context(), w)
 }
 
 // handleScopeOptions serves the searchable SCOPE picker option list (HTMX).

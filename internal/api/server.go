@@ -59,6 +59,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /{$}", s.handleFleet)          // root IS the fleet landing shell
 	s.mux.HandleFunc("GET /fleet", s.handleFleet)        // hidden alias (old links/bookmarks)
 	s.mux.HandleFunc("GET /queries", s.handleDashboard)  // legacy global top-queries (retrofit: ly-ae6.7)
+	s.mux.HandleFunc("GET /partial/fleet", s.handleFleetPartial) // fleet dashboard body auto-poll (ly-ae6.4)
 	s.mux.HandleFunc("GET /partial/scope-options", s.handleScopeOptions)
 	s.mux.HandleFunc("GET /partial/queries", s.handleQueriesPartial)
 	s.mux.HandleFunc("GET /insights", s.handleInsightsPage)
