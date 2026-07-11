@@ -15,7 +15,7 @@
   }
   function init() {
     var cur = current();
-    var btns = document.querySelectorAll('[data-accent]');
+    var btns = document.querySelectorAll('.accent-swatch[data-accent]');
     function mark(active) {
       btns.forEach(function (x) {
         var on = x === active;
