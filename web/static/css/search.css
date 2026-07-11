@@ -1,0 +1,18 @@
+/* Search vertical component styles — token-based (F1 / ly-ae6.1).
+   Only runtime-varying colors live here as classes; static structural styling
+   is inline on the elements (mirrors docs/design/Lynceus.dc.html search screens).
+   NEVER hardcode a color — always reference a token from tokens.css. */
+.tone-text  { color: var(--text); }
+.tone-mut   { color: var(--mut); }
+.tone-warn  { color: var(--warnT); }
+.tone-crit  { color: var(--critT); }
+.tone-ok    { color: var(--acc2); }
+.tone-info  { color: var(--infoT); }
+.tone-dim   { color: var(--dim); }
+.tone-faint { color: var(--faint); }
+
+.sd-status--GREEN  { color: var(--acc2); }
+.sd-status--YELLOW { color: var(--warnT); }
+.sd-status--RED    { color: var(--critT); }
+
+.sn-shards--zero { color: var(--faint); }
