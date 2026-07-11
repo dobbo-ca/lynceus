@@ -1,0 +1,63 @@
+/* Lynceus design tokens — self-hosted, dark-default with light override.
+   Source of truth: docs/design/ (PRODUCT_INTENT.md, README.md, Lynceus.dc.html
+   lines 16-37). Only edit token VALUES here; component styling lives with each
+   screen (see legacy.css during the ly-ae6.7 retrofit). */
+
+/* ---- Self-hosted fonts (no CDN — privacy backbone). ---- */
+@font-face {
+  font-family: 'Work Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/static/fonts/work-sans-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/static/fonts/jetbrains-mono-latin.woff2') format('woff2');
+}
+
+/* ---- Color tokens: dark theme is the default ---- */
+:root {
+  --bg:#0c1118; --rail:#0a0e14; --surface:#10161f; --raised:#141c28;
+  --line:#26303d; --line2:#1a2330;
+  --text:#dbe4ee; --mut:#a3b1c4; --dim:#64748c; --faint:#4d5c73;
+  --acc:#2dd4bf; --acc2:#5eead4; --accbg:#131c29; --accdim:rgba(45,212,191,.14);
+  --crit:#ef6351; --critT:#f28b7d; --critbg:rgba(239,99,81,.1);
+  --warn:#e5a83b; --warnT:#e5b45f; --warnbg:rgba(229,168,59,.1);
+  --info:#7d8fa8; --infoT:#9fb3cc; --infobg:rgba(125,143,168,.12);
+  --ok:#2dd4bf; --shimA:#151d29; --shimB:#1b2534;
+  --chart-cpu:#5c6d85; --chart-io:#2dd4bf; --chart-lwlock:#60a5fa; --chart-lock:#e5a83b; --chart-client:#3d4c63;
+
+  /* shape + type language */
+  --radius:2px; --radius-badge:1px; --border:1px;
+  --shadow-pop:0 8px 24px rgba(0,0,0,.35);
+  --font-ui:'Work Sans', system-ui, sans-serif;
+  --font-mono:'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+html[data-theme='light'] {
+  --bg:#f2f4f8; --rail:#eaedf3; --surface:#ffffff; --raised:#f6f8fb;
+  --line:#cfd8e3; --line2:#e3e8f0;
+  --text:#131c29; --mut:#3d4c63; --dim:#64748c; --faint:#8a97ab;
+  --acc:#0d9488; --acc2:#0f766e; --accbg:#e3f4f1; --accdim:rgba(13,148,136,.12);
+  --crit:#c93a28; --critT:#b0301f; --critbg:rgba(201,58,40,.08);
+  --warn:#b97e14; --warnT:#96660d; --warnbg:rgba(185,126,20,.09);
+  --info:#5d7189; --infoT:#4c5f76; --infobg:rgba(93,113,137,.1);
+  --ok:#0d9488; --shimA:#e7ebf1; --shimB:#dde3ec;
+  --chart-cpu:#8a97ab; --chart-io:#0d9488; --chart-lwlock:#3b82f6; --chart-lock:#b97e14; --chart-client:#c3cdd9;
+}
+
+/* ---- Base element styles: the shell reads dark by default ---- */
+html { background: var(--bg); }
+body { margin:0; font-family: var(--font-ui); color: var(--text); font-size:13px; -webkit-font-smoothing:antialiased; }
+a { color: var(--acc); text-decoration:none; }
+a:hover { color: var(--acc2); text-decoration:underline; }
+code, .mono { font-family: var(--font-mono); }
+input:focus { border-color: var(--acc); }
+*:focus-visible { outline:2px solid var(--acc); outline-offset:1px; }
+::selection { background: rgba(45,212,191,.25); }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.25; } }
+@keyframes shimmer { 0% { background-position:-400px 0; } 100% { background-position:400px 0; } }
+@media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
