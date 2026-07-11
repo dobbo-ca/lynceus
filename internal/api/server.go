@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dobbo-ca/lynceus/internal/console"
 	"github.com/dobbo-ca/lynceus/internal/store"
 	"github.com/dobbo-ca/lynceus/web"
 )
@@ -34,22 +35,28 @@ func (c Config) SearchEnabled() bool { return c.EnableOpensearch || c.EnableElas
 
 // Server bundles routes and dependencies.
 type Server struct {
-	cfg   Config
-	stats store.Stats
-	conf  store.Config
-	disc  *store.DiscoveredCapabilities
-	mux   *http.ServeMux
+	cfg      Config
+	stats    store.Stats
+	conf     store.Config
+	disc     *store.DiscoveredCapabilities
+	exec     console.Executor
+	grants   console.GrantReader
+	sessions *console.Sessions
+	mux      *http.ServeMux
 }
 
 // NewServer returns a fully wired Server. stats is the stats-DB store;
 // conf is the config/metadata-DB store (used by the audit-log viewer).
 func NewServer(cfg Config, stats store.Stats, conf store.Config) *Server {
 	s := &Server{
-		cfg:   cfg,
-		stats: stats,
-		conf:  conf,
-		disc:  store.NewDiscoveredCapabilities(conf.Pool()),
-		mux:   http.NewServeMux(),
+		cfg:      cfg,
+		stats:    stats,
+		conf:     conf,
+		disc:     store.NewDiscoveredCapabilities(conf.Pool()),
+		exec:     console.StubExecutor{},
+		grants:   console.StubGrantReader{},
+		sessions: console.NewSessions(5),
+		mux:      http.NewServeMux(),
 	}
 	s.routes()
 	return s
@@ -98,6 +105,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /partial/waits", s.handleWaitsPartial)
 	s.mux.HandleFunc("GET /checks", s.handleChecksPage)
 	s.mux.HandleFunc("GET /partial/checks", s.handleChecksPartial)
+	s.mux.HandleFunc("GET /console", s.handleConsolePage)
+	s.mux.HandleFunc("GET /partial/console", s.handleConsolePartial)
+	s.mux.HandleFunc("POST /partial/console/run", s.handleConsoleRun)
+	s.mux.HandleFunc("GET /console/export", s.handleConsoleExport)
 	s.mux.HandleFunc("GET /api/queries/top", s.handleTopQueries)
 	s.mux.HandleFunc("GET /api/servers/{id}/capabilities", s.handleCapabilityMatrix)
 	s.mux.HandleFunc("POST /api/servers/{id}/capabilities/{cap}", s.handleCapabilityToggle)
