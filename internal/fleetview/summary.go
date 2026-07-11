@@ -7,6 +7,7 @@ package fleetview
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dobbo-ca/lynceus/internal/store"
@@ -158,6 +159,81 @@ func ListClusterSummaries(
 		}
 
 		out = append(out, sum)
+	}
+	return out, nil
+}
+
+// NodeGroup is one cluster's node group for the Database › Nodes screen.
+type NodeGroup struct {
+	Cluster  store.Cluster
+	Version  string // cluster's representative display version (from server_version_num)
+	CritOpen int    // cluster-level open-check counts (for the rollup line)
+	WarnOpen int
+	InfoOpen int
+	Nodes    []NodeRow
+}
+
+// NodeRow is one instance (node). Host metrics / provider / data-source /
+// blind-spot are backend gaps — fields present, zero/empty until collected.
+type NodeRow struct {
+	Instance    store.Instance
+	Role        string // upper-cased instance role: PRIMARY | REPLICA | UNKNOWN
+	Version     string // per-node display version from server_version_num
+	ActiveConns int64
+	MaxConns    int64 // pg_settings max_connections; 0 unknown
+	CritOpen    int   // per-node (per-instance) open-check counts
+	WarnOpen    int
+	InfoOpen    int
+}
+
+// ListNodeGroups returns one group per cluster with its instances as node rows.
+// Host metrics / provider / blind-spot fields are left zero (backend gaps); conns
+// come from the activity store and max_connections/version from pg_settings.
+func ListNodeGroups(ctx context.Context, cfg store.Config, stats store.Stats, since, until time.Time) ([]NodeGroup, error) {
+	clusters, err := cfg.ListClusters(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]NodeGroup, 0, len(clusters))
+	for _, cl := range clusters {
+		clusterIDs, err := cfg.ServerIDsForCluster(ctx, cl.ID)
+		if err != nil {
+			return nil, err
+		}
+		crit, warn, info, err := rollupOpenChecks(ctx, stats, clusterIDs, since, until)
+		if err != nil {
+			return nil, err
+		}
+		g := NodeGroup{Cluster: cl, CritOpen: crit, WarnOpen: warn, InfoOpen: info}
+		instances, err := cfg.ListInstances(ctx, cl.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, inst := range instances {
+			ids, err := cfg.ServerIDsForInstance(ctx, inst.ID)
+			if err != nil {
+				return nil, err
+			}
+			row := NodeRow{Instance: inst, Role: strings.ToUpper(inst.Role)}
+			if len(ids) > 0 {
+				act, err := stats.ActivitySummaryForServers(ctx, ids, since, until)
+				if err != nil {
+					return nil, err
+				}
+				row.ActiveConns = act.ActiveConns
+				if row.Version, row.MaxConns, err = settingsForServer(ctx, stats, ids[0], until); err != nil {
+					return nil, err
+				}
+				if row.CritOpen, row.WarnOpen, row.InfoOpen, err = rollupOpenChecks(ctx, stats, ids, since, until); err != nil {
+					return nil, err
+				}
+				if g.Version == "" {
+					g.Version = row.Version
+				}
+			}
+			g.Nodes = append(g.Nodes, row)
+		}
+		out = append(out, g)
 	}
 	return out, nil
 }

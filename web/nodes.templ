@@ -1,0 +1,161 @@
+package web
+
+// NodeGroupVM is one cluster's node group on the Database › Nodes screen.
+// ScopeHref is the landed scope encoder's URL for the cluster (⌖ button).
+type NodeGroupVM struct {
+	Name         string
+	EngineIcon   string // "eng-pg"
+	EngineName   string // "POSTGRES"
+	Version      string
+	Provider     string // "" -> chip omitted
+	ProviderNote string // ⓘ tooltip
+	Rollup       string // "NODE HEALTH 1 CRIT · 1 WARN · 2 OK → CLUSTER DEGRADED"
+	RollupClass  string // "hl-crit"|"hl-warn"|"hl-ok"
+	SevRank      int    // cluster-level crit-first rank, for the HEALTH sort
+	ScopeHref    string // web.ScopeHref(cluster scope)
+	Nodes        []NodeRowVM
+}
+
+// NodeRowVM is one instance (node). Host metrics / provider / data-source /
+// blind-spot are backend gaps — fields present, "—"/empty until collected.
+type NodeRowVM struct {
+	Role        string // "PRIMARY" | "REPLICA" | "POOLER" | "STANDBY" | "UNKNOWN"
+	RoleClass   string // "role-primary" | ...
+	Name        string
+	NameBlind   bool   // dim the name when BlindSpot
+	Version     string // "" -> version tag omitted
+	Source      string // data-source line; "" -> neutral fallback
+	CPU         string // "—" when unknown
+	Mem         string
+	Disk        string
+	IOWait      string
+	Conns       string // "87 / 200" or "12 / —"
+	ConnsPct    string // "44%" (bar width); "0%" when max unknown
+	Health      string // "● CRIT" | "● WARN" | "● OK" | "◌ BLIND SPOT"
+	HealthClass string // "hl-crit"|"hl-warn"|"hl-ok"|"hl-warn"(blind)
+	BlindSpot   bool
+	ScopeHref   string // web.ScopeHref(node scope)
+}
+
+type NodesView struct {
+	Groups     []NodeGroupVM
+	Query      string
+	Sort       string
+	SortLabel  string
+	SortHref   string // "/partial/nodes?sort=<next>&q=<q>"
+	PageHref   string // "/nodes?sort=<next>&q=<q>" (no-JS)
+	PrevHref   string
+	NextHref   string
+	HasPrev    bool
+	HasNext    bool
+	ShowPager  bool
+	PagerLabel string // "PAGE 1 / 2"
+	NoResults  bool
+}
+
+// NodesShellPage renders the Nodes list inside the design shell. Engine sprites
+// sit OUTSIDE #nodes-screen so HTMX body swaps keep their <use> refs.
+templ NodesShellPage(vm ShellView, v NodesView) {
+	@Shell(vm) {
+		@EngineSprites()
+		@NodesBody(v)
+	}
+}
+
+templ NodesBody(v NodesView) {
+	<div id="nodes-screen" class="vlist">
+		<div class="vlist-head">
+			<span class="vlist-title">Nodes</span>
+			<span class="badge-live">LIVE</span>
+			<span class="vlist-strap">HEALTH ROLLS UP: DATABASE → NODE → CLUSTER</span>
+			<span class="vlist-spacer"></span>
+			<form hx-get="/partial/nodes" hx-target="#nodes-screen" hx-swap="outerHTML" hx-trigger="keyup changed delay:300ms from:input[name='q'], submit" style="display:contents">
+				<input type="hidden" name="sort" value={ v.Sort }/>
+				<input class="vlist-search" type="text" name="q" value={ v.Query } placeholder="search cluster / node / provider…"/>
+			</form>
+			<a class="vlist-btn" href={ templ.SafeURL(v.PageHref) } hx-get={ v.SortHref } hx-target="#nodes-screen" hx-swap="outerHTML">SORT: { v.SortLabel } ⇅</a>
+		</div>
+		if v.NoResults {
+			<div class="vempty">NO CLUSTERS OR NODES MATCH</div>
+		}
+		for _, g := range v.Groups {
+			<div class="vpanel">
+				<div class="grp-head">
+					<span class="eng-mark" title={ g.EngineName }>
+						<svg width="12" height="12" viewBox="0 0 24 24"><use href={ "#" + g.EngineIcon }></use></svg>
+					</span>
+					<span class="grp-name">{ g.Name }</span>
+					if g.Version != "" {
+						<span class="grp-ver">{ "v" + g.Version }</span>
+					}
+					if g.Provider != "" {
+						<span class="grp-provider" title={ g.ProviderNote }>{ g.Provider } ⓘ</span>
+					}
+					<span class="vlist-spacer"></span>
+					<span class={ "grp-rollup " + g.RollupClass }>{ g.Rollup }</span>
+					<a class="scope-btn" href={ templ.SafeURL(g.ScopeHref) } title="Set scope to this cluster">⌖</a>
+				</div>
+				<div class="tbl-scroll">
+					<div class="nodes-grid">
+						<div class="nodes-hd">
+							<span>ROLE</span><span>NODE</span><span class="num-r">CPU</span><span class="num-r">MEM</span><span class="num-r">DISK</span><span class="num-r">IO WAIT</span><span>CONNS / MAX_CONNECTIONS</span><span class="num-r">HEALTH</span><span></span>
+						</div>
+						for _, n := range g.Nodes {
+							<div class="nodes-row">
+								<span class={ "role-chip " + n.RoleClass }>{ n.Role }</span>
+								<div class="node-id">
+									<span class="node-idline">
+										<span class={ classIf("node-name", "node-name--blind", n.NameBlind) }>{ n.Name }</span>
+										if n.Version != "" {
+											<span class="node-nodever">{ "v" + n.Version }</span>
+										}
+									</span>
+									<span class="node-src">{ nodeSource(n.Source) }</span>
+								</div>
+								<span class="node-metric num-r">{ n.CPU }</span>
+								<span class="node-metric num-r">{ n.Mem }</span>
+								<span class="node-metric num-r">{ n.Disk }</span>
+								<span class="node-metric num-r">{ n.IOWait }</span>
+								<div class="conns-wrap">
+									<div class="conns-bar"><div class="conns-fill" style={ "width:" + n.ConnsPct }></div></div>
+									<span class="conns-num">{ n.Conns }</span>
+								</div>
+								<span class={ "node-health " + n.HealthClass }>{ n.Health }</span>
+								<a class="scope-btn" href={ templ.SafeURL(n.ScopeHref) } title="Set scope to this node">⌖</a>
+							</div>
+						}
+					</div>
+				</div>
+			</div>
+		}
+		if v.ShowPager {
+			<div class="vpager">
+				<span>{ v.PagerLabel }</span>
+				<a class={ classIf("", "is-disabled", !v.HasPrev) } href={ templ.SafeURL(v.PrevHref) } hx-get={ v.PrevHref } hx-target="#nodes-screen" hx-swap="outerHTML">‹ PREV</a>
+				<a class={ classIf("", "is-disabled", !v.HasNext) } href={ templ.SafeURL(v.NextHref) } hx-get={ v.NextHref } hx-target="#nodes-screen" hx-swap="outerHTML">NEXT ›</a>
+				<span class="vlist-spacer"></span>
+				<span class="hint">SORT: HEALTH PUTS CLUSTERS WITH OPEN ISSUES FIRST</span>
+			</div>
+		}
+	</div>
+}
+
+// nodeSource renders the data-source line, defaulting to a neutral note when the
+// provider/data-source model has not populated it yet (backend gap ly-7ck.3).
+func nodeSource(src string) string {
+	if src == "" {
+		return "source unknown — collector reporting"
+	}
+	return src
+}
+
+// classIf builds a class attribute string, appending extra only when on.
+func classIf(base, extra string, on bool) string {
+	if !on {
+		return base
+	}
+	if base == "" {
+		return extra
+	}
+	return base + " " + extra
+}
