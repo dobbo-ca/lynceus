@@ -1,41 +1,127 @@
 package web
 
-// VacuumAdvisorRow is the view-model for one vacuum/analyze finding.
-// Identifiers + counts only — no literal.
-type VacuumAdvisorRow struct {
+// VacBloatRow is one row in the BLOAT — DEAD TUPLE SHARE panel.
+type VacBloatRow struct {
 	Relation string
-	Category string
-	Severity string
-	DeadPct  string // "37%"
-	Detail   string
+	PctLabel string
+	WidthPct int
+	ColorVar string // var(--crit)|var(--warn)|var(--acc)
+	Dead     string // "12,340 dead"
+	Wasted   string // "48 MB" or ""
 }
 
-templ VacuumAdvisorPage(rows []VacuumAdvisorRow) {
-	@Layout("Lynceus — vacuum advisor", "bloat / stats-freshness / autovacuum-lag findings") {
-		<p hx-get="/partial/vacuum-advisor" hx-trigger="every 30s" hx-target="#vac-table" hx-swap="outerHTML"></p>
-		@VacuumAdvisorTable(rows)
+// VacPerfRow is one row in the PERFORMANCE panel.
+type VacPerfRow struct{ Label, Value, Detail string }
+
+// VacActivityRow is one row in the ACTIVITY panel.
+type VacActivityRow struct {
+	Relation     string
+	Last         string // "3h ago" | "never"
+	LastColorVar string
+	Analyze      string
+}
+
+// VacFreezeRow is one bar in the FREEZING — WRAPAROUND RISK panel.
+type VacFreezeRow struct {
+	Name     string
+	Kind     string // "xid" | "mxid"
+	AgeLabel string // "182M"
+	PctLabel string // "91%"
+	WidthPct int    // vs the hard-wraparound guard
+	ColorVar string
+}
+
+// VacuumAdvisorVM is the 4-panel vacuum-advisor view-model.
+type VacuumAdvisorVM struct {
+	ScopeLabel string
+	Bloat      []VacBloatRow
+	Perf       []VacPerfRow
+	Activity   []VacActivityRow
+	Freeze     []VacFreezeRow
+}
+
+// VacuumAdvisorPage renders the Vacuum Advisor screen inside the design shell.
+templ VacuumAdvisorPage(sv ShellView, vm VacuumAdvisorVM) {
+	@Shell(sv) {
+		@VacuumAdvisorScreen(vm)
 	}
 }
 
-templ VacuumAdvisorTable(rows []VacuumAdvisorRow) {
-	<div id="vac-table">
-		if len(rows) == 0 {
-			<p class="empty">No vacuum findings — tables are healthy.</p>
-		} else {
-			<table>
-				<thead><tr><th>Severity</th><th>Category</th><th>Relation</th><th class="num">Dead</th><th>Detail</th></tr></thead>
-				<tbody>
-					for _, r := range rows {
-						<tr>
-							<td><code>{ r.Severity }</code></td>
-							<td><code>{ r.Category }</code></td>
-							<td><code>{ r.Relation }</code></td>
-							<td class="num">{ r.DeadPct }</td>
-							<td>{ r.Detail }</td>
-						</tr>
-					}
-				</tbody>
-			</table>
-		}
+templ VacuumAdvisorScreen(vm VacuumAdvisorVM) {
+	<div class="screen" data-screen-label="Vacuum Advisor">
+		@ScreenHeader("Vacuum Advisor", []HeaderBadge{
+			{Text: "LIVE", Kind: "live"},
+			{Text: vm.ScopeLabel, Kind: "scope"},
+			{Text: "BLOAT / PERFORMANCE / ACTIVITY / FREEZING", Kind: "t1"},
+		})
+		<div hx-get="/partial/vacuum-advisor" hx-trigger="every 30s" hx-target="#vac-view" hx-swap="outerHTML"></div>
+		@VacuumAdvisorView(vm)
+	</div>
+}
+
+templ VacuumAdvisorView(vm VacuumAdvisorVM) {
+	<div id="vac-view" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;">
+		<div style="display:flex;flex-direction:column;gap:14px;">
+			<div class="panel">
+				<div class="panel-hd">BLOAT — DEAD TUPLE SHARE</div>
+				if len(vm.Bloat) == 0 {
+					@EmptyState("No bloat findings — tables are healthy.")
+				}
+				for _, b := range vm.Bloat {
+					<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line2);">
+						<span class="mono" style="font-size:11.5px;width:170px;flex-shrink:0;">{ b.Relation }</span>
+						<div class="bar"><div class="bar-fill" style={ "width:" + intToStr(b.WidthPct) + "%;background:" + b.ColorVar + ";" }></div></div>
+						<span class="mono" style={ "font-size:11px;width:34px;text-align:right;color:" + b.ColorVar + ";" }>{ b.PctLabel }</span>
+						<span class="mono" style="font-size:10.5px;color:var(--dim);width:120px;text-align:right;">{ b.Dead } · { b.Wasted }</span>
+					</div>
+				}
+			</div>
+			<div class="panel">
+				<div class="panel-hd">PERFORMANCE</div>
+				if len(vm.Perf) == 0 {
+					@EmptyState("No autovacuum-lag findings.")
+				}
+				for _, p := range vm.Perf {
+					<div style="padding:9px 12px;border-bottom:1px solid var(--line2);display:flex;flex-direction:column;gap:3px;">
+						<div style="display:flex;justify-content:space-between;gap:10px;">
+							<span class="mono" style="font-size:11.5px;">{ p.Label }</span>
+							<span class="mono" style="font-size:11px;color:var(--acc2);">{ p.Value }</span>
+						</div>
+						<span style="font-size:12px;color:var(--mut);">{ p.Detail }</span>
+					</div>
+				}
+			</div>
+			<div class="panel">
+				<div class="panel-hd">ACTIVITY — LAST AUTOVACUUM / ANALYZE</div>
+				for _, v := range vm.Activity {
+					<div class="mono" style="display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--line2);font-size:11.5px;">
+						<span style="width:170px;">{ v.Relation }</span>
+						<span style={ "width:90px;color:" + v.LastColorVar + ";" }>{ v.Last }</span>
+						<span style="color:var(--dim);">analyze { v.Analyze }</span>
+					</div>
+				}
+			</div>
+		</div>
+		<div class="panel">
+			<div class="panel-hd" style="display:flex;justify-content:space-between;">
+				<span>FREEZING — WRAPAROUND RISK</span><span>VS AUTOVACUUM_FREEZE_MAX_AGE (PER-SERVER)</span>
+			</div>
+			if len(vm.Freeze) == 0 {
+				@EmptyState("No freeze-age data collected (ly-u4t.26).")
+			}
+			for _, f := range vm.Freeze {
+				<div style="padding:10px 12px;border-bottom:1px solid var(--line2);display:flex;flex-direction:column;gap:5px;">
+					<div class="mono" style="display:flex;justify-content:space-between;font-size:11.5px;">
+						<span>{ f.Name } <span style="color:var(--faint);font-size:9.5px;">{ f.Kind }</span></span>
+						<span style={ "color:" + f.ColorVar + ";" }>{ f.AgeLabel } · { f.PctLabel }</span>
+					</div>
+					<div style="height:12px;background:var(--raised);border-radius:1px;position:relative;">
+						<div style={ "width:" + intToStr(f.WidthPct) + "%;height:12px;background:" + f.ColorVar + ";" }></div>
+						<div style="position:absolute;left:76.9%;top:-2px;width:1px;height:16px;background:var(--dim);" title="autovacuum_freeze_max_age"></div>
+					</div>
+				</div>
+			}
+			<div class="mono-lbl" style="padding:9px 12px;font-size:10px;line-height:1.6;">TICK = EACH TABLE'S AUTOVACUUM_FREEZE_MAX_AGE (COLLECTED PER SERVER); BAR FULL WIDTH ≈ 1.3× THAT — THE HARD-WRAPAROUND GUARD.</div>
+		</div>
 	</div>
 }

@@ -75,12 +75,12 @@ func TestVacuumAdvisorPage_rendersRecommendations(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	html := string(body)
 	for _, want := range []string{
-		"<!doctype html>",                  // full page (templ emits lowercase)
-		`id="vac-table"`,                   // HTMX swap target
-		`hx-get="/partial/vacuum-advisor"`, // poll target
-		`href="/vacuum-advisor"`,           // nav link
-		"orders_audit",                     // seeded relation
-		"bloat",                            // bloat category
+		"<!doctype html>",                    // full page (templ emits lowercase)
+		`id="vac-view"`,                      // HTMX swap target
+		`hx-get="/partial/vacuum-advisor"`,   // poll target
+		`data-screen-label="Vacuum Advisor"`, // retrofitted screen marker
+		"orders_audit",                       // seeded relation (BLOAT panel)
+		"BLOAT — DEAD TUPLE SHARE",           // bloat panel title
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("vacuum advisor page missing %q", want)
@@ -105,11 +105,11 @@ func TestVacuumAdvisorPartial_returnsFragmentOnly(t *testing.T) {
 	if strings.Contains(html, "<!doctype html>") {
 		t.Error("partial returned a full document; expected a fragment only")
 	}
-	if !strings.Contains(html, `id="vac-table"`) {
+	if !strings.Contains(html, `id="vac-view"`) {
 		t.Error("partial missing the swap-target id (HTMX outerHTML reswap would break)")
 	}
-	if !strings.Contains(html, "<table>") {
-		t.Error("partial missing seeded recommendation table")
+	if !strings.Contains(html, "orders_audit") {
+		t.Error("partial missing seeded recommendation")
 	}
 }
 
