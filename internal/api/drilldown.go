@@ -11,7 +11,7 @@ import (
 // handleClusterQueryDrilldownPage renders the full Query Drilldown screen inside
 // the design shell for a (cluster, fingerprint).
 func (s *Server) handleClusterQueryDrilldownPage(w http.ResponseWriter, r *http.Request) {
-	sv := s.shellViewFor(r, "querydetail")
+	sv := s.buildShellView(r, "querydetail")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.QueryDrilldownPage(sv, s.fetchDrilldown(r)).Render(r.Context(), w)
 }

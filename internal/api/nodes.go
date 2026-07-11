@@ -16,7 +16,7 @@ import (
 const nodeGroupsPerPage = 3
 
 func (s *Server) handleNodes(w http.ResponseWriter, r *http.Request) {
-	vm := s.verticalShell(r, "nodes")
+	vm := s.buildShellView(r, "nodes")
 	v := s.fetchNodes(r)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.NodesShellPage(vm, v).Render(r.Context(), w)

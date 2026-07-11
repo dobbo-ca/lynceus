@@ -13,7 +13,7 @@ import (
 )
 
 func (s *Server) handleDatabasesList(w http.ResponseWriter, r *http.Request) {
-	vm := s.verticalShell(r, "databases")
+	vm := s.buildShellView(r, "databases")
 	v := s.fetchDatabasesList(r)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.DatabasesListShellPage(vm, v).Render(r.Context(), w)

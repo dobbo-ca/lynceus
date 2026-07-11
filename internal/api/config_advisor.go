@@ -10,7 +10,7 @@ import (
 )
 
 func (s *Server) handleConfigAdvisorPage(w http.ResponseWriter, r *http.Request) {
-	sv := s.shellViewFor(r, "configadvisor")
+	sv := s.buildShellView(r, "configadvisor")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.ConfigAdvisorPage(sv, s.fetchConfigAdvice(r)).Render(r.Context(), w)
 }

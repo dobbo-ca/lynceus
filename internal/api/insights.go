@@ -11,7 +11,7 @@ import (
 
 // handleInsightsPage renders the full insights page inside the design shell.
 func (s *Server) handleInsightsPage(w http.ResponseWriter, r *http.Request) {
-	sv := s.shellViewFor(r, "insights")
+	sv := s.buildShellView(r, "insights")
 	f := insightFilterFrom(r)
 	rows := s.filterInsights(s.fetchInsights(r), f)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

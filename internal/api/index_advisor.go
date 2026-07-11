@@ -13,7 +13,7 @@ import (
 )
 
 func (s *Server) handleIndexAdvisorPage(w http.ResponseWriter, r *http.Request) {
-	sv := s.shellViewFor(r, "indexadvisor")
+	sv := s.buildShellView(r, "indexadvisor")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.IndexAdvisorPage(sv, s.fetchIndexAdvice(r)).Render(r.Context(), w)
 }

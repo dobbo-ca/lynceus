@@ -35,9 +35,7 @@ func (s *Server) handleConsolePage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	sh := s.buildShellView(r, "console")
-	sh.Sidebar = web.Sidebar(sh.Scope, sh.ScopeLabel, web.DefaultEngines(), "console")
-	vm.Shell = sh
+	vm.Shell = s.buildShellView(r, "console")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.ConsolePage(vm).Render(r.Context(), w)
 }

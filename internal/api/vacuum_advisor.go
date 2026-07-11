@@ -10,7 +10,7 @@ import (
 )
 
 func (s *Server) handleVacuumAdvisorPage(w http.ResponseWriter, r *http.Request) {
-	sv := s.shellViewFor(r, "vacuumadvisor")
+	sv := s.buildShellView(r, "vacuumadvisor")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.VacuumAdvisorPage(sv, s.fetchVacuumAdvice(r)).Render(r.Context(), w)
 }

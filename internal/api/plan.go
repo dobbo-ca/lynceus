@@ -12,7 +12,7 @@ import (
 // handlePlanPage renders the full plan-visualization page for the
 // (server, fingerprint) pair given in the query string.
 func (s *Server) handlePlanPage(w http.ResponseWriter, r *http.Request) {
-	sv := s.shellViewFor(r, "plans")
+	sv := s.buildShellView(r, "plans")
 	vm := s.fetchPlan(r)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.PlanPage(sv, vm).Render(r.Context(), w)

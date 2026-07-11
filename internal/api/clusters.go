@@ -12,18 +12,8 @@ import (
 	"github.com/dobbo-ca/lynceus/web"
 )
 
-// verticalShell builds the design shell view for a Database-vertical list screen,
-// highlighting activeScreen in the scope-driven sidebar. Reuses the landed
-// buildShellView (scope + range + picker) and only re-points the sidebar's active
-// nav entry — no top-bar/nav is reinvented here.
-func (s *Server) verticalShell(r *http.Request, activeScreen string) web.ShellView {
-	vm := s.buildShellView(r, activeScreen)
-	vm.Sidebar = web.Sidebar(vm.Scope, vm.ScopeLabel, web.DefaultEngines(), activeScreen)
-	return vm
-}
-
 func (s *Server) handleClusters(w http.ResponseWriter, r *http.Request) {
-	vm := s.verticalShell(r, "clusters")
+	vm := s.buildShellView(r, "clusters")
 	v := s.fetchClusters(r)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.ClustersShellPage(vm, v).Render(r.Context(), w)

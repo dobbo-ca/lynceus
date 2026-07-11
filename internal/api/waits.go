@@ -12,7 +12,7 @@ import (
 
 func (s *Server) handleWaitsPage(w http.ResponseWriter, r *http.Request) {
 	server := r.URL.Query().Get("server")
-	sv := s.shellViewFor(r, "waits")
+	sv := s.buildShellView(r, "waits")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.WaitsPage(sv, s.fetchWaits(r, server)).Render(r.Context(), w)
 }

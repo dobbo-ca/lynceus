@@ -11,7 +11,7 @@ import (
 )
 
 func (s *Server) handleChecksPage(w http.ResponseWriter, r *http.Request) {
-	sv := s.shellViewFor(r, "checks")
+	sv := s.buildShellView(r, "checks")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = web.ChecksPage(sv, s.fetchChecks(r)).Render(r.Context(), w)
 }
