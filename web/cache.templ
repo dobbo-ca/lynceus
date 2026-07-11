@@ -148,7 +148,7 @@ templ CacheReplicasetsBody(v CacheReplicasetsView) {
 			<button
 				type="button"
 				class="c-btn"
-				hx-get={ "/partial/cache/replicasets?sort=" + nextSort(v.Sort, "health", "name") }
+				hx-get={ "/partial/cache/replicasets?sort=" + nextSortKey(v.Sort, "health", "name") }
 				hx-target="#cache-body"
 				hx-swap="outerHTML"
 			>SORT: { strings.ToUpper(v.Sort) } ⇅</button>
@@ -217,7 +217,7 @@ templ CacheNodesBody(v CacheNodesView) {
 			<button
 				type="button"
 				class="c-btn"
-				hx-get={ "/partial/cache/nodes?sort=" + nextSort(v.Sort, "ops", "name") }
+				hx-get={ "/partial/cache/nodes?sort=" + nextSortKey(v.Sort, "ops", "name") }
 				hx-target="#cache-body"
 				hx-swap="outerHTML"
 			>SORT: { strings.ToUpper(v.Sort) } ⇅</button>

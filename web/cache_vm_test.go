@@ -29,10 +29,10 @@ func TestRoleAndAccessClass(t *testing.T) {
 }
 
 func TestNextSort(t *testing.T) {
-	if got := nextSort("health", "health", "name"); got != "name" {
-		t.Errorf("nextSort from health=%q", got)
+	if got := nextSortKey("health", "health", "name"); got != "name" {
+		t.Errorf("nextSortKey from health=%q", got)
 	}
-	if got := nextSort("name", "health", "name"); got != "health" {
-		t.Errorf("nextSort from name=%q", got)
+	if got := nextSortKey("name", "health", "name"); got != "health" {
+		t.Errorf("nextSortKey from name=%q", got)
 	}
 }

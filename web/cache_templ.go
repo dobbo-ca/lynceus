@@ -530,9 +530,9 @@ func CacheReplicasetsBody(v CacheReplicasetsView) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var26 string
-		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue("/partial/cache/replicasets?sort=" + nextSort(v.Sort, "health", "name"))
+		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue("/partial/cache/replicasets?sort=" + nextSortKey(v.Sort, "health", "name"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/cache.templ`, Line: 151, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/cache.templ`, Line: 151, Col: 87}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 		if templ_7745c5c3_Err != nil {
@@ -794,9 +794,9 @@ func CacheNodesBody(v CacheNodesView) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var41 string
-		templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue("/partial/cache/nodes?sort=" + nextSort(v.Sort, "ops", "name"))
+		templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.ResolveAttributeValue("/partial/cache/nodes?sort=" + nextSortKey(v.Sort, "ops", "name"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/cache.templ`, Line: 220, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/cache.templ`, Line: 220, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var41)
 		if templ_7745c5c3_Err != nil {

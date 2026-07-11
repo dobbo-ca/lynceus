@@ -33,9 +33,9 @@ func accessClass(access string) string {
 	return "c-access c-access-ro"
 }
 
-// nextSort returns the sort key to toggle to, given the current key and the
+// nextSortKey returns the sort key to toggle to, given the current key and the
 // two options a/b. Used to build the SORT button's hx-get target.
-func nextSort(cur, a, b string) string {
+func nextSortKey(cur, a, b string) string {
 	if cur == a {
 		return b
 	}
