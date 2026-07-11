@@ -28,6 +28,7 @@ func TestLayout_SelfHostedAssets(t *testing.T) {
 	html := renderLayout(t)
 	for _, want := range []string{
 		`href="/static/css/tokens.css"`,
+		`href="/static/css/shape.css"`,
 		`href="/static/css/legacy.css"`,
 		`src="/static/js/htmx.min.js"`,
 		`src="/static/js/theme.js"`,

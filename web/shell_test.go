@@ -49,6 +49,7 @@ func TestShell_SelfHostedTokenAssetsNoLegacy(t *testing.T) {
 	html := renderShell(t, fleetShellView())
 	for _, want := range []string{
 		`href="/static/css/tokens.css"`,
+		`href="/static/css/shape.css"`,
 		`href="/static/css/shell.css"`,
 		`src="/static/js/htmx.min.js"`,
 		`src="/static/js/theme.js"`,
