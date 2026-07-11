@@ -26,12 +26,21 @@ type Config struct {
 	// config is M5+; these are process-level flags for now.
 	EnableOpensearch    bool
 	EnableElasticsearch bool
+
+	// EnableRedis / EnableValkey gate the fleet-scope Cache section
+	// (Clusters/Replicasets/Nodes). Sourced from LYNCEUS_ENABLE_REDIS /
+	// LYNCEUS_ENABLE_VALKEY. Matches the design config model (README:87).
+	EnableRedis  bool
+	EnableValkey bool
 }
 
 // SearchEnabled reports whether the Search vertical UI should be served. The
 // scoped nav (ly-ae6.3) reads the same predicate to decide whether to render
 // the SEARCH nav section.
 func (c Config) SearchEnabled() bool { return c.EnableOpensearch || c.EnableElasticsearch }
+
+// CacheEnabled reports whether the Cache vertical should be visible/reachable.
+func (c Config) CacheEnabled() bool { return c.EnableRedis || c.EnableValkey }
 
 // Server bundles routes and dependencies.
 type Server struct {

@@ -42,6 +42,8 @@ func main() {
 	devAuth := os.Getenv("LYNCEUS_DEV_AUTH") == "true"
 	enableOpensearch := os.Getenv("LYNCEUS_ENABLE_OPENSEARCH") == "true"
 	enableElasticsearch := os.Getenv("LYNCEUS_ENABLE_ELASTICSEARCH") == "true"
+	enableRedis := os.Getenv("LYNCEUS_ENABLE_REDIS") == "true"
+	enableValkey := os.Getenv("LYNCEUS_ENABLE_VALKEY") == "true"
 
 	ctx, stop := signal.NotifyContext(context.Background(),
 		syscall.SIGTERM, syscall.SIGINT)
@@ -68,6 +70,8 @@ func main() {
 		DevAuth:             devAuth,
 		EnableOpensearch:    enableOpensearch,
 		EnableElasticsearch: enableElasticsearch,
+		EnableRedis:         enableRedis,
+		EnableValkey:        enableValkey,
 	},
 		store.NewStats(pool).WithReadPool(statsRO),
 		store.NewConfig(configPool).WithReadPool(configRO))
