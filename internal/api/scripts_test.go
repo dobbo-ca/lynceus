@@ -64,7 +64,7 @@ func seedRunFleet(t *testing.T, pool *pgxpoolT) {
 	}
 }
 
-func getBody(t *testing.T, u string) string {
+func getBody200(t *testing.T, u string) string {
 	t.Helper()
 	resp, err := http.Get(u)
 	if err != nil {
@@ -371,7 +371,7 @@ func TestScriptRun_targetSelectionThenNodeDBEnablesRun(t *testing.T) {
 	base := srv.URL + "/partial/scripts/" + itoaTest(id) + "/run"
 
 	// 1. No selection: RUN inert, prompts to select a target.
-	html := getBody(t, base)
+	html := getBody200(t, base)
 	if !strings.Contains(html, "SEARCH &amp; SELECT A TARGET") {
 		t.Error("initial run card should prompt to select a target")
 	}
@@ -380,7 +380,7 @@ func TestScriptRun_targetSelectionThenNodeDBEnablesRun(t *testing.T) {
 	}
 
 	// 2. Select the cluster target: NODE + DATABASE chip rows appear, RUN still inert.
-	html = getBody(t, base+"?target="+url.QueryEscape("cluster|orders-prod|"))
+	html = getBody200(t, base+"?target="+url.QueryEscape("cluster|orders-prod|"))
 	if !strings.Contains(html, "SELECT NODE &amp; DATABASE TO RUN") {
 		t.Errorf("after cluster select, expected node/db prompt; got:\n%s", html)
 	}
@@ -391,7 +391,7 @@ func TestScriptRun_targetSelectionThenNodeDBEnablesRun(t *testing.T) {
 	// 3. Pick node + database: RUN becomes a live console hand-off link.
 	sel := "?target=" + url.QueryEscape("cluster|orders-prod|") +
 		"&node=srv-orders-primary&db=orders"
-	html = getBody(t, base+sel)
+	html = getBody200(t, base+sel)
 	if !strings.Contains(html, "RUN ON srv-orders-primary · orders →") {
 		t.Errorf("ready run label missing; got:\n%s", html)
 	}
@@ -415,7 +415,7 @@ func TestScriptRun_loadHrefHasNoRunParam(t *testing.T) {
 	// execute-intent link. (Guards the run=false branch of consoleHandoffURL.)
 	pool, srv := setupAudit(t, apiConfigDevAuth())
 	_ = seedScripts(t, pool)
-	html := getBody(t, srv.URL+"/scripts")
+	html := getBody200(t, srv.URL+"/scripts")
 	if !strings.Contains(html, `href="/console?script=`) {
 		t.Error("list is missing the load-into-console link")
 	}
@@ -429,7 +429,7 @@ func TestScriptSearchFragment_filtersAndLinksManage(t *testing.T) {
 	_ = seedScripts(t, pool)
 
 	// Empty query: browse all visible scripts + MANAGE SCRIPTS link.
-	html := getBody(t, srv.URL+"/partial/scripts/search")
+	html := getBody200(t, srv.URL+"/partial/scripts/search")
 	if strings.Contains(html, "<!doctype html>") {
 		t.Error("search fragment must not be a full page")
 	}
@@ -441,7 +441,7 @@ func TestScriptSearchFragment_filtersAndLinksManage(t *testing.T) {
 	}
 
 	// Typed query filters; a load link points at the console hand-off.
-	html = getBody(t, srv.URL+"/partial/scripts/search?q=replica")
+	html = getBody200(t, srv.URL+"/partial/scripts/search?q=replica")
 	if !strings.Contains(html, "replica-lag-quick") {
 		t.Error("q=replica missing the matching script")
 	}
@@ -453,7 +453,7 @@ func TestScriptSearchFragment_filtersAndLinksManage(t *testing.T) {
 	}
 
 	// No matches shows the empty state.
-	html = getBody(t, srv.URL+"/partial/scripts/search?q=zzzzz")
+	html = getBody200(t, srv.URL+"/partial/scripts/search?q=zzzzz")
 	if !strings.Contains(html, "NO SCRIPTS MATCH") {
 		t.Error("no-match search should show the empty state")
 	}
