@@ -94,6 +94,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /partial/search/domains", s.handleSearchDomainsPartial)
 	s.mux.HandleFunc("GET /search/nodes", s.handleSearchNodes)
 	s.mux.HandleFunc("GET /partial/search/nodes", s.handleSearchNodesPartial)
+	s.mux.HandleFunc("GET /databases/{clusterID}/query/{fingerprint}", s.handleClusterQueryDrilldownPage)
 	s.mux.HandleFunc("GET /{$}", s.handleFleet)          // root IS the fleet landing shell
 	s.mux.HandleFunc("GET /fleet", s.handleFleet)        // hidden alias (old links/bookmarks)
 	s.mux.HandleFunc("GET /queries", s.handleDashboard)  // legacy global top-queries (retrofit: ly-ae6.7)

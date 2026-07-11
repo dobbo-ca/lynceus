@@ -1,0 +1,106 @@
+package web
+
+// QueryDrilldownPage renders the drilldown screen inside the design shell.
+templ QueryDrilldownPage(sv ShellView, vm DrilldownVM) {
+	@Shell(sv) {
+		@QueryDrilldownScreen(vm)
+	}
+}
+
+templ QueryDrilldownScreen(vm DrilldownVM) {
+	<div class="screen" data-screen-label="Query drilldown">
+		<div class="screen-hd">
+			<a class="mono" style="font-size:11px;" href={ templ.SafeURL(vm.Nav.Base) }>← TOP QUERIES</a>
+			<span class="mono" style="font-size:16px;font-weight:600;">{ vm.Fingerprint }</span>
+			<span class="badge badge--t1">T1 · NORMALIZED</span>
+			<span style="flex:1;"></span>
+			if vm.HasPlan {
+				<a class="badge badge--live" style="padding:4px 9px;" href={ templ.SafeURL(vm.Nav.Plan + "?server=" + vm.ServerID + "&fp=" + vm.Fingerprint) }>VIEW PLAN →</a>
+			}
+		</div>
+		<div class="panel mono" style="padding:12px 14px;font-size:12.5px;line-height:1.7;color:var(--text);white-space:pre-wrap;">{ vm.NormalizedQuery }</div>
+		<div class="panel" style="display:grid;grid-template-columns:repeat(4,1fr);">
+			for _, st := range vm.Stats {
+				<div style="padding:10px 14px;border-right:1px solid var(--line2);display:flex;flex-direction:column;gap:2px;">
+					<span class="mono-lbl" style="font-size:9.5px;letter-spacing:.1em;">{ st.Label }</span>
+					<span class="mono" style="font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;">{ st.Value }</span>
+				</div>
+			}
+		</div>
+		<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+			@trendPanel("CALLS / MIN", vm.CallsArea, vm.CallsTrend, "var(--acc)")
+			@trendPanel("MEAN TIME", "", vm.MeanTrend, "var(--chart-lwlock)")
+		</div>
+		<div style="display:grid;grid-template-columns:5fr 4fr;gap:14px;align-items:start;">
+			<div class="panel">
+				<div class="panel-hd">DETECTED INSIGHTS · { intToStr(len(vm.Insights)) }</div>
+				if len(vm.Insights) == 0 {
+					@EmptyState("NO ANTI-PATTERNS DETECTED — NICE.")
+				}
+				for _, qi := range vm.Insights {
+					<div class={ "stripe-" + qi.SevClass } style="padding:9px 12px;border-bottom:1px solid var(--line2);display:flex;flex-direction:column;gap:3px;">
+						<div style="display:flex;gap:10px;align-items:center;">
+							<span class={ "mono", "sev-" + qi.SevClass } style="font-size:11.5px;">{ qi.KindLabel }</span>
+							<span class="mono" style="font-size:10px;color:var(--faint);">{ qi.Node }</span>
+						</div>
+						<span style="font-size:12px;color:var(--mut);">{ qi.Detail }</span>
+						if qi.Rec != "" {
+							<span style="font-size:12px;color:var(--text);">→ { qi.Rec }</span>
+						}
+					</div>
+				}
+			</div>
+			<div style="display:flex;flex-direction:column;gap:14px;">
+				<div class="panel" style="padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
+					<div class="panel-hd" style="border:0;padding:0;">WAIT BREAKDOWN</div>
+					if len(vm.Waits) == 0 {
+						<span class="mono-lbl" style="font-size:10px;">PER-QUERY WAIT ATTRIBUTION NOT YET COLLECTED (ly-xqf.1)</span>
+					}
+					for _, wt := range vm.Waits {
+						<div style="display:flex;align-items:center;gap:10px;">
+							<span class="mono" style="font-size:10.5px;color:var(--mut);width:140px;flex-shrink:0;">{ wt.Label }</span>
+							<div class="bar"><div class="bar-fill" style={ "width:" + intToStr(wt.WidthPct) + "%;background:" + wt.ColorVar + ";" }></div></div>
+							<span class="mono" style="font-size:10.5px;color:var(--dim);width:34px;text-align:right;">{ wt.Pct }</span>
+						</div>
+					}
+				</div>
+				@sampleGate(vm.Sample)
+			</div>
+		</div>
+	</div>
+}
+
+// trendPanel draws the grid-lined chart card; the polyline is drawn only when
+// series points exist (ly-xqf.10/11).
+templ trendPanel(label, area, line, stroke string) {
+	<div class="panel">
+		<div class="panel-hd">{ label }</div>
+		<svg width="100%" height="96" viewBox="0 0 480 96" preserveAspectRatio="none" style="display:block;">
+			<line x1="0" y1="32" x2="480" y2="32" stroke="var(--line2)"></line>
+			<line x1="0" y1="64" x2="480" y2="64" stroke="var(--line2)"></line>
+			if area != "" {
+				<polygon points={ area } fill="var(--accdim)"></polygon>
+			}
+			if line != "" {
+				<polyline points={ line } fill="none" stroke={ stroke } stroke-width="1.5"></polyline>
+			}
+		</svg>
+	</div>
+}
+
+// sampleGate renders the T2 RAW SAMPLE panel. It only ever renders the LOCKED
+// state — no literal value is present in the VM. The reveal action posts to the
+// audited T2 endpoint tracked by ly-8b0.6 (not wired here).
+templ sampleGate(sm QuerySampleVM) {
+	<div class="panel" style="border-color:var(--warn);">
+		<div class="panel-hd" style="color:var(--warnT);display:flex;gap:8px;align-items:center;">
+			◈ RAW SAMPLE — TIER 2
+			<span style="flex:1;"></span>
+			<span style="color:var(--faint);font-size:9.5px;">EVERY ACCESS IS LOGGED</span>
+		</div>
+		<div style="padding:16px 14px;display:flex;flex-direction:column;gap:10px;align-items:flex-start;">
+			<span style="font-size:12px;color:var(--mut);line-height:1.6;">Raw samples may contain literal values and never leave this server's T2 store. Your group <span class="mono" style="font-size:11px;">{ sm.Group }</span> has reveal rights on <span class="mono" style="font-size:11px;">{ sm.ServerID }</span>.</span>
+			<button class="badge badge--t2" style="padding:5px 12px;cursor:pointer;" hx-post={ "/api/t2/reveal?server=" + sm.ServerID } hx-swap="none" disabled?={ true }>REVEAL SAMPLE (AUDITED)</button>
+		</div>
+	</div>
+}
