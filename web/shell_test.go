@@ -14,13 +14,13 @@ func fleetShellView() ShellView {
 		Scope:      sc,
 		ScopeLabel: "FLEET",
 		Scoped:     false,
-		ClearHref:  "/fleet",
-		LogoHref:   "/fleet",
+		ClearHref:  "/",
+		LogoHref:   "/",
 		Range:      DefaultRange,
 		Ranges:     RangeOptions(DefaultRange, sc),
 		PollSecs:   3,
 		Options: []ScopeOption{
-			{Label: "orders-prod", Kind: "CLUSTER", Depth: 0, ScopeKey: "cluster:c-1", Href: "/fleet?scope=cluster%3Ac-1"},
+			{Label: "orders-prod", Kind: "CLUSTER", Depth: 0, ScopeKey: "cluster:c-1", Href: "/?scope=cluster%3Ac-1"},
 		},
 		User:  ShellUser{Name: "dev-admin", Group: "DBA-ONCALL", T2Granted: true},
 		Title: "Lynceus — Fleet",
@@ -126,9 +126,9 @@ func TestShell_ScopedShowsResetAndAccentChip(t *testing.T) {
 func TestScopeOptionsList_rendersKindBadges(t *testing.T) {
 	var sb strings.Builder
 	opts := []ScopeOption{
-		{Label: "orders-prod", Kind: "CLUSTER", Depth: 0, ScopeKey: "cluster:c-1", Href: "/fleet?scope=cluster%3Ac-1"},
-		{Label: "orders-prod / node-1", Kind: "NODE", Depth: 1, ScopeKey: "node:c-1:n-1", Href: "/fleet?scope=node%3Ac-1%3An-1"},
-		{Label: "orders-prod/orders", Kind: "DATABASE", Depth: 1, ScopeKey: "db:c-1:orders", Href: "/fleet?scope=db%3Ac-1%3Aorders"}, // databases are cluster-level (Depth 1), not nested under a node
+		{Label: "orders-prod", Kind: "CLUSTER", Depth: 0, ScopeKey: "cluster:c-1", Href: "/?scope=cluster%3Ac-1"},
+		{Label: "orders-prod / node-1", Kind: "NODE", Depth: 1, ScopeKey: "node:c-1:n-1", Href: "/?scope=node%3Ac-1%3An-1"},
+		{Label: "orders-prod/orders", Kind: "DATABASE", Depth: 1, ScopeKey: "db:c-1:orders", Href: "/?scope=db%3Ac-1%3Aorders"}, // databases are cluster-level (Depth 1), not nested under a node
 	}
 	if err := ScopeOptionsList(opts, "orders").Render(context.Background(), &sb); err != nil {
 		t.Fatalf("render: %v", err)
@@ -158,7 +158,7 @@ func TestScopeButton_linksToScopeHref(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 	html := sb.String()
-	if !strings.Contains(html, `href="/fleet?scope=node%3Ac-1%3An-1"`) {
+	if !strings.Contains(html, `href="/?scope=node%3Ac-1%3An-1"`) {
 		t.Errorf("scope button href wrong: %s", html)
 	}
 	if !strings.Contains(html, "⌖") {

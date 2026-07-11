@@ -25,17 +25,17 @@ func ParseRange(raw string) string {
 	return DefaultRange
 }
 
-// ScopeHref is the shell landing URL that sets the given scope: /fleet for
-// fleet, /fleet?scope=<encoded> otherwise. This is the canonical scope-set URL
+// ScopeHref is the shell landing URL that sets the given scope: / for
+// fleet, /?scope=<encoded> otherwise. This is the canonical scope-set URL
 // shared by the picker, the ⌖ row buttons, and deep links. ly-ae6.6 will
 // repoint these targets to the per-scope Overview routes; keep the encoding
 // stable so every producer agrees.
 func ScopeHref(sc scope.Scope) templ.SafeURL {
 	if sc.IsFleet() {
-		return templ.SafeURL("/fleet")
+		return templ.SafeURL("/")
 	}
 	v := url.Values{"scope": {sc.Encode()}}
-	return templ.SafeURL("/fleet?" + v.Encode())
+	return templ.SafeURL("/?" + v.Encode())
 }
 
 // RangeOption is one segmented-control entry.
@@ -48,10 +48,10 @@ type RangeOption struct {
 // RangeOptions builds the five range entries, preserving the active scope on
 // each href and marking the selected one.
 //
-// NOTE (ly-ae6.6): like ScopeHref, this hardcodes the /fleet base path. When
+// NOTE (ly-ae6.6): like ScopeHref, this hardcodes the / base path. When
 // ly-ae6.6 adds per-scope Overview routes it MUST repoint this alongside
 // ScopeHref (share one base-path resolver), or changing the range on a scoped
-// screen will bounce the user back to /fleet and drop their page context.
+// screen will bounce the user back to the fleet landing and drop their page context.
 func RangeOptions(current string, sc scope.Scope) []RangeOption {
 	current = ParseRange(current)
 	out := make([]RangeOption, 0, len(ValidRanges))
@@ -63,7 +63,7 @@ func RangeOptions(current string, sc scope.Scope) []RangeOption {
 		out = append(out, RangeOption{
 			Label:    r,
 			Selected: r == current,
-			Href:     templ.SafeURL("/fleet?" + v.Encode()),
+			Href:     templ.SafeURL("/?" + v.Encode()),
 		})
 	}
 	return out

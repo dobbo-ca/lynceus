@@ -19,12 +19,12 @@ func TestParseRange(t *testing.T) {
 }
 
 func TestScopeHref(t *testing.T) {
-	if got := ScopeHref(scope.Scope{Kind: scope.Fleet}); string(got) != "/fleet" {
-		t.Errorf("fleet href = %q, want /fleet", got)
+	if got := ScopeHref(scope.Scope{Kind: scope.Fleet}); string(got) != "/" {
+		t.Errorf("fleet href = %q, want /", got)
 	}
 	got := string(ScopeHref(scope.Scope{Kind: scope.Cluster, ClusterID: "c-1"}))
-	if got != "/fleet?scope=cluster%3Ac-1" {
-		t.Errorf("cluster href = %q, want /fleet?scope=cluster%%3Ac-1", got)
+	if got != "/?scope=cluster%3Ac-1" {
+		t.Errorf("cluster href = %q, want /?scope=cluster%%3Ac-1", got)
 	}
 }
 

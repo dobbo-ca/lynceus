@@ -17,7 +17,7 @@ func TestNavHref_EncodesScope(t *testing.T) {
 		sc           scope.Scope
 		want         string
 	}{
-		{"fleet overview", "fleet", FleetScope(), "/fleet"},
+		{"fleet overview", "fleet", FleetScope(), "/"},
 		{"fleet clusters", "clusters", FleetScope(), "/databases"},
 		{"cluster waits", "waits", cluster, "/waits?scope=cluster%3Ac-1"},
 		{"cluster sql console", "console", cluster, "/console?scope=cluster%3Ac-1"},

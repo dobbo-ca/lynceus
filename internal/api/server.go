@@ -56,8 +56,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /databases/{clusterID}/activity", s.handleClusterActivity)
 	s.mux.HandleFunc("GET /databases/{clusterID}/settings", s.handleClusterSettings)
 	s.mux.HandleFunc("GET /partial/databases/{clusterID}/query/{fingerprint}", s.handleClusterQueryDrilldown)
-	s.mux.HandleFunc("GET /", s.handleDashboard)
-	s.mux.HandleFunc("GET /fleet", s.handleFleet)
+	s.mux.HandleFunc("GET /{$}", s.handleFleet)          // root IS the fleet landing shell
+	s.mux.HandleFunc("GET /fleet", s.handleFleet)        // hidden alias (old links/bookmarks)
+	s.mux.HandleFunc("GET /queries", s.handleDashboard)  // legacy global top-queries (retrofit: ly-ae6.7)
 	s.mux.HandleFunc("GET /partial/scope-options", s.handleScopeOptions)
 	s.mux.HandleFunc("GET /partial/queries", s.handleQueriesPartial)
 	s.mux.HandleFunc("GET /insights", s.handleInsightsPage)

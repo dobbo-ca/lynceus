@@ -41,7 +41,7 @@ type NavGroup struct {
 // ships; the nav links ahead to them intentionally.
 var screenPath = map[string]string{
 	// fleet + database vertical
-	"fleet":     "/fleet",         // fleet landing shell (ly-ae6.2; body ly-ae6.4)
+	"fleet":     "/",              // fleet landing shell (ly-ae6.2; body ly-ae6.4)
 	"clusters":  "/databases",     // Database › Clusters list (exists)
 	"nodes":     "/nodes",         // Database › Nodes (ly-ae6.5)
 	"databases": "/databases/all", // Database › Databases list (ly-ae6.5)
