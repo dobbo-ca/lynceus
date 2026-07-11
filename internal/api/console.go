@@ -2,13 +2,17 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/dobbo-ca/lynceus/internal/console"
 	"github.com/dobbo-ca/lynceus/internal/scope"
+	"github.com/dobbo-ca/lynceus/internal/store"
 	"github.com/dobbo-ca/lynceus/web"
 )
 
@@ -278,14 +282,55 @@ func (s *Server) resolveConsoleTarget(ctx context.Context, clusterID, node, db s
 	return "", false, false, nil
 }
 
-// consoleResultVM is filled in Task 4/5.
-func consoleResultVM(_ console.Run, _, _ int, _ string) web.ConsoleResultVM {
-	return web.ConsoleResultVM{}
+// consoleResultVM renders the cached run's full result as page 0. Real
+// pagination (prev/next math, pagesize chips, copy guard) lands in Task 5.
+func consoleResultVM(run console.Run, _, _ int, scopeEnc string) web.ConsoleResultVM {
+	res := run.Result
+	total := res.RowCount()
+	base := consoleChipHref("/partial/console", scopeEnc, run.Node, run.Database)
+	return web.ConsoleResultVM{
+		Columns:    res.Columns,
+		Rows:       res.Rows,
+		TotalRows:  total,
+		DurationMs: res.DurationMs,
+		Hash:       run.ShortHash,
+		PageLabel:  fmt.Sprintf("ROWS %d–%d OF %d", min1(total), total, total),
+		PrevHref:   base,
+		NextHref:   base,
+		CsvHref:    consoleExportHref(scopeEnc, "csv"),
+		SqlHref:    consoleExportHref(scopeEnc, "sql"),
+	}
 }
 
-// consoleHistoryVM is filled in Task 4.
-func consoleHistoryVM(_ []console.Run, _ string) []web.ConsoleHistoryRow {
-	return nil
+func min1(n int) int {
+	if n == 0 {
+		return 0
+	}
+	return 1
+}
+
+// consoleExportHref builds the scoped CSV/SQL download URL.
+func consoleExportHref(scopeEnc, format string) string {
+	return "/console/export?" + url.Values{"scope": {scopeEnc}, "format": {format}}.Encode()
+}
+
+// consoleHistoryVM renders the strict-audit statement history. The restore token
+// is the FULL hex Run.ID (URL-safe); the displayed hash is the short form.
+func consoleHistoryVM(runs []console.Run, scopeEnc string) []web.ConsoleHistoryRow {
+	out := make([]web.ConsoleHistoryRow, 0, len(runs))
+	for _, r := range runs {
+		href := "/partial/console?" + url.Values{
+			"scope": {scopeEnc}, "restore": {r.ID}, "node": {r.Node}, "db": {r.Database},
+		}.Encode()
+		out = append(out, web.ConsoleHistoryRow{
+			TS:   r.At.UTC().Format("15:04:05Z"),
+			Stmt: strings.Join(strings.Fields(r.SQL), " "),
+			Ms:   fmt.Sprintf("%.1f ms", r.DurationMs),
+			Hash: r.ShortHash,
+			Href: href,
+		})
+	}
+	return out
 }
 
 // consolePageSize is finalized in Task 5 (cookie persistence); default 25 now.
@@ -300,9 +345,137 @@ func consoleValidPageSize(n int) bool {
 	return n == 10 || n == 25 || n == 50 || n == 100
 }
 
-// handleConsoleRun is implemented in Task 4.
-func (s *Server) handleConsoleRun(w http.ResponseWriter, _ *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
+// handleConsoleRun executes one statement against the resolved target and
+// records a strict, fail-closed T2 audit row before returning any result:
+// execute → audit → (audit error: discard, error) → cache + render. A run
+// against a cluster with no active grant does not execute and does not audit.
+func (s *Server) handleConsoleRun(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	actor := actorFromContext(r)
+
+	sc := scope.Parse(r.URL.Query().Get("scope"))
+	clusterID := sc.ClusterID
+	if clusterID == "" {
+		http.NotFound(w, r)
+		return
+	}
+	clusters, err := s.conf.ListClusters(ctx)
+	if err != nil {
+		http.Error(w, "load clusters", http.StatusInternalServerError)
+		return
+	}
+	var clusterName string
+	for _, c := range clusters {
+		if c.ID == clusterID {
+			clusterName = c.Name
+			break
+		}
+	}
+	if clusterName == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Grant gate — no grant, no execution, no audit; re-render the body (which
+	// shows the request-access gate).
+	_, granted, err := s.grants.ActiveGrant(ctx, clusterID, clusterName, actor)
+	if err != nil {
+		http.Error(w, "grant check", http.StatusInternalServerError)
+		return
+	}
+	if !granted {
+		s.renderConsoleBody(w, r)
+		return
+	}
+
+	node := r.FormValue("node")
+	db := r.FormValue("db")
+	sql := strings.TrimSpace(r.FormValue("sql"))
+	serverID, _, ok, err := s.resolveConsoleTarget(ctx, clusterID, node, db)
+	if err != nil {
+		http.Error(w, "resolve target", http.StatusInternalServerError)
+		return
+	}
+	if !ok || sql == "" {
+		// Target not fully resolved or empty statement — re-render (RUN inert).
+		s.renderConsoleBody(w, r)
+		return
+	}
+
+	res, err := s.exec.Execute(ctx, console.Statement{
+		ClusterID: clusterID, ClusterName: clusterName, Node: node, Database: db,
+		ServerID: serverID, SQL: sql, RowLimit: consoleRowLimit, TimeoutSecs: consoleTimeoutSecs, Actor: actor,
+	})
+	if err != nil {
+		http.Error(w, "execute", http.StatusInternalServerError)
+		return
+	}
+
+	// Strict audit BEFORE returning results — fail closed. Detail is a T2
+	// governance artifact (statement text is permitted in the audit_log).
+	rec, err := s.conf.AppendAuditReturning(ctx, store.AuditEntry{
+		Actor: actor, Action: "console.query.execute", ServerID: serverID, DataTier: 2,
+		Detail: map[string]any{
+			"target_node":      node,
+			"target_database":  db,
+			"statement":        sql,
+			"statement_sha256": sha256Hex(sql),
+			"duration_ms":      res.DurationMs,
+			"row_count":        res.RowCount(),
+			"row_limit":        consoleRowLimit,
+			"timeout_secs":     consoleTimeoutSecs,
+			"read_only":        true,
+		},
+	})
+	if err != nil {
+		// Fail closed: the run happened but could not be recorded — withhold results.
+		http.Error(w, "audit failed — result withheld", http.StatusInternalServerError)
+		return
+	}
+
+	// ID is the FULL hex (URL-safe lookup key for restore/Get); ShortHash is
+	// display-only. Scope the cache entry to (actor, clusterID).
+	s.sessions.Append(actor, clusterID, console.Run{
+		ID: hex.EncodeToString(rec.RowHash), ShortHash: shortHash(rec.RowHash), ClusterID: clusterID,
+		At: rec.At, SQL: sql, Node: node, Database: db,
+		Result: res, DurationMs: res.DurationMs,
+	})
+
+	// The freshly-cached run drives the re-render; carry the selection so the
+	// picker stays resolved (scope is already in the request URL).
+	r2 := r.Clone(ctx)
+	q := r2.URL.Query()
+	q.Set("node", node)
+	q.Set("db", db)
+	r2.URL.RawQuery = q.Encode()
+	s.renderConsoleBody(w, r2)
+}
+
+// renderConsoleBody re-renders the swap unit for the current request.
+func (s *Server) renderConsoleBody(w http.ResponseWriter, r *http.Request) {
+	vm, ok := s.buildConsoleVM(w, r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = web.ConsoleBody(vm).Render(r.Context(), w)
+}
+
+// shortHash renders a display-only abbreviation ("6c1d…e44"). NEVER use it as a
+// lookup key — the multibyte ellipsis is not URL/attribute round-trip safe; use
+// the full hex (Run.ID) for restore tokens and sessions.Get.
+func shortHash(h []byte) string {
+	s := hex.EncodeToString(h)
+	if len(s) < 7 {
+		return s
+	}
+	return s[:4] + "…" + s[len(s)-3:]
+}
+
+func sha256Hex(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
 }
 
 // handleConsoleExport is implemented in Task 5.

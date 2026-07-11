@@ -179,3 +179,54 @@ func TestConsolePage_unknownClusterIs404(t *testing.T) {
 		t.Errorf("status = %d, want 404", resp.StatusCode)
 	}
 }
+
+func TestConsoleRun_executesAuditsAndShowsResult(t *testing.T) {
+	srv, clusterID, _, pool := setupConsole(t, "orders-prod")
+	runURL := consoleURL(srv.URL+"/partial/console/run", "cluster:"+clusterID, nil)
+	form := url.Values{"sql": {"SELECT relname FROM pg_stat_user_tables"}, "node": {"primary"}, "db": {"appdb"}}
+	resp, err := http.PostForm(runURL, form)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	html := readBody(t, resp)
+	if !strings.Contains(html, "T2 READ LOGGED ·") || !strings.Contains(html, "STATEMENT HISTORY") {
+		t.Fatalf("run body missing result/history markers")
+	}
+	if !strings.Contains(html, "RELNAME") {
+		t.Error("run body missing result header")
+	}
+	recs, err := store.NewConfig(pool).ListAudit(context.Background(), store.AuditFilter{Action: "console.query.execute"})
+	if err != nil {
+		t.Fatalf("ListAudit: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("audit rows = %d, want 1", len(recs))
+	}
+	r0 := recs[0]
+	if r0.Actor != "dev-admin" || r0.DataTier != 2 || r0.ServerID != "srv-con" {
+		t.Errorf("audit row = %+v, want actor=dev-admin tier=2 server=srv-con", r0)
+	}
+	if !strings.Contains(string(r0.Detail), "console.query.execute") && !strings.Contains(string(r0.Detail), "statement_sha256") {
+		t.Errorf("audit detail missing structural keys: %s", r0.Detail)
+	}
+}
+
+func TestConsoleRun_refusedWithoutGrant_writesNoAudit(t *testing.T) {
+	srv, clusterID, _, pool := setupConsole(t, "staging") // ungranted
+	runURL := consoleURL(srv.URL+"/partial/console/run", "cluster:"+clusterID, nil)
+	form := url.Values{"sql": {"SELECT 1"}, "node": {"primary"}, "db": {"appdb"}}
+	resp, _ := http.PostForm(runURL, form)
+	defer func() { _ = resp.Body.Close() }()
+	html := readBody(t, resp)
+	if !strings.Contains(html, "REQUEST SESSION GRANT →") {
+		t.Error("ungranted RUN must return the request-access gate, not results")
+	}
+	recs, _ := store.NewConfig(pool).ListAudit(context.Background(), store.AuditFilter{Action: "console.query.execute"})
+	if len(recs) != 0 {
+		t.Errorf("ungranted RUN wrote %d audit rows, want 0", len(recs))
+	}
+}
