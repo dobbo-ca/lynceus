@@ -104,3 +104,51 @@ func KindLabel(kind string) string {
 
 // intToStr avoids a fmt import churn in templ files for plain ints.
 func intToStr(n int) string { return fmt.Sprintf("%d", n) }
+
+// drilldownHref builds the drilldown URL for a query row. A set ClusterID
+// (scoped) yields the scoped drilldown page; empty ClusterID (fleet scope)
+// falls back to nav.Plan so the link is never dead and never hardcodes a
+// fleet literal in this helper.
+func drilldownHref(r TopQuery, nav ScreenNav) string {
+	if r.ClusterID == "" {
+		return nav.Plan + "?fp=" + r.Fingerprint
+	}
+	return "/databases/" + r.ClusterID + "/query/" + r.Fingerprint
+}
+
+// sortHref toggles direction when the same column is re-picked. The base path
+// comes from cur.Nav (fleet "/queries" today; scoped queries route under ly-ae6.3).
+func sortHref(col string, cur QuerySort) string {
+	dir := "desc"
+	if cur.Col == col && cur.Dir == "desc" {
+		dir = "asc"
+	}
+	return cur.Nav.Base + "?sort=" + col + "&dir=" + dir
+}
+
+// sortArrow shows ▼/▲ on the active column, "" otherwise.
+func sortArrow(col string, cur QuerySort) string {
+	if cur.Col != col {
+		return ""
+	}
+	if cur.Dir == "asc" {
+		return "▲"
+	}
+	return "▼"
+}
+
+// dashInt renders 0 as an em-dash (metric not yet collected).
+func dashInt(n int64) string {
+	if n == 0 {
+		return "—"
+	}
+	return fmt.Sprintf("%d", n)
+}
+
+// dashPct renders a negative cache-hit ratio as an em-dash.
+func dashPct(p float64) string {
+	if p < 0 {
+		return "—"
+	}
+	return fmt.Sprintf("%.0f%%", p)
+}

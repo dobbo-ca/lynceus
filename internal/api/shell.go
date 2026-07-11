@@ -66,6 +66,16 @@ func (s *Server) buildShellView(r *http.Request) web.ShellView {
 	}
 }
 
+// shellViewFor builds the shell view-model for a retrofitted screen and marks
+// the given sidebar screen id active. Fleet handlers pass the screen's design id
+// (e.g. "topqueries", "insights"); ly-ae6.3 re-mounts these under scope with the
+// scope-resolved sidebar. The nav tree is rebuilt so the active item highlights.
+func (s *Server) shellViewFor(r *http.Request, activeScreen string) web.ShellView {
+	sv := s.buildShellView(r)
+	sv.Sidebar = web.Sidebar(sv.Scope, sv.ScopeLabel, web.DefaultEngines(), activeScreen)
+	return sv
+}
+
 // scopeOptions enumerates scopeable entities from the config store: clusters
 // (Depth 0), then each cluster's nodes and cluster-qualified databases (both
 // Depth 1). A database is identified by cluster + name, so it is a CLUSTER-level
