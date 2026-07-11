@@ -53,6 +53,7 @@ func TestShell_SelfHostedTokenAssetsNoLegacy(t *testing.T) {
 		`src="/static/js/htmx.min.js"`,
 		`src="/static/js/theme.js"`,
 		`src="/static/js/shell.js"`,
+		`src="/static/js/onboarding.js"`,
 		`data-theme="dark"`,
 		"window.Lynceus",
 	} {

@@ -70,14 +70,14 @@ func Layout(title, subtitle string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<link rel=\"stylesheet\" href=\"/static/css/tokens.css\"><link rel=\"stylesheet\" href=\"/static/css/legacy.css\"><script src=\"/static/js/htmx.min.js\" defer></script><script src=\"/static/js/theme.js\" defer></script></head><body><h1>Lynceus</h1><nav><a href=\"/databases\">Databases</a> <a href=\"/queries\">Top queries</a> <a href=\"/insights\">Insights</a> <a href=\"/index-advisor\">Index advisor</a> <a href=\"/vacuum-advisor\">Vacuum advisor</a> <a href=\"/config-advisor\">Config advisor</a> <a href=\"/waits\">Waits</a> <a href=\"/checks\">Checks</a> <a href=\"/audit\">Audit log</a></nav><p class=\"subtitle\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<link rel=\"stylesheet\" href=\"/static/css/tokens.css\"><link rel=\"stylesheet\" href=\"/static/css/legacy.css\"><script src=\"/static/js/htmx.min.js\" defer></script><script src=\"/static/js/theme.js\" defer></script><script src=\"/static/js/onboarding.js\" defer></script></head><body><h1>Lynceus</h1><nav><a href=\"/databases\">Databases</a> <a href=\"/queries\">Top queries</a> <a href=\"/insights\">Insights</a> <a href=\"/index-advisor\">Index advisor</a> <a href=\"/vacuum-advisor\">Vacuum advisor</a> <a href=\"/config-advisor\">Config advisor</a> <a href=\"/waits\">Waits</a> <a href=\"/checks\">Checks</a> <a href=\"/audit\">Audit log</a></nav><p class=\"subtitle\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(subtitle)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layout.templ`, Line: 44, Col: 33}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/layout.templ`, Line: 45, Col: 33}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {

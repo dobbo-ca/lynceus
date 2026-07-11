@@ -31,6 +31,7 @@ func TestLayout_SelfHostedAssets(t *testing.T) {
 		`href="/static/css/legacy.css"`,
 		`src="/static/js/htmx.min.js"`,
 		`src="/static/js/theme.js"`,
+		`src="/static/js/onboarding.js"`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("layout missing self-hosted asset ref %q", want)
