@@ -142,3 +142,53 @@ func TestListClusterSummaries_clusterWithNoStreams(t *testing.T) {
 		t.Fatalf("empty cluster summary wrong: %+v", sums)
 	}
 }
+
+func TestListClusterSummaries_severityAndVersionRollup(t *testing.T) {
+	cfg, stats, configPool := newStores(t)
+	ctx := context.Background()
+
+	if _, err := configPool.Exec(ctx, `INSERT INTO servers (id, name) VALUES ($1, $1)`, "srv-test"); err != nil {
+		t.Fatalf("seed server: %v", err)
+	}
+	cl, err := cfg.CreateCluster(ctx, "orders-prod")
+	if err != nil {
+		t.Fatalf("CreateCluster: %v", err)
+	}
+	inst, err := cfg.CreateInstance(ctx, cl.ID, "primary")
+	if err != nil {
+		t.Fatalf("CreateInstance: %v", err)
+	}
+	if err := cfg.AssignServerToInstance(ctx, "srv-test", inst.ID); err != nil {
+		t.Fatalf("AssignServerToInstance: %v", err)
+	}
+
+	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+	if err := stats.WriteChecksResults(ctx, []store.ChecksResultRow{
+		{ServerID: "srv-test", EvaluatedAt: now, CheckID: "settings.fsync", Category: "settings",
+			Severity: "critical", Status: "firing", Object: "server", DataTier: 1},
+		{ServerID: "srv-test", EvaluatedAt: now, CheckID: "settings.autovacuum", Category: "settings",
+			Severity: "warning", Status: "firing", Object: "server", DataTier: 1},
+	}); err != nil {
+		t.Fatalf("seed checks: %v", err)
+	}
+	// Seed the REAL collector field server_version_num (not server_version) so
+	// the test exercises the production data path.
+	if err := stats.WriteSettings(ctx, []store.SettingRow{
+		{ServerID: "srv-test", CollectedAt: now, Name: "server_version_num", Value: "160003", DataTier: 1},
+		{ServerID: "srv-test", CollectedAt: now, Name: "max_connections", Value: "200", DataTier: 1},
+	}); err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+
+	sums, err := fleetview.ListClusterSummaries(ctx, cfg, stats, now.Add(-time.Hour), now.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("summaries: %v", err)
+	}
+	got := sums[0]
+	if got.CritOpen != 1 || got.WarnOpen != 1 {
+		t.Fatalf("severity rollup = crit %d warn %d, want 1/1", got.CritOpen, got.WarnOpen)
+	}
+	if got.Version != "16.3" {
+		t.Fatalf("version = %q, want 16.3 (derived from server_version_num=160003)", got.Version)
+	}
+}
