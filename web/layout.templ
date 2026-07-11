@@ -17,65 +17,16 @@ type TopQuery struct {
 
 templ Layout(title, subtitle string) {
 	<!DOCTYPE html>
-	<html lang="en">
+	<html lang="en" data-theme="dark">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ title }</title>
-			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
-			<style>
-				body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 1200px; color: #1d1d1d; }
-				h1 { margin-bottom: 0.25rem; }
-				nav { margin-bottom: 0.5rem; }
-				nav a { color: #2b6cb0; text-decoration: none; margin-right: 1rem; font-size: 0.9rem; }
-				nav a:hover { text-decoration: underline; }
-				.subtitle { color: #666; margin-top: 0; margin-bottom: 1.5rem; }
-				table { border-collapse: collapse; width: 100%; }
-				th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
-				th { background: #f4f4f4; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; }
-				td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-				code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85rem; }
-				.empty { color: #666; font-style: italic; padding: 2rem 0; }
-				form.filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 1.25rem; }
-				form.filters label { display: flex; flex-direction: column; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #666; gap: 0.2rem; }
-				form.filters input, form.filters select { padding: 0.35rem 0.5rem; font-size: 0.9rem; }
-				form.filters button { padding: 0.4rem 0.9rem; font-size: 0.9rem; cursor: pointer; }
-					.cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:0.75rem; }
-					.db-card { display:block; border:1px solid #e0e0e0; border-radius:8px; padding:0.75rem; text-decoration:none; color:inherit; }
-					.db-card:hover { border-color:#2b6cb0; }
-					.db-card .badge { background:#fffbe6; border:1px solid #9e6a03; color:#8a5a00; border-radius:9px; padding:0 0.4rem; font-size:0.75rem; }
-					ul.plan-tree { list-style: none; padding-left: 1.25rem; margin: 0.25rem 0; border-left: 1px solid #e0e0e0; }
-					ul.plan-tree > li { margin: 0.15rem 0; }
-					.node-type { font-weight: 600; }
-					.node-meta { color: #666; font-size: 0.85rem; margin-left: 0.4rem; }
-					/* Overview layout */
-					.overview-layout { display: flex; gap: 1.5rem; align-items: flex-start; }
-					.sidebar { display: flex; flex-direction: column; min-width: 140px; gap: 0.25rem; padding-top: 0.5rem; }
-					.sidebar-link { display: block; padding: 0.35rem 0.6rem; border-radius: 4px; text-decoration: none; color: #2b6cb0; font-size: 0.9rem; }
-					.sidebar-link:hover { background: #f0f4ff; }
-					.sidebar-link--active { background: #ebf4ff; font-weight: 600; }
-					.overview-main { flex: 1; min-width: 0; }
-					.overview-section { margin-top: 1.5rem; }
-					.tiles { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
-					.tile { border: 1px solid #e0e0e0; border-radius: 6px; padding: 0.6rem 1rem; min-width: 100px; }
-					.tile-label { font-size: 0.75rem; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
-					.tile-value { font-size: 1.25rem; font-weight: 600; margin-top: 0.1rem; }
-					.tile-sparkline { min-width: 130px; }
-					.topo-cards { display: flex; flex-wrap: wrap; gap: 0.75rem; }
-					.topo-card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 0.6rem 0.9rem; min-width: 180px; }
-					.topo-name { font-weight: 600; margin: 0.2rem 0; }
-					.topo-meta { font-size: 0.8rem; color: #666; }
-					.badge-role { border-radius: 9px; padding: 0 0.4rem; font-size: 0.75rem; border: 1px solid #ccc; }
-					.badge-role--primary { background: #e6ffed; border-color: #2d7a41; color: #1a4d28; }
-					.badge-role--replica { background: #e6f0ff; border-color: #2b5cb0; color: #1a3a70; }
-					.badge-role--high { background: #fff0f0; border-color: #c53030; color: #7b1d1d; }
-					.query-btn { background: none; border: none; cursor: pointer; text-align: left; padding: 0; }
-					.query-btn:hover code { text-decoration: underline; }
-					.facts-list { display: grid; grid-template-columns: max-content 1fr; gap: 0.2rem 1rem; }
-					.facts-list dt { font-weight: 600; font-size: 0.85rem; color: #666; }
-					.facts-list dd { margin: 0; }
-					.insight-banner { border-radius: 4px; padding: 0.4rem 0.75rem; margin-bottom: 0.5rem; font-size: 0.9rem; background: #fff8f0; border: 1px solid #c47a1c; }
-			</style>
+			@templ.Raw(themeBootstrapTag())
+			<link rel="stylesheet" href="/static/css/tokens.css"/>
+			<link rel="stylesheet" href="/static/css/legacy.css"/>
+			<script src="/static/js/htmx.min.js" defer></script>
+			<script src="/static/js/theme.js" defer></script>
 		</head>
 		<body>
 			<h1>Lynceus</h1>
