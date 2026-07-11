@@ -1,5 +1,103 @@
 package web
 
+type CacheStat struct {
+	Label string
+	Value string
+	Sub   string
+	Sev   string
+}
+
+type CacheClusterRS struct {
+	Name   string
+	Topo   string
+	Mem    string
+	Ops    string
+	Health string
+	Sev    string
+}
+
+type CacheCluster struct {
+	ID          string
+	Name        string
+	Version     string
+	Mode        string
+	Provider    string
+	Engine      string
+	Stats       []CacheStat // cell count is mode-dependent (SENTINEL=5); see the backend-dependency note
+	Replicasets []CacheClusterRS
+}
+
+type CacheClustersView struct {
+	Enabled  bool
+	Clusters []CacheCluster
+}
+
+// CacheClustersPage renders the Clusters screen inside the design Shell. The
+// handler builds shell via s.buildShellView(r); the body fills the main slot.
+templ CacheClustersPage(shell ShellView, v CacheClustersView) {
+	@Shell(shell) {
+		@cacheEngineSprite()
+		@CacheClustersBody(v)
+	}
+}
+
+templ CacheClustersBody(v CacheClustersView) {
+	<div id="cache-body" class="c-page">
+		<div class="c-head">
+			<span class="c-title">Cache Clusters</span>
+			<span class="c-live">LIVE</span>
+			<span class="c-meta">VALKEY / REDIS — A CLUSTER (SENTINEL) GROUPS REPLICASETS</span>
+			<span class="c-spacer"></span>
+			<button type="button" class="c-btn c-btn-add" data-add-cache="valkey">+ ADD CLUSTER</button>
+		</div>
+		if len(v.Clusters) == 0 {
+			<div class="c-empty">NO CACHE CLUSTERS REPORTING YET — DEPLOY A COLLECTOR WITH TARGET_KIND=VALKEY.</div>
+		} else {
+			for _, c := range v.Clusters {
+				@cacheClusterCard(c)
+			}
+		}
+	</div>
+}
+
+templ cacheClusterCard(c CacheCluster) {
+	<div class="c-card">
+		<div class="c-card-head">
+			<span class="c-eng" title={ c.Engine }>
+				<svg width="12" height="12" viewBox="0 0 24 24"><use href="#eng-vk"></use></svg>
+			</span>
+			<span class="c-name">{ c.Name }</span>
+			<span class="c-ver">v{ c.Version }</span>
+			<span class="c-chip">{ c.Mode }</span>
+			<span class="c-chip">{ c.Provider }</span>
+		</div>
+		<div class="c-stats">
+			for _, st := range c.Stats {
+				<div class="c-stat">
+					<span class="c-stat-label">{ st.Label }</span>
+					<span class={ "c-stat-val " + sevClass(st.Sev) }>{ st.Value }</span>
+					<span class="c-stat-sub">{ st.Sub }</span>
+				</div>
+			}
+		</div>
+		for _, r := range c.Replicasets {
+			<div class="c-rs-row">
+				<span class="c-rs-name">{ r.Name }</span>
+				<span class="c-rs-topo">{ r.Topo }</span>
+				<span class="c-spacer"></span>
+				<span class="c-mut">{ r.Mem }</span>
+				<span class="c-dim">{ r.Ops } OPS/S</span>
+				<span class={ sevClass(r.Sev) }>{ r.Health }</span>
+			</div>
+		}
+		<div class="c-note">
+			<span>WRITES GO TO EACH REPLICASET'S PRIMARY — REPLICAS ARE READ-ONLY</span>
+			<span class="c-spacer"></span>
+			<a href="/cache/replicasets">REPLICASETS →</a>
+		</div>
+	</div>
+}
+
 // cacheEngineSprite renders the hidden #eng-vk key glyph once per page.
 // Original glyph (no official Redis/Valkey logo) — matches design sprite slot.
 templ cacheEngineSprite() {
