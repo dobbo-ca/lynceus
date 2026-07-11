@@ -1,46 +1,83 @@
 package web
 
-// ChecksRow is the view-model for one check result.
+// HistCell is one 24h-history cell in an expanded check.
+type HistCell struct{ ColorVar, Title string }
+
+// ChecksRow is the view-model for one firing check result.
 type ChecksRow struct {
-	Severity string
-	Category string
-	CheckID  string
-	Object   string
-	Detail   string
-	Muted    bool
+	Severity  string
+	Category  string
+	CheckID   string
+	Object    string
+	Detail    string
+	ServerID  string
+	FirstSeen string // pre-formatted, e.g. "3h ago"
+	Muted     bool
+	Expanded  bool
+	History   []HistCell // 24 cells; nil until ly-u4t.25 → soon-state
+	Nav       ScreenNav  // ?expand= base path (fleet default; ly-ae6.3 refills)
 }
 
-templ ChecksPage(rows []ChecksRow) {
-	@Layout("Lynceus — checks", "scheduled health checks + alerts") {
-		<p hx-get="/partial/checks" hx-trigger="every 30s" hx-target="#checks-table" hx-swap="outerHTML"></p>
-		@ChecksTable(rows)
+// ChecksVM is the checks-screen view-model.
+type ChecksVM struct {
+	Summary string // "7 FIRING · SETTINGS / VACUUM / WRAPAROUND"
+	Rows    []ChecksRow
+}
+
+const checksGrid = "grid-template-columns:88px 230px 190px 1fr 150px 76px 60px;gap:10px;"
+
+// ChecksPage renders the Checks screen inside the design shell.
+templ ChecksPage(sv ShellView, vm ChecksVM) {
+	@Shell(sv) {
+		@ChecksScreen(vm)
 	}
 }
 
-templ ChecksTable(rows []ChecksRow) {
-	<div id="checks-table">
-		if len(rows) == 0 {
-			<p class="empty">No firing checks — all monitored servers healthy.</p>
-		} else {
-			<table>
-				<thead><tr><th>Severity</th><th>Category</th><th>Check</th><th>Object</th><th>Detail</th><th>Muted</th></tr></thead>
-				<tbody>
-					for _, r := range rows {
-						<tr>
-							<td><code>{ r.Severity }</code></td>
-							<td><code>{ r.Category }</code></td>
-							<td><code>{ r.CheckID }</code></td>
-							<td><code>{ r.Object }</code></td>
-							<td>{ r.Detail }</td>
-							<td>
-								if r.Muted {
-									<code>muted</code>
+templ ChecksScreen(vm ChecksVM) {
+	<div class="screen" data-screen-label="Checks">
+		@ScreenHeader("Checks", []HeaderBadge{
+			{Text: "LIVE", Kind: "live"},
+			{Text: vm.Summary, Kind: "scope"},
+		})
+		<div hx-get="/partial/checks" hx-trigger="every 30s" hx-target="#checks-table" hx-swap="outerHTML"></div>
+		@ChecksTable(vm)
+	</div>
+}
+
+templ ChecksTable(vm ChecksVM) {
+	<div id="checks-table" class="panel">
+		<div class="grid-hd" style={ "display:grid;" + checksGrid }>
+			<span>SEVERITY</span><span>CHECK</span><span>OBJECT</span><span>DETAIL</span><span>SERVER</span><span>FIRST SEEN</span><span></span>
+		</div>
+		if len(vm.Rows) == 0 {
+			@EmptyState("No firing checks — all monitored servers healthy.")
+		}
+		for _, c := range vm.Rows {
+			<div style={ "border-bottom:1px solid var(--line2);opacity:" + mutedOpacity(c.Muted) + ";" }>
+				<a class={ "grid-row", "stripe-" + SevClass(c.Severity) } style={ "display:grid;" + checksGrid + "cursor:pointer;text-decoration:none;" } href={ templ.SafeURL(checkExpandHref(c)) }>
+					<span class={ "mono", "sev-" + SevClass(c.Severity) } style="font-size:10px;font-weight:700;">{ SevLabel(c.Severity) }</span>
+					<span class="mono" style="font-size:11.5px;color:var(--text);">{ c.CheckID }</span>
+					<span class="mono" style="font-size:11px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{ c.Object }</span>
+					<span style="font-size:12px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{ c.Detail }</span>
+					<span class="mono" style="font-size:11px;color:var(--dim);">{ c.ServerID }</span>
+					<span class="mono" style="font-size:10.5px;color:var(--faint);">{ c.FirstSeen }</span>
+					<button class="badge" style="cursor:pointer;" hx-post={ checkMuteHref(c) } hx-target="#checks-table" hx-swap="outerHTML">{ muteLabel(c.Muted) }</button>
+				</a>
+				if c.Expanded {
+					<div style="padding:8px 12px 12px 103px;display:flex;flex-direction:column;gap:6px;">
+						<span class="mono-lbl" style="font-size:9.5px;">HISTORY · LAST 24H · CATEGORY: { c.Category }</span>
+						if len(c.History) == 0 {
+							<span class="mono-lbl" style="font-size:10px;">PER-HOUR HISTORY NOT YET COLLECTED (ly-u4t.25)</span>
+						} else {
+							<div style="display:flex;gap:2px;max-width:560px;">
+								for _, h := range c.History {
+									<div style={ "flex:1;height:16px;border-radius:1px;background:" + h.ColorVar + ";" } title={ h.Title }></div>
 								}
-							</td>
-						</tr>
-					}
-				</tbody>
-			</table>
+							</div>
+						}
+					</div>
+				}
+			</div>
 		}
 	</div>
 }
