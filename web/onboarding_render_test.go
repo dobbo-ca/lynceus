@@ -20,16 +20,16 @@ func TestAddComponentModal_AWS_rendersTokensChipsYamlAndGuide(t *testing.T) {
 
 	for _, want := range []string{
 		`id="add-modal"`,
-		`hx-target="#modal-root"`, // close swaps the #modal-root container (added on the databases page — Task 6 — NOT in this fragment)
-		`var(--surface)`,          // tokens, not legacy classes
-		`ADD DATABASE CLUSTER`,    // title
+		`hx-target="#modal-root"`,     // close swaps the #modal-root container (added on the databases page — Task 6 — NOT in this fragment)
+		`var(--surface)`,              // tokens, not legacy classes
+		`ADD DATABASE CLUSTER`,        // title
 		`SELF-HOSTED`, `AWS`, `AZURE`, // provider chips
 		`id="add-yaml"`,        // copyable YAML block
 		`data-copy="add-yaml"`, // copy button hook
 		`LYNCEUS_COLLECTOR_TOKEN`,
 		`/partial/add?kind=database&amp;provider=aws`, // chip re-fetch (& is escaped in attr)
-		`/partial/modal/close`,               // close route
-		`/admin/provider-setup?provider=aws`, // guide deep-link (AWS)
+		`/partial/modal/close`,                        // close route
+		`/admin/provider-setup?provider=aws`,          // guide deep-link (AWS)
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("modal missing %q", want)

@@ -63,7 +63,7 @@ type addKindMeta struct {
 var addKinds = map[AddComponentKind]addKindMeta{
 	AddKindDatabase: {title: "ADD DATABASE CLUSTER", noun: "CLUSTER", dep: "postgres", dsn: "postgres://$(LYNCEUS_DB_ROLE)@<primary-host>:5432/postgres"},
 	AddKindSearch:   {title: "ADD SEARCH DOMAIN", noun: "DOMAIN", dep: "opensearch", dsn: "https://<domain-endpoint>:9200"}, // placeholder slot — see NOTE above
-	AddKindCache:    {title: "ADD CACHE CLUSTER", noun: "CLUSTER", dep: "valkey", dsn: "valkey://<primary-host>:6379"},       // placeholder slot — see NOTE above
+	AddKindCache:    {title: "ADD CACHE CLUSTER", noun: "CLUSTER", dep: "valkey", dsn: "valkey://<primary-host>:6379"},      // placeholder slot — see NOTE above
 }
 
 // BuildAddComponentView assembles the wizard view-model for a vertical +
