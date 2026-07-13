@@ -114,9 +114,9 @@ func body(t *testing.T, resp *http.Response) string {
 // TestDatabasesPage asserts the full-page route returns 200 with DOCTYPE + cluster name + swap target.
 func TestDatabasesPage(t *testing.T) {
 	srv := setupDatabases(t)
-	resp, err := http.Get(srv.URL + "/databases")
+	resp, err := http.Get(srv.URL + "/clusters")
 	if err != nil {
-		t.Fatalf("GET /databases: %v", err)
+		t.Fatalf("GET /clusters: %v", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	b := body(t, resp)
@@ -137,9 +137,9 @@ func TestDatabasesPage(t *testing.T) {
 // TestDatabasesPartial asserts the partial route returns the fragment (no DOCTYPE) with the cluster name.
 func TestDatabasesPartial(t *testing.T) {
 	srv := setupDatabases(t)
-	resp, err := http.Get(srv.URL + "/partial/databases")
+	resp, err := http.Get(srv.URL + "/partial/clusters")
 	if err != nil {
-		t.Fatalf("GET /partial/databases: %v", err)
+		t.Fatalf("GET /partial/clusters: %v", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	b := body(t, resp)
@@ -157,9 +157,9 @@ func TestDatabasesPartial(t *testing.T) {
 // TestDatabasesPartial_search asserts that a non-matching query filters out all cards (empty state).
 func TestDatabasesPartial_search(t *testing.T) {
 	srv := setupDatabases(t)
-	resp, err := http.Get(srv.URL + "/partial/databases?q=zzz-no-match")
+	resp, err := http.Get(srv.URL + "/partial/clusters?q=zzz-no-match")
 	if err != nil {
-		t.Fatalf("GET /partial/databases?q=zzz-no-match: %v", err)
+		t.Fatalf("GET /partial/clusters?q=zzz-no-match: %v", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	b := body(t, resp)
@@ -174,9 +174,9 @@ func TestDatabasesPartial_search(t *testing.T) {
 // TestDatabasesPartial_listView asserts that view=list renders a <table>.
 func TestDatabasesPartial_listView(t *testing.T) {
 	srv := setupDatabases(t)
-	resp, err := http.Get(srv.URL + "/partial/databases?view=list")
+	resp, err := http.Get(srv.URL + "/partial/clusters?view=list")
 	if err != nil {
-		t.Fatalf("GET /partial/databases?view=list: %v", err)
+		t.Fatalf("GET /partial/clusters?view=list: %v", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	b := body(t, resp)

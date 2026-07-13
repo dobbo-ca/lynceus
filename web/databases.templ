@@ -47,14 +47,14 @@ func clusterOverviewHref(clusterID string) string {
 }
 
 // DatabasesControls renders the persistent search+view controls form.
-// Submits via hx-get to /partial/databases swapping #databases-body.
-// Degrades to a plain GET /databases without JS.
+// Submits via hx-get to /partial/clusters swapping #databases-body.
+// Degrades to a plain GET /clusters without JS.
 templ DatabasesControls(v DatabasesView) {
 	<form
 		class="filters"
-		action="/databases"
+		action="/clusters"
 		method="get"
-		hx-get="/partial/databases"
+		hx-get="/partial/clusters"
 		hx-target="#databases-body"
 		hx-swap="outerHTML"
 		hx-trigger="submit, keyup changed delay:300ms from:input[name='q'], change from:select[name='view']"

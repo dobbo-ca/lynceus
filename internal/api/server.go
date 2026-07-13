@@ -48,8 +48,8 @@ func (s *Server) Handler() http.Handler { return s.withAuth(s.mux) }
 
 func (s *Server) routes() {
 	s.mux.Handle("GET /static/", web.StaticHandler())
-	s.mux.HandleFunc("GET /databases", s.handleDatabases)
-	s.mux.HandleFunc("GET /partial/databases", s.handleDatabasesPartial)
+	s.mux.HandleFunc("GET /clusters", s.handleDatabases)
+	s.mux.HandleFunc("GET /partial/clusters", s.handleDatabasesPartial)
 	s.mux.HandleFunc("GET /databases/{clusterID}", s.handleClusterOverview)
 	s.mux.HandleFunc("GET /partial/databases/{clusterID}/query/{fingerprint}", s.handleClusterQueryDrilldown)
 	s.mux.HandleFunc("GET /databases/{clusterID}/query/{fingerprint}", s.handleClusterQueryDrilldownPage)
@@ -81,7 +81,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/servers/{id}/policy-snapshot", s.handlePolicySnapshot)
 	s.mux.HandleFunc("GET /cluster", s.handleClusterScopeOverview)
 	s.mux.HandleFunc("GET /nodes", s.handleNodes)
-	s.mux.HandleFunc("GET /databases/all", s.handleDatabasesList)
+	s.mux.HandleFunc("GET /databases", s.handleDatabasesList)
 	s.mux.HandleFunc("GET /capabilities", s.handleCapabilities)
 	s.mux.HandleFunc("GET /connections", s.handleConnections)
 	s.mux.HandleFunc("GET /alerts", s.handleAlerts)

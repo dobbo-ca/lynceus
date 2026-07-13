@@ -11,7 +11,7 @@ import (
 
 func TestDatabasesListSkeletonRenders(t *testing.T) {
 	_, srv := setup(t, api.Config{DevAuth: true})
-	resp, err := http.Get(srv.URL + "/databases/all")
+	resp, err := http.Get(srv.URL + "/databases")
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}

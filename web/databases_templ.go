@@ -105,8 +105,8 @@ func clusterOverviewHref(clusterID string) string {
 }
 
 // DatabasesControls renders the persistent search+view controls form.
-// Submits via hx-get to /partial/databases swapping #databases-body.
-// Degrades to a plain GET /databases without JS.
+// Submits via hx-get to /partial/clusters swapping #databases-body.
+// Degrades to a plain GET /clusters without JS.
 func DatabasesControls(v DatabasesView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -128,7 +128,7 @@ func DatabasesControls(v DatabasesView) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<form class=\"filters\" action=\"/databases\" method=\"get\" hx-get=\"/partial/databases\" hx-target=\"#databases-body\" hx-swap=\"outerHTML\" hx-trigger=\"submit, keyup changed delay:300ms from:input[name='q'], change from:select[name='view']\"><label>Search <input type=\"text\" name=\"q\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<form class=\"filters\" action=\"/clusters\" method=\"get\" hx-get=\"/partial/clusters\" hx-target=\"#databases-body\" hx-swap=\"outerHTML\" hx-trigger=\"submit, keyup changed delay:300ms from:input[name='q'], change from:select[name='view']\"><label>Search <input type=\"text\" name=\"q\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
