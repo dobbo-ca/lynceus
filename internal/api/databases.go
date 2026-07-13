@@ -16,7 +16,7 @@ import (
 func (s *Server) handleDatabases(w http.ResponseWriter, r *http.Request) {
 	v := s.fetchDatabases(r)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = web.DatabasesPage(v).Render(r.Context(), w)
+	_ = web.DatabasesPage(s.shellViewFor(r, "clusters"), v).Render(r.Context(), w)
 }
 
 // handleDatabasesPartial renders just the body fragment, for HTMX in-place filtering.

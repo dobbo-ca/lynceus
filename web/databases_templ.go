@@ -8,7 +8,11 @@ package web
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/dobbo-ca/lynceus/internal/scope"
+)
 
 // DatabaseCard is the dashboard view-model for one cluster, metrics rolled up
 // across its streams. All values are T1 (counts / aggregates / labels).
@@ -33,8 +37,8 @@ type DatabasesView struct {
 	Query string // search term, echoed into the form input
 }
 
-// DatabasesPage renders the full databases dashboard page.
-func DatabasesPage(v DatabasesView) templ.Component {
+// DatabasesPage renders the full databases dashboard page inside the Shell.
+func DatabasesPage(sv ShellView, v DatabasesView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -85,12 +89,19 @@ func DatabasesPage(v DatabasesView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Layout("Lynceus — databases", "monitored databases").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Shell(sv).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		return nil
 	})
+}
+
+// clusterOverviewHref is the scoped cluster-overview link for a card/row: it
+// sets cluster scope and lands on the /cluster overview (NavHref "clusterdetail"
+// → /cluster?scope=cluster:<id>).
+func clusterOverviewHref(clusterID string) string {
+	return NavHref(scope.Scope{Kind: scope.Cluster, ClusterID: clusterID}, "clusterdetail")
 }
 
 // DatabasesControls renders the persistent search+view controls form.
@@ -124,7 +135,7 @@ func DatabasesControls(v DatabasesView) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Query)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 53, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 64, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -201,9 +212,9 @@ func DatabasesBody(v DatabasesView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var6 templ.SafeURL
-				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/databases/" + c.ClusterID))
+				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(clusterOverviewHref(c.ClusterID)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 88, Col: 63}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 99, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -216,7 +227,7 @@ func DatabasesBody(v DatabasesView) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 88, Col: 74}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 99, Col: 79}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -229,7 +240,7 @@ func DatabasesBody(v DatabasesView) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.1f", c.QPS))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 89, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 100, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -242,7 +253,7 @@ func DatabasesBody(v DatabasesView) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.1f", c.AvgLatencyMs))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 90, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 101, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -255,7 +266,7 @@ func DatabasesBody(v DatabasesView) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", c.ActiveConns))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 91, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 102, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -274,7 +285,7 @@ func DatabasesBody(v DatabasesView) templ.Component {
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(c.TopWait)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 96, Col: 20}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 107, Col: 20}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -288,7 +299,7 @@ func DatabasesBody(v DatabasesView) templ.Component {
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", c.StreamCount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 99, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 110, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
@@ -301,7 +312,7 @@ func DatabasesBody(v DatabasesView) templ.Component {
 				var templ_7745c5c3_Var13 string
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", c.InsightCount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 100, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 111, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {
@@ -327,9 +338,9 @@ func DatabasesBody(v DatabasesView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var14 templ.SafeURL
-				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/databases/" + c.ClusterID))
+				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(clusterOverviewHref(c.ClusterID)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 108, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 119, Col: 78}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -347,7 +358,7 @@ func DatabasesBody(v DatabasesView) templ.Component {
 					var templ_7745c5c3_Var15 string
 					templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Sparkline)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 111, Col: 38}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 122, Col: 38}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 					if templ_7745c5c3_Err != nil {
@@ -365,7 +376,7 @@ func DatabasesBody(v DatabasesView) templ.Component {
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 114, Col: 66}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 125, Col: 66}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
@@ -378,7 +389,7 @@ func DatabasesBody(v DatabasesView) templ.Component {
 				var templ_7745c5c3_Var17 string
 				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.1f", c.QPS))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 116, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 127, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 				if templ_7745c5c3_Err != nil {
@@ -396,7 +407,7 @@ func DatabasesBody(v DatabasesView) templ.Component {
 					var templ_7745c5c3_Var18 string
 					templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", c.InsightCount))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 118, Col: 63}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 129, Col: 63}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 					if templ_7745c5c3_Err != nil {
@@ -414,7 +425,7 @@ func DatabasesBody(v DatabasesView) templ.Component {
 				var templ_7745c5c3_Var19 string
 				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", c.StreamCount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 122, Col: 41}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 133, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 				if templ_7745c5c3_Err != nil {
@@ -427,7 +438,7 @@ func DatabasesBody(v DatabasesView) templ.Component {
 				var templ_7745c5c3_Var20 string
 				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", c.InstanceCount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 122, Col: 93}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/databases.templ`, Line: 133, Col: 93}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {

@@ -8,9 +8,9 @@ package web
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// FleetShellPage wraps the Shell around the fleet/scoped main body. The body is
-// a minimal, clearly-marked seam: ly-ae6.4 replaces it with the real Fleet
-// dashboard, and ly-ae6.6 supplies the scoped "OPEN ISSUES ON THIS …" overview.
+// FleetShellPage wraps the Shell around the fleet dashboard body. The body is a
+// skeleton (inert shimmer) until the live fleet aggregates land (ly-ae6.4); the
+// scoped "OPEN ISSUES ON THIS …" overview arrives with ly-ae6.6.
 func FleetShellPage(vm ShellView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -44,7 +44,7 @@ func FleetShellPage(vm ShellView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = shellPlaceholderMain(vm).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = fleetDashboardSkeleton().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -58,9 +58,10 @@ func FleetShellPage(vm ShellView) templ.Component {
 	})
 }
 
-// shellPlaceholderMain renders the current scope so the shell is exercisable
-// end-to-end before the dashboard body exists.
-func shellPlaceholderMain(vm ShellView) templ.Component {
+// fleetDashboardSkeleton is the placeholder fleet dashboard: KPI tiles, a
+// per-cluster table, and a cross-signal panel, all inert shimmer until ly-ae6.4
+// supplies real data. Geometry matches the live screen so it settles in place.
+func fleetDashboardSkeleton() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -81,46 +82,23 @@ func shellPlaceholderMain(vm ShellView) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"fleet-main\" style=\"padding: 18px 22px; font-family: var(--font-mono); color: var(--dim); display: flex; flex-direction: column; gap: 8px;\"><div style=\"font-size: 15px; color: var(--text);\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"screen\" data-screen-label=\"Fleet\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(vm.ScopeLabel)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/fleet.templ`, Line: 16, Col: 67}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+		templ_7745c5c3_Err = SkeletonStatTiles([]string{"FLEET Q/S", "CLUSTERS", "NODES", "FIRING CHECKS"}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div><div style=\"font-size: 10.5px; letter-spacing: .08em; color: var(--faint);\">")
+		templ_7745c5c3_Err = SkeletonTable([]string{"CLUSTER", "Q/S", "ACTIVE", "INSIGHTS"}, 4).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var5 string
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(scopeKindLabel(vm.Scope))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/fleet.templ`, Line: 18, Col: 29}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+		templ_7745c5c3_Err = SkeletonPanel("Cross-signal", 3).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " · RANGE ")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var6 string
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Range)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/fleet.templ`, Line: 18, Col: 51}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div><div style=\"font-size: 11px; color: var(--dim);\">Dashboard body arrives with ly-ae6.4 (fleet) / ly-ae6.6 (scoped overview).</div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

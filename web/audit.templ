@@ -26,9 +26,9 @@ type AuditFilterValues struct {
 	Tier     string // "", "1", or "2"
 }
 
-// AuditPage is the full filterable audit-log page.
-templ AuditPage(f AuditFilterValues, rows []AuditRow) {
-	@Layout("Lynceus — audit log", "tamper-evident audit log") {
+// AuditPage is the full filterable audit-log page, rendered inside the Shell.
+templ AuditPage(sv ShellView, f AuditFilterValues, rows []AuditRow) {
+	@Shell(sv) {
 		@AuditFilterForm(f)
 		@AuditTable(rows)
 	}

@@ -16,7 +16,7 @@ const dateLayout = "2006-01-02"
 func (s *Server) handleAuditPage(w http.ResponseWriter, r *http.Request) {
 	values, rows := s.fetchAudit(r)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = web.AuditPage(values, rows).Render(r.Context(), w)
+	_ = web.AuditPage(s.shellViewFor(r, ""), values, rows).Render(r.Context(), w)
 }
 
 // handleAuditPartial renders just the results table, for HTMX in-place
