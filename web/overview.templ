@@ -45,14 +45,13 @@ type OverviewVM struct {
 	Insights     []OverviewInsight
 }
 
-// OverviewPage renders the full cluster Overview page.
-templ OverviewPage(vm OverviewVM) {
-	@Layout("Lynceus — "+vm.Name, "cluster overview") {
-		<div class="overview-layout">
-			@ClusterSidebar(vm.ClusterID, "overview")
-			<main class="overview-main">
-				<h2 id="overview">{ vm.Name }</h2>
-				<div class="tiles">
+// OverviewPage renders the full cluster Overview page inside the design Shell.
+// The scope-driven sidebar (ShellView.Sidebar) supplies navigation; this screen
+// owns only the main content.
+templ OverviewPage(sv ShellView, vm OverviewVM) {
+	@Shell(sv) {
+		<h2 id="overview">{ vm.Name }</h2>
+		<div class="tiles">
 					<div class="tile">
 						<div class="tile-label">q/s</div>
 						<div class="tile-value">{ fmt.Sprintf("%.1f", vm.QPS) }</div>
@@ -102,30 +101,8 @@ templ OverviewPage(vm OverviewVM) {
 								{ vm.TopWait }
 							}
 						</dd>
-					</dl>
-				</section>
-			</main>
-		</div>
-	}
-}
-
-// ClusterSidebar renders the left sidebar with real route links for all cluster views.
-// active is one of "overview", "queries", "insights", "activity", "settings".
-templ ClusterSidebar(clusterID, active string) {
-	<nav class="sidebar">
-		@sidebarLink(clusterID, "", "overview", active, "Overview")
-		@sidebarLink(clusterID, "/queries", "queries", active, "Queries")
-		@sidebarLink(clusterID, "/insights", "insights", active, "Insights")
-		@sidebarLink(clusterID, "/activity", "activity", active, "Activity")
-		@sidebarLink(clusterID, "/settings", "settings", active, "Settings")
-	</nav>
-}
-
-templ sidebarLink(clusterID, suffix, key, active, label string) {
-	if key == active {
-		<a class="sidebar-link sidebar-link--active" href={ templ.SafeURL("/databases/" + clusterID + suffix) }>{ label }</a>
-	} else {
-		<a class="sidebar-link" href={ templ.SafeURL("/databases/" + clusterID + suffix) }>{ label }</a>
+				</dl>
+			</section>
 	}
 }
 

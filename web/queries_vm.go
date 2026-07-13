@@ -27,35 +27,3 @@ type TopQuery struct {
 	ClusterID       string  // drilldown link target; "" at fleet scope
 	SparkPoints     string  // SVG polyline points; "" hides sparkline (ly-xqf.10)
 }
-
-templ Layout(title, subtitle string) {
-	<!DOCTYPE html>
-	<html lang="en" data-theme="dark">
-		<head>
-			<meta charset="UTF-8"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>{ title }</title>
-			@templ.Raw(themeBootstrapTag())
-			<link rel="stylesheet" href="/static/css/tokens.css"/>
-			<link rel="stylesheet" href="/static/css/legacy.css"/>
-			<script src="/static/js/htmx.min.js" defer></script>
-			<script src="/static/js/theme.js" defer></script>
-		</head>
-		<body>
-			<h1>Lynceus</h1>
-			<nav>
-				<a href="/databases">Databases</a>
-				<a href="/queries">Top queries</a>
-				<a href="/insights">Insights</a>
-				<a href="/index-advisor">Index advisor</a>
-				<a href="/vacuum-advisor">Vacuum advisor</a>
-				<a href="/config-advisor">Config advisor</a>
-				<a href="/waits">Waits</a>
-				<a href="/checks">Checks</a>
-				<a href="/audit">Audit log</a>
-			</nav>
-			<p class="subtitle">{ subtitle }</p>
-			{ children... }
-		</body>
-	</html>
-}

@@ -64,14 +64,13 @@ func TestStaticHandler_ServesHTMX(t *testing.T) {
 	}
 }
 
-func TestStaticHandler_ServesThemeJSAndLegacyCSS(t *testing.T) {
+func TestStaticHandler_ServesThemeJSAndScreenCSS(t *testing.T) {
 	cases := []struct {
 		path, contains string
 	}{
 		{"/static/js/theme.js", "setTheme"},
 		{"/static/js/theme.js", "cycleTheme"},
 		{"/static/js/theme.js", "setAccent"},
-		{"/static/css/legacy.css", ".db-card"},
 		{"/static/css/screens.css", ".screen-hd"},
 	}
 	for _, c := range cases {

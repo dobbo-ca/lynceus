@@ -32,8 +32,6 @@ templ Shell(vm ShellView) {
 				<div class="shell-body">
 					if vm.Sidebar != nil {
 						@vm.Sidebar
-					} else {
-						@placeholderSidebar()
 					}
 					<main class="main">
 						{ children... }
@@ -168,13 +166,6 @@ templ userMenu(vm ShellView) {
 			<div class="menu-signout"><span class="lbl">Sign out</span></div>
 		</div>
 	</details>
-}
-
-// placeholderSidebar is the ly-ae6.3 slot filler until the per-scope nav lands.
-templ placeholderSidebar() {
-	<aside class="sidebar">
-		<div class="sidebar-placeholder">NAV · ly-ae6.3</div>
-	</aside>
 }
 
 // ScopeButton is the reusable ⌖ crosshair: a 24px icon anchor that sets scope

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/dobbo-ca/lynceus/internal/fleetview"
+	"github.com/dobbo-ca/lynceus/internal/scope"
 	"github.com/dobbo-ca/lynceus/internal/store"
 	"github.com/dobbo-ca/lynceus/web"
 )
@@ -18,8 +19,15 @@ func (s *Server) handleClusterOverview(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	// Scope the Shell to this cluster so the sidebar renders the cluster nav
+	// (Overview active) and the top bar reflects the cluster scope.
+	q := r.URL.Query()
+	q.Set("scope", scope.Scope{Kind: scope.Cluster, ClusterID: clusterID}.Encode())
+	rs := r.Clone(r.Context())
+	rs.URL.RawQuery = q.Encode()
+	sv := s.shellViewFor(rs, "clusterdetail")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = web.OverviewPage(toOverviewVM(&detail)).Render(r.Context(), w)
+	_ = web.OverviewPage(sv, toOverviewVM(&detail)).Render(r.Context(), w)
 }
 
 // handleClusterQueryDrilldown renders the plan tree + insight fragment for one
