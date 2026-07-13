@@ -1,0 +1,95 @@
+package web
+
+import "strconv"
+
+// skeleton.templ — loading-state placeholder components shared by shell
+// screens. Every fill is an inert shimmer block (see skeleton.css); real text
+// (titles, column headers, labels) renders normally so the layout settles to
+// the same geometry the live screen will occupy. Token-driven only.
+
+// skelGrid returns an n-column equal-width grid style string for the skeleton
+// table header + rows.
+func skelGrid(n int) string {
+	return "display:grid;grid-template-columns:repeat(" + strconv.Itoa(n) + ",1fr);gap:10px;"
+}
+
+// SkeletonPageHeader is the placeholder screen header: real title plus a
+// shimmer scope pill and range chip. The wrapper carries data-screen so a
+// swapping shell (HTMX) can key the loading state to its screen.
+templ SkeletonPageHeader(title, screenID string) {
+	<header class="skel-head" data-screen={ screenID }>
+		<span class="skel-head-title">{ title }</span>
+		<span class="skel-pill skel" aria-hidden="true"></span>
+		<span style="flex:1;"></span>
+		<span class="skel-chip skel" aria-hidden="true"></span>
+	</header>
+}
+
+// SkeletonToolbar is an inert toolbar row: a search box carrying the `search`
+// label and a right-aligned chip carrying the `right` label.
+templ SkeletonToolbar(search, right string) {
+	<div class="skel-toolbar">
+		<span class="skel-search" role="presentation" aria-label={ search }>
+			<span class="skel-search-ico">⌕</span>
+			<span class="skel-search-lbl">{ search }</span>
+		</span>
+		<span style="flex:1;"></span>
+		<span class="chip skel-toolbar-chip" aria-label={ right }>{ right }</span>
+	</div>
+}
+
+// SkeletonTable is a placeholder table: real column headers over `rows` shimmer
+// rows, one shimmer cell per column.
+templ SkeletonTable(cols []string, rows int) {
+	<div class="panel skel-table">
+		<div class="grid-hd" style={ skelGrid(len(cols)) }>
+			for _, c := range cols {
+				<span>{ c }</span>
+			}
+		</div>
+		for i := 0; i < rows; i++ {
+			<div class="grid-row skel-table-row" style={ skelGrid(len(cols)) }>
+				for range cols {
+					<span class="skel skel-cell" aria-hidden="true"></span>
+				}
+			</div>
+		}
+	</div>
+}
+
+// SkeletonStatTiles is a KPI tile row: one tile per label with a real label and
+// a shimmer value.
+templ SkeletonStatTiles(labels []string) {
+	<div class="skel-tiles">
+		for _, l := range labels {
+			<div class="skel-tile">
+				<span class="skel-tile-lbl">{ l }</span>
+				<span class="skel skel-tile-val" aria-hidden="true"></span>
+			</div>
+		}
+	</div>
+}
+
+// SkeletonPanel is a titled panel containing `lines` shimmer lines.
+templ SkeletonPanel(title string, lines int) {
+	<div class="panel skel-panel">
+		<div class="panel-hd">{ title }</div>
+		<div class="skel-panel-body">
+			for i := 0; i < lines; i++ {
+				<span class="skel skel-line" aria-hidden="true"></span>
+			}
+		</div>
+	</div>
+}
+
+// SkeletonList is a generic list of `rows` shimmer rows.
+templ SkeletonList(rows int) {
+	<div class="panel skel-list">
+		for i := 0; i < rows; i++ {
+			<div class="skel-list-row">
+				<span class="skel skel-list-dot" aria-hidden="true"></span>
+				<span class="skel skel-list-bar" aria-hidden="true"></span>
+			</div>
+		}
+	</div>
+}

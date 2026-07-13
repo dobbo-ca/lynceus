@@ -1,0 +1,70 @@
+/* Skeleton / loading-state layer (skeleton.templ). Shimmer fills use only the
+   --shim* tokens so light + dark both read as muted placeholder blocks. The
+   animation is disabled under prefers-reduced-motion. */
+
+@keyframes skel-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+/* Base shimmer fill — every placeholder block carries .skel. */
+.skel {
+  background: linear-gradient(90deg, var(--shimA) 25%, var(--shimB) 50%, var(--shimA) 75%);
+  background-size: 800px 100%;
+  border-radius: var(--radius-badge);
+  animation: skel-shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel { animation: none; }
+}
+
+/* ---- Page header ---- */
+.skel-head { display: flex; align-items: center; gap: 12px; }
+.skel-head-title { font-size: 17px; font-weight: 600; color: var(--text); }
+.skel-pill { width: 150px; height: 20px; }
+.skel-chip { width: 132px; height: 24px; border-radius: var(--radius); }
+
+/* ---- Toolbar ---- */
+.skel-toolbar { display: flex; align-items: center; gap: 10px; }
+.skel-search {
+  display: inline-flex; align-items: center; gap: 8px; width: 280px;
+  padding: 6px 10px; border: var(--border) solid var(--line);
+  border-radius: var(--radius); background: var(--surface);
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--faint);
+}
+.skel-search-ico { color: var(--dim); }
+.skel-search-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skel-toolbar-chip { color: var(--faint); cursor: default; }
+
+/* ---- Table ---- */
+.skel-table-row { align-items: center; }
+.skel-cell { height: 12px; width: 100%; }
+
+/* ---- KPI stat tiles ---- */
+.skel-tiles { display: flex; flex-wrap: wrap; gap: 12px; }
+.skel-tile {
+  flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 14px; border: var(--border) solid var(--line);
+  border-radius: var(--radius); background: var(--surface);
+}
+.skel-tile-lbl {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em;
+  color: var(--faint);
+}
+.skel-tile-val { height: 22px; width: 60%; }
+
+/* ---- Panel ---- */
+.skel-panel-body { display: flex; flex-direction: column; gap: 9px; padding: 12px; }
+.skel-line { height: 11px; width: 100%; }
+.skel-line:nth-child(3n) { width: 72%; }
+.skel-line:nth-child(3n+2) { width: 88%; }
+
+/* ---- Generic list ---- */
+.skel-list-row {
+  display: flex; align-items: center; gap: 12px; padding: 9px 12px;
+  border-bottom: var(--border) solid var(--line2);
+}
+.skel-list-row:last-child { border-bottom: 0; }
+.skel-list-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+.skel-list-bar { height: 11px; flex: 1; }
