@@ -50,49 +50,52 @@ type OverviewVM struct {
 // owns only the main content.
 templ OverviewPage(sv ShellView, vm OverviewVM) {
 	@Shell(sv) {
-		<h2 id="overview">{ vm.Name }</h2>
-		<div class="tiles">
-					<div class="tile">
-						<div class="tile-label">q/s</div>
-						<div class="tile-value">{ fmt.Sprintf("%.1f", vm.QPS) }</div>
-					</div>
-					<div class="tile">
-						<div class="tile-label">Avg latency (ms)</div>
-						<div class="tile-value">{ fmt.Sprintf("%.1f", vm.AvgLatencyMs) }</div>
-					</div>
-					<div class="tile">
-						<div class="tile-label">Active conns</div>
-						<div class="tile-value">{ fmt.Sprintf("%d", vm.ActiveConns) }</div>
-					</div>
-					<div class="tile">
-						<div class="tile-label">Insights</div>
-						<div class="tile-value">{ fmt.Sprintf("%d", vm.InsightCount) }</div>
-					</div>
-					<div class="tile">
-						<div class="tile-label">Streams</div>
-						<div class="tile-value">{ fmt.Sprintf("%d", vm.StreamCount) }</div>
-					</div>
-					if vm.Sparkline != "" {
-						<div class="tile tile-sparkline">
-							<div class="tile-label">QPS trend</div>
-							<svg viewBox="0 0 100 24" width="100" height="24">
-								<polyline points={ vm.Sparkline } fill="none" stroke="#2b6cb0" stroke-width="2"/>
-							</svg>
-						</div>
-					}
+		<div class="screen" data-screen-label="Cluster Overview">
+			@ScreenHeader("Overview", []HeaderBadge{
+				{Text: "LIVE", Kind: "live"},
+				{Text: vm.Name, Kind: "scope"},
+				{Text: "T1", Kind: "t1"},
+			})
+			<div class="skel-tiles">
+				<div class="skel-tile">
+					<span class="skel-tile-lbl">Q/S</span>
+					<span class="skel-tile-num">{ fmt.Sprintf("%.1f", vm.QPS) }</span>
 				</div>
-				@OverviewTopology(vm.Instances)
-				@OverviewQueries(vm)
-				@OverviewInsights(vm.Insights)
-				<section id="facts" class="overview-section">
-					<h3>Facts</h3>
-					<dl class="facts-list">
-						<dt>Instances</dt>
-						<dd>{ fmt.Sprintf("%d", len(vm.Instances)) }</dd>
-						<dt>Databases monitored</dt>
-						<dd>{ fmt.Sprintf("%d", vm.StreamCount) }</dd>
-						<dt>Data tier</dt>
-						<dd>T1</dd>
+				<div class="skel-tile">
+					<span class="skel-tile-lbl">AVG LATENCY (MS)</span>
+					<span class="skel-tile-num">{ fmt.Sprintf("%.1f", vm.AvgLatencyMs) }</span>
+				</div>
+				<div class="skel-tile">
+					<span class="skel-tile-lbl">ACTIVE CONNS</span>
+					<span class="skel-tile-num">{ fmt.Sprintf("%d", vm.ActiveConns) }</span>
+				</div>
+				<div class="skel-tile">
+					<span class="skel-tile-lbl">INSIGHTS</span>
+					<span class="skel-tile-num">{ fmt.Sprintf("%d", vm.InsightCount) }</span>
+				</div>
+				<div class="skel-tile">
+					<span class="skel-tile-lbl">STREAMS</span>
+					<span class="skel-tile-num">{ fmt.Sprintf("%d", vm.StreamCount) }</span>
+				</div>
+				if vm.Sparkline != "" {
+					<div class="skel-tile">
+						<span class="skel-tile-lbl">QPS TREND</span>
+						<svg class="skel-tile-spark" viewBox="0 0 100 24" width="100" height="24">
+							<polyline points={ vm.Sparkline } fill="none" style="stroke:var(--acc);" stroke-width="2"/>
+						</svg>
+					</div>
+				}
+			</div>
+			@OverviewTopology(vm.Instances)
+			@OverviewQueries(vm)
+			@OverviewInsights(vm.Insights)
+			<div class="panel">
+				<div class="panel-hd">FACTS</div>
+				<dl class="facts">
+					<div class="fact-row"><dt>Instances</dt><dd>{ fmt.Sprintf("%d", len(vm.Instances)) }</dd></div>
+					<div class="fact-row"><dt>Databases monitored</dt><dd>{ fmt.Sprintf("%d", vm.StreamCount) }</dd></div>
+					<div class="fact-row"><dt>Data tier</dt><dd>T1</dd></div>
+					<div class="fact-row">
 						<dt>Top wait</dt>
 						<dd>
 							if vm.TopWait == "" {
@@ -101,24 +104,26 @@ templ OverviewPage(sv ShellView, vm OverviewVM) {
 								{ vm.TopWait }
 							}
 						</dd>
+					</div>
 				</dl>
-			</section>
+			</div>
+		</div>
 	}
 }
 
 // OverviewTopology renders topology cards — one per instance showing role, name,
 // databases, calls, and active connections.
 templ OverviewTopology(insts []OverviewInstance) {
-	<section id="topology" class="overview-section">
-		<h3>Topology</h3>
+	<div class="panel">
+		<div class="panel-hd">TOPOLOGY</div>
 		if len(insts) == 0 {
-			<p class="empty">No instances linked yet.</p>
+			@EmptyState("No instances linked yet.")
 		} else {
-			<div class="topo-cards">
+			<div class="topo-grid">
 				for i := range insts {
 					<div class="topo-card">
-						<div class="topo-role">
-							<span class={ "badge-role badge-role--" + insts[i].Role }>{ insts[i].Role }</span>
+						<div>
+							<span class="badge badge--scope">{ insts[i].Role }</span>
 						</div>
 						<div class="topo-name">{ insts[i].Name }</div>
 						<div class="topo-meta">
@@ -132,70 +137,69 @@ templ OverviewTopology(insts []OverviewInstance) {
 				}
 			</div>
 		}
-	</section>
+	</div>
 }
 
 // OverviewQueries renders the most-expensive-queries table. Each row has an
 // HTMX-driven drill-in to reveal the normalized plan tree + matching insight.
 templ OverviewQueries(vm OverviewVM) {
-	<section id="queries" class="overview-section">
-		<h3>Most expensive queries (last 24 h)</h3>
+	<div class="panel">
+		<div class="panel-hd">MOST EXPENSIVE QUERIES · LAST 24H</div>
 		if len(vm.Queries) == 0 {
-			<p class="empty">No query stats in the last 24 hours.</p>
+			@EmptyState("No query stats in the last 24 hours.")
 		} else {
-			<table>
-				<thead>
-					<tr>
-						<th>Query</th>
-						<th class="num">Calls</th>
-						<th class="num">Mean (ms)</th>
-						<th class="num">Total (ms)</th>
-						<th></th>
-					</tr>
-				</thead>
-				<tbody>
-					for i := range vm.Queries {
+			<div class="data-table">
+				<table>
+					<thead>
 						<tr>
-							<td>
-								<button
-									class="query-btn"
-									hx-get={ "/partial/databases/" + vm.ClusterID + "/query/" + vm.Queries[i].Fingerprint }
-									hx-target={ "#drill-" + vm.Queries[i].Fingerprint }
-									hx-swap="innerHTML"
-								>
-									<code>{ vm.Queries[i].NormalizedQuery }</code>
-								</button>
-								if vm.Queries[i].HasInsight {
-									<span class="badge">slow scan</span>
-								}
-							</td>
-							<td class="num">{ fmt.Sprintf("%d", vm.Queries[i].Calls) }</td>
-							<td class="num">{ fmt.Sprintf("%.2f", vm.Queries[i].MeanMs) }</td>
-							<td class="num">{ fmt.Sprintf("%.1f", vm.Queries[i].TotalMs) }</td>
-							<td></td>
+							<th>Query</th>
+							<th class="num">Calls</th>
+							<th class="num">Mean (ms)</th>
+							<th class="num">Total (ms)</th>
+							<th></th>
 						</tr>
-						<tr>
-							<td colspan="5">
-								<div id={ "drill-" + vm.Queries[i].Fingerprint }></div>
-							</td>
-						</tr>
-					}
-				</tbody>
-			</table>
+					</thead>
+					<tbody>
+						for i := range vm.Queries {
+							<tr>
+								<td>
+									<button
+										class="query-btn"
+										hx-get={ "/partial/databases/" + vm.ClusterID + "/query/" + vm.Queries[i].Fingerprint }
+										hx-target={ "#drill-" + vm.Queries[i].Fingerprint }
+										hx-swap="innerHTML"
+									>
+										<code>{ vm.Queries[i].NormalizedQuery }</code>
+									</button>
+									if vm.Queries[i].HasInsight {
+										<span class="badge badge--t2">slow scan</span>
+									}
+								</td>
+								<td class="num">{ fmt.Sprintf("%d", vm.Queries[i].Calls) }</td>
+								<td class="num">{ fmt.Sprintf("%.2f", vm.Queries[i].MeanMs) }</td>
+								<td class="num">{ fmt.Sprintf("%.1f", vm.Queries[i].TotalMs) }</td>
+								<td></td>
+							</tr>
+							<tr>
+								<td colspan="5">
+									<div id={ "drill-" + vm.Queries[i].Fingerprint }></div>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
 		}
-	</section>
+	</div>
 }
 
 // QueryDrilldown is the HTMX fragment rendered for one (cluster, fingerprint).
 // Shows the matching insight (if any) then the normalized plan tree.
 templ QueryDrilldown(plan PlanVM, insight *OverviewInsight) {
 	if insight != nil {
-		<div class="insight-banner insight-banner--{ insight.Severity }">
-			<strong>{ insight.Severity }</strong>
-			{ " — " }
-			{ insight.Relation }
-			{ ": " }
-			{ insight.Detail }
+		<div class={ "panel", "stripe-" + SevClass(insight.Severity) } style="padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+			<span class={ "badge", "sev-" + SevClass(insight.Severity) }>{ insight.Severity }</span>
+			<span style="color:var(--mut);">{ insight.Relation }{ ": " }{ insight.Detail }</span>
 		</div>
 	}
 	@PlanView(plan)
@@ -203,29 +207,31 @@ templ QueryDrilldown(plan PlanVM, insight *OverviewInsight) {
 
 // OverviewInsights renders the insights panel.
 templ OverviewInsights(items []OverviewInsight) {
-	<section id="insights" class="overview-section">
-		<h3>Insights</h3>
+	<div class="panel">
+		<div class="panel-hd">INSIGHTS</div>
 		if len(items) == 0 {
-			<p class="empty">No insights in the last 24 hours.</p>
+			@EmptyState("No insights in the last 24 hours.")
 		} else {
-			<table>
-				<thead>
-					<tr>
-						<th>Severity</th>
-						<th>Relation</th>
-						<th>Detail</th>
-					</tr>
-				</thead>
-				<tbody>
-					for i := range items {
+			<div class="data-table">
+				<table>
+					<thead>
 						<tr>
-							<td><span class={ "badge-role badge-role--" + items[i].Severity }>{ items[i].Severity }</span></td>
-							<td><code>{ items[i].Relation }</code></td>
-							<td>{ items[i].Detail }</td>
+							<th>Severity</th>
+							<th>Relation</th>
+							<th>Detail</th>
 						</tr>
-					}
-				</tbody>
-			</table>
+					</thead>
+					<tbody>
+						for i := range items {
+							<tr>
+								<td><span class={ "badge", "sev-" + SevClass(items[i].Severity) }>{ items[i].Severity }</span></td>
+								<td><code>{ items[i].Relation }</code></td>
+								<td>{ items[i].Detail }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
 		}
-	</section>
+	</div>
 }

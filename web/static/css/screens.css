@@ -46,3 +46,70 @@
 .empty-state { padding:24px 12px; font-family:var(--font-mono); font-size:11px; color:var(--faint); text-align:center; }
 .num-r { text-align:right; }
 .mono-lbl { font-family:var(--font-mono); letter-spacing:.08em; color:var(--faint); }
+
+/* ---- Real-data filter/search forms (audit filter, clusters search) ---- */
+.filters { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; }
+.filters label { display:flex; flex-direction:column; gap:4px;
+                 font-family:var(--font-mono); font-size:9.5px; letter-spacing:.1em;
+                 text-transform:uppercase; color:var(--faint); }
+.filters input, .filters select {
+  background:var(--surface); border:var(--border) solid var(--line); border-radius:var(--radius);
+  color:var(--text); font-family:var(--font-mono); font-size:11.5px; padding:6px 10px; min-width:150px; }
+.filters input:focus, .filters select:focus { border-color:var(--acc); outline:none; }
+.filters button {
+  font-family:var(--font-mono); font-size:10.5px; padding:7px 16px; letter-spacing:.06em;
+  border:var(--border) solid var(--acc); border-radius:var(--radius);
+  color:var(--acc2); background:var(--accbg); cursor:pointer; }
+.filters button:hover { color:var(--acc); }
+
+/* ---- Real <table> tables restyled to read like the div-grid tables ----
+   (some screens keep a native <table> for its semantics; the .data-table
+   wrapper maps thead/tbody onto the grid-hd / grid-row token look.) */
+.data-table { overflow-x:auto; }
+.data-table table { width:100%; border-collapse:collapse; }
+.data-table thead th {
+  font-family:var(--font-mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--faint); font-weight:400; text-align:left; white-space:nowrap;
+  padding:8px 12px; border-bottom:var(--border) solid var(--line); }
+.data-table tbody td {
+  padding:7px 12px; border-bottom:var(--border) solid var(--line2);
+  color:var(--mut); font-variant-numeric:tabular-nums; vertical-align:top; }
+.data-table tbody tr:hover td { background:var(--raised); }
+.data-table th.num, .data-table td.num { text-align:right; }
+.data-table code { font-family:var(--font-mono); font-size:11.5px; color:var(--text); }
+.data-table .query-btn {
+  border:0; background:none; padding:0; text-align:left; cursor:pointer;
+  color:var(--acc); font-family:var(--font-mono); font-size:11.5px; }
+.data-table .query-btn:hover { color:var(--acc2); }
+
+/* ---- Stat-tile real value (pairs with skeleton .skel-tile* layout) ---- */
+.skel-tile-num { font-family:var(--font-mono); font-size:22px; font-weight:600;
+                 color:var(--text); font-variant-numeric:tabular-nums; line-height:1.1; }
+.skel-tile-spark { display:block; }
+
+/* ---- Cluster cards grid (/clusters) ---- */
+.card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px; }
+.card { display:flex; flex-direction:column; gap:5px; padding:12px 14px;
+        border:var(--border) solid var(--line); border-radius:var(--radius);
+        background:var(--surface); color:var(--text); text-decoration:none; }
+.card:hover { border-color:var(--acc); background:var(--raised); text-decoration:none; }
+.card-spark { display:block; margin-bottom:4px; }
+.card-title { font-size:13px; font-weight:600; color:var(--text); }
+.card-meta { display:flex; align-items:center; gap:8px; font-family:var(--font-mono);
+             font-size:11px; color:var(--mut); }
+.card-sub { font-family:var(--font-mono); font-size:10px; color:var(--faint); letter-spacing:.04em; }
+
+/* ---- Topology cards (cluster overview) ---- */
+.topo-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; padding:12px; }
+.topo-card { display:flex; flex-direction:column; gap:4px; padding:10px 12px;
+             border:var(--border) solid var(--line2); border-radius:var(--radius); background:var(--raised); }
+.topo-name { font-family:var(--font-mono); font-size:12px; color:var(--text); }
+.topo-meta { font-size:11px; color:var(--dim); }
+
+/* ---- Facts definition list (cluster overview) ---- */
+.facts { margin:0; }
+.facts .fact-row { display:flex; justify-content:space-between; gap:12px; padding:7px 12px;
+                   border-bottom:var(--border) solid var(--line2); }
+.facts .fact-row:last-child { border-bottom:0; }
+.facts dt { font-family:var(--font-mono); font-size:11px; letter-spacing:.04em; color:var(--dim); }
+.facts dd { margin:0; font-size:12px; color:var(--text); }

@@ -29,8 +29,14 @@ type AuditFilterValues struct {
 // AuditPage is the full filterable audit-log page, rendered inside the Shell.
 templ AuditPage(sv ShellView, f AuditFilterValues, rows []AuditRow) {
 	@Shell(sv) {
-		@AuditFilterForm(f)
-		@AuditTable(rows)
+		<div class="screen" data-screen-label="Audit Log">
+			@ScreenHeader("Audit Log", []HeaderBadge{
+				{Text: "GOVERNANCE", Kind: "scope"},
+				{Text: "EVERY T2 READ AUDITED", Kind: "t2"},
+			})
+			@AuditFilterForm(f)
+			@AuditTable(rows)
+		</div>
 	}
 }
 
@@ -77,34 +83,36 @@ templ AuditFilterForm(f AuditFilterValues) {
 templ AuditTable(rows []AuditRow) {
 	<div id="audit-table">
 		if len(rows) == 0 {
-			<p class="empty">No audit entries match the current filter.</p>
+			@EmptyState("No audit entries match the current filter.")
 		} else {
-			<table>
-				<thead>
-					<tr>
-						<th class="num">ID</th>
-						<th>Time (UTC)</th>
-						<th>Actor</th>
-						<th>Action</th>
-						<th>Server</th>
-						<th class="num">Tier</th>
-						<th>Detail</th>
-					</tr>
-				</thead>
-				<tbody>
-					for _, r := range rows {
+			<div class="panel data-table">
+				<table>
+					<thead>
 						<tr>
-							<td class="num">{ fmt.Sprintf("%d", r.ID) }</td>
-							<td>{ r.At }</td>
-							<td>{ r.Actor }</td>
-							<td><code>{ r.Action }</code></td>
-							<td>{ r.ServerID }</td>
-							<td class="num">{ fmt.Sprintf("%d", r.DataTier) }</td>
-							<td><code>{ r.Detail }</code></td>
+							<th class="num">ID</th>
+							<th>Time (UTC)</th>
+							<th>Actor</th>
+							<th>Action</th>
+							<th>Server</th>
+							<th class="num">Tier</th>
+							<th>Detail</th>
 						</tr>
-					}
-				</tbody>
-			</table>
+					</thead>
+					<tbody>
+						for _, r := range rows {
+							<tr>
+								<td class="num">{ fmt.Sprintf("%d", r.ID) }</td>
+								<td>{ r.At }</td>
+								<td>{ r.Actor }</td>
+								<td><code>{ r.Action }</code></td>
+								<td>{ r.ServerID }</td>
+								<td class="num">{ fmt.Sprintf("%d", r.DataTier) }</td>
+								<td><code>{ r.Detail }</code></td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
 		}
 	</div>
 }
