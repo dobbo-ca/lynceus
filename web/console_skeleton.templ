@@ -1,0 +1,11 @@
+package web
+
+// ConsoleSkeletonPage renders the SQL Console (T2) screen skeleton inside the
+// design shell. No live data — inert shimmer placeholders only.
+templ ConsoleSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("SQL Console", "console")
+		@SkeletonPanel("Query", 4)
+		@SkeletonTable([]string{"col_a", "col_b", "col_c"}, 5)
+	}
+}

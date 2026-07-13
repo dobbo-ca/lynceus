@@ -1,0 +1,10 @@
+package web
+
+// ConnectionsSkeletonPage renders the Connections (T2) shell skeleton.
+templ ConnectionsSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Connections", "connections")
+		@SkeletonTable([]string{"PID", "STATE", "WAIT", "QUERY AGE", "CLIENT"}, 6)
+		@SkeletonPanel("Blocking", 3)
+	}
+}

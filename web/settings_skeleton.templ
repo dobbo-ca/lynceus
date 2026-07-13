@@ -1,0 +1,47 @@
+package web
+
+// Admin settings skeletons. These pages live outside the scope sidebar, so the
+// shell active screen is empty; each page's data-screen marker comes from its
+// SkeletonPageHeader screenID.
+
+// SettingsAccessSkeletonPage renders the Access & Roles admin skeleton.
+templ SettingsAccessSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Access & Roles", "settings-access")
+		@SkeletonTable([]string{"USER", "GROUP", "ROLE"}, 5)
+	}
+}
+
+// SettingsProvidersSkeletonPage renders the Provider Setup admin skeleton.
+templ SettingsProvidersSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Provider Setup", "settings-providers")
+		@SkeletonTable([]string{"PROVIDER", "STATUS", "REGION"}, 4)
+	}
+}
+
+// SettingsCollectorsSkeletonPage renders the Collectors admin skeleton.
+templ SettingsCollectorsSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Collectors", "settings-collectors")
+		@SkeletonTable([]string{"COLLECTOR", "VERSION", "LAST SEEN"}, 4)
+	}
+}
+
+// SettingsRetentionSkeletonPage renders the Data & Retention admin skeleton.
+templ SettingsRetentionSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Data & Retention", "settings-retention")
+		@SkeletonPanel("Retention window", 3)
+		@SkeletonPanel("Partitions", 3)
+	}
+}
+
+// SettingsGeneralSkeletonPage renders the general Settings admin skeleton.
+templ SettingsGeneralSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Settings", "settings-general")
+		@SkeletonPanel("Appearance", 2)
+		@SkeletonPanel("Session", 2)
+	}
+}

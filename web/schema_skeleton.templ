@@ -1,0 +1,25 @@
+package web
+
+// SchemaInventorySkeletonPage renders the Schema · Inventory shell skeleton.
+templ SchemaInventorySkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Schema · Inventory", "inventory")
+		@SkeletonTable([]string{"SCHEMA", "OBJECT", "KIND", "SIZE"}, 6)
+	}
+}
+
+// SchemaTableGrowthSkeletonPage renders the Schema · Table Growth shell skeleton.
+templ SchemaTableGrowthSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Schema · Table Growth", "tablegrowth")
+		@SkeletonTable([]string{"TABLE", "SIZE", "7D GROWTH"}, 6)
+	}
+}
+
+// SchemaIndexesSkeletonPage renders the Schema · Indexes shell skeleton.
+templ SchemaIndexesSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Schema · Indexes", "indexes")
+		@SkeletonTable([]string{"INDEX", "TABLE", "SCANS", "SIZE"}, 6)
+	}
+}

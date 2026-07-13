@@ -1,0 +1,11 @@
+package web
+
+// AlertsSkeletonPage renders the Alerts screen loading skeleton inside the
+// design shell. No live data — inert shimmer placeholders only.
+templ AlertsSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Alerts", "alerts")
+		@SkeletonToolbar("Search", "24H")
+		@SkeletonTable([]string{"RULE", "ROUTE", "SEVERITY", "STATE"}, 5)
+	}
+}

@@ -1,0 +1,11 @@
+package web
+
+// ScriptsSkeletonPage renders the Saved Scripts screen skeleton inside the
+// design shell (no live data).
+templ ScriptsSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Saved Scripts", "scripts")
+		@SkeletonToolbar("Search", "24H")
+		@SkeletonTable([]string{"NAME", "OWNER", "UPDATED"}, 6)
+	}
+}

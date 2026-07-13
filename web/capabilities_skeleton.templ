@@ -1,0 +1,10 @@
+package web
+
+// CapabilitiesSkeletonPage renders the Capabilities policy surface as an inert
+// skeleton (no live data) inside the design shell.
+templ CapabilitiesSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Capabilities", "capabilities")
+		@SkeletonTable([]string{"CAPABILITY", "SCOPE", "STATE", "SET BY", "REASON"}, 5)
+	}
+}

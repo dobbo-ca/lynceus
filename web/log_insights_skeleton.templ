@@ -1,0 +1,10 @@
+package web
+
+// LogInsightsSkeletonPage renders the Log Insights screen loading skeleton
+// inside the design shell. No live data — inert shimmer placeholders only.
+templ LogInsightsSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Log Insights", "loginsights")
+		@SkeletonTable([]string{"EVENT CLASS", "COUNT", "LAST SEEN"}, 6)
+	}
+}

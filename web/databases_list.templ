@@ -1,0 +1,11 @@
+package web
+
+// DatabasesListSkeletonPage renders the fleet databases list as an inert
+// skeleton (no live data) inside the design shell.
+templ DatabasesListSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Databases", "databases")
+		@SkeletonToolbar("Search", "Cards/List")
+		@SkeletonTable([]string{"NAME", "CLUSTER", "SIZE", "QPS", "TOP WAIT"}, 6)
+	}
+}

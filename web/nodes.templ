@@ -1,0 +1,11 @@
+package web
+
+// NodesSkeletonPage renders the Nodes fleet-list screen as an inert skeleton
+// inside the design shell (no live data).
+templ NodesSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Nodes", "nodes")
+		@SkeletonToolbar("Search", "24H")
+		@SkeletonTable([]string{"NAME", "ROLE", "CONNS", "QPS", "LAG"}, 6)
+	}
+}

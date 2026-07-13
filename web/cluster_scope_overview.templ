@@ -1,0 +1,15 @@
+package web
+
+// ClusterOverviewSkeletonPage renders the scoped cluster overview as an inert
+// skeleton (no live data) inside the design shell. The header carries the
+// "clusterdetail" screen id so a swapping shell can key its loading state.
+templ ClusterOverviewSkeletonPage(sv ShellView) {
+	@Shell(sv) {
+		@SkeletonPageHeader("Cluster Overview", "clusterdetail")
+		@SkeletonStatTiles([]string{"Q/S", "AVG LATENCY", "ACTIVE CONNS", "INSIGHTS", "STREAMS"})
+		@SkeletonPanel("Topology", 4)
+		@SkeletonTable([]string{"QUERY", "CALLS", "MEAN (MS)", "TOTAL (MS)"}, 8)
+		@SkeletonPanel("Insights", 3)
+		@SkeletonPanel("Facts", 4)
+	}
+}
