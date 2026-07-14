@@ -49,6 +49,7 @@ type Stats interface {
 	ClearMute(ctx context.Context, serverID, checkID, object string) error
 	ListMutes(ctx context.Context, serverID string) ([]MuteRow, error)
 	WriteLogEvents(ctx context.Context, rows []LogEventRow) error
+	ParkDLQ(ctx context.Context, serverID, reason string, raw []byte) error
 }
 
 var _ Stats = (*pgxStats)(nil)
