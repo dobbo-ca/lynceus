@@ -23,6 +23,15 @@ import (
 // unavailable, the test is skipped.
 func Start(t *testing.T) driver.Conn {
 	t.Helper()
+	conn, _ := StartDSN(t)
+	return conn
+}
+
+// StartDSN is like Start but also returns the native connection string
+// (clickhouse://…@host:port/db), for callers that need to open their own
+// connection from the DSN (e.g. exercising store.OpenStats).
+func StartDSN(t *testing.T) (driver.Conn, string) {
+	t.Helper()
 	ctx := context.Background()
 
 	c, err := tcclickhouse.Run(ctx,
@@ -60,5 +69,5 @@ func Start(t *testing.T) driver.Conn {
 	if pingErr != nil {
 		t.Fatalf("clickhouse not ready: %v", pingErr)
 	}
-	return conn
+	return conn, dsn
 }

@@ -17,17 +17,14 @@ import (
 )
 
 func main() {
-	dsn := os.Getenv("LYNCEUS_STATS_DSN")
-	if dsn == "" {
-		log.Fatal("LYNCEUS_STATS_DSN required")
-	}
 	configDSN := os.Getenv("LYNCEUS_CONFIG_DSN")
 	if configDSN == "" {
 		log.Fatal("LYNCEUS_CONFIG_DSN required")
 	}
-	statsRODSN := os.Getenv("LYNCEUS_STATS_RO_DSN")
 	configRODSN := os.Getenv("LYNCEUS_CONFIG_RO_DSN")
-	for _, d := range []string{dsn, configDSN, statsRODSN, configRODSN} {
+	// Stats DSNs are validated inside store.OpenStats (per backend); the
+	// config DB is always vanilla Postgres.
+	for _, d := range []string{configDSN, configRODSN} {
 		if d == "" {
 			continue
 		}
@@ -49,11 +46,13 @@ func main() {
 		syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	pool, err := pgxpool.New(ctx, dsn)
+	// Stats backend selected by LYNCEUS_STATS_BACKEND (postgres|clickhouse);
+	// OpenStats opens + migrates it and, for postgres, attaches the optional
+	// LYNCEUS_STATS_RO_DSN read replica.
+	stats, err := store.OpenStats(ctx)
 	if err != nil {
-		log.Fatalf("connect stats db: %v", err) //nolint:gocritic // exitAfterDefer: deferred cleanup is best-effort on a fatal process exit
+		log.Fatalf("open stats backend: %v", err) //nolint:gocritic // exitAfterDefer: deferred cleanup is best-effort on a fatal process exit
 	}
-	defer pool.Close()
 
 	configPool, err := pgxpool.New(ctx, configDSN)
 	if err != nil {
@@ -61,8 +60,6 @@ func main() {
 	}
 	defer configPool.Close()
 
-	statsRO := openReadPool(ctx, statsRODSN, "stats")
-	defer closePool(statsRO)
 	configRO := openReadPool(ctx, configRODSN, "config")
 	defer closePool(configRO)
 
@@ -73,7 +70,7 @@ func main() {
 		EnableRedis:         enableRedis,
 		EnableValkey:        enableValkey,
 	},
-		store.NewStats(pool).WithReadPool(statsRO),
+		stats,
 		store.NewConfig(configPool).WithReadPool(configRO))
 
 	httpSrv := &http.Server{
