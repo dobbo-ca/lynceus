@@ -54,7 +54,7 @@ func setup(t *testing.T, cfg ingest.Config) (*pgxpool.Pool, *httptest.Server) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	srv := httptest.NewServer(ingest.NewServer(cfg, store.NewStats(pool), pool).Handler())
+	srv := httptest.NewServer(ingest.NewServer(cfg, store.NewStats(pool)).Handler())
 	t.Cleanup(srv.Close)
 	return pool, srv
 }

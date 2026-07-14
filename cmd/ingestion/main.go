@@ -64,7 +64,7 @@ func main() {
 
 	srv := ingest.NewServer(ingest.Config{
 		DevToken: token, RateLimit: rateLimit, RateBurst: rateBurst,
-	}, store.NewStats(pool), pool)
+	}, store.NewStats(pool))
 
 	checksInterval := time.Duration(envInt("LYNCEUS_CHECKS_INTERVAL_SEC", 60)) * time.Second
 	scheduler := checks.NewScheduler(store.NewStats(pool), configPool, checks.DefaultChecks(), checks.NopNotifier{}).
