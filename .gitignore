@@ -30,6 +30,9 @@ go.work.sum
 # env file
 .env
 
+# local dev data volumes (bind mounts for compose services)
+data/
+
 # Editor/IDE
 # .idea/
 # .vscode/
