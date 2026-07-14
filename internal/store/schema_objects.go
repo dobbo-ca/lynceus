@@ -144,3 +144,9 @@ func (s *SchemaObjects) FirstSeenAt(ctx context.Context, serverID string, kind i
 	}
 	return t, err
 }
+
+// WriteSchemaObjects satisfies store.Stats for the (soon-removed) Postgres
+// backend by delegating to the existing upsert. Deleted in Task 8.
+func (s *pgxStats) WriteSchemaObjects(ctx context.Context, rows []SchemaObjectRow) error {
+	return NewSchemaObjects(s.pool).UpsertSchemaObjects(ctx, rows)
+}
