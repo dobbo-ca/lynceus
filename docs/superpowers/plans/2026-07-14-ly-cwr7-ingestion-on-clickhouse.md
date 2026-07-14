@@ -810,3 +810,7 @@ git commit -m "test(ingest): end-to-end ClickHouse ingestion via store.OpenStats
 - Integration test against real ClickHouse passes (Task 5).
 - DLQ + schema_objects no longer require a stats PG pool (Tasks 1–3); `ingest.Server` holds no `*pgxpool.Pool`.
 - No Postgres stats pool needed when `backend=clickhouse` (a config pool remains for the scheduler lock).
+
+> **SUPERSEDED (2026-07-14):** the user chose CH-only (remove pgxStats). Tasks 2–5 here are
+> replaced by `2026-07-14-ly-cwr8-clickhouse-only-remove-pgxstats.md`. Task 1 (ParkDLQ) already
+> landed and is reused. This file is kept for history.
