@@ -28,6 +28,8 @@ Three Go services, two databases, an SSR frontend — all Kubernetes-native and 
 
 Both config/metadata and time-series stats live in **vanilla PostgreSQL** — the stats store uses native time-range partitioning so the whole platform runs on managed Postgres including **AWS RDS / Aurora** (no extensions required). TimescaleDB is supported as an optional stats backend where available.
 
+The **stats** backend is selected at startup by the **required** `LYNCEUS_STATS_BACKEND` env var (`postgres` | `clickhouse`, no default) behind the `store.Stats` interface — set `LYNCEUS_STATS_BACKEND=postgres` for existing Postgres/TimescaleDB deployments. ClickHouse (`clickhouse`, via `LYNCEUS_CLICKHOUSE_DSN`) is being added as a canonical time-series backend; the **config + tamper-evident audit** database always stays vanilla PostgreSQL.
+
 - **Design (architecture/tech):** [`docs/specs/2026-05-29-lynceus-design.md`](docs/specs/2026-05-29-lynceus-design.md)
 - **Feature parity catalog (what it does):** [`docs/specs/2026-05-29-lynceus-features.md`](docs/specs/2026-05-29-lynceus-features.md)
 - **Implementation plans:** [`docs/superpowers/plans/`](docs/superpowers/plans/)

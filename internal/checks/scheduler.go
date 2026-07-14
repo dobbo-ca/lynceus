@@ -5,6 +5,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/dobbo-ca/lynceus/internal/advisor"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 	"github.com/dobbo-ca/lynceus/internal/store"
@@ -29,19 +31,22 @@ func (NopNotifier) Notify(context.Context, Result) error { return nil }
 // and persists results. It runs in the ingestion service (write side).
 type Scheduler struct {
 	stats    store.Stats
+	lockPool *pgxpool.Pool // config DB (always vanilla Postgres) — advisory-lock coordination
 	checks   []Check
 	notify   Notifier
 	interval time.Duration
 	now      func() time.Time
 }
 
-// NewScheduler builds a Scheduler with the given store, checks, and
-// notifier. interval defaults to 60s; now defaults to time.Now.
-func NewScheduler(s store.Stats, cs []Check, n Notifier) *Scheduler {
+// NewScheduler builds a Scheduler with the given store, config-DB lock pool,
+// checks, and notifier. lockPool is used only for the cross-replica pg
+// advisory lock (the stats backend may be ClickHouse, which has no advisory
+// locks). interval defaults to 60s; now defaults to time.Now.
+func NewScheduler(s store.Stats, lockPool *pgxpool.Pool, cs []Check, n Notifier) *Scheduler {
 	if n == nil {
 		n = NopNotifier{}
 	}
-	return &Scheduler{stats: s, checks: cs, notify: n, interval: 60 * time.Second, now: time.Now}
+	return &Scheduler{stats: s, lockPool: lockPool, checks: cs, notify: n, interval: 60 * time.Second, now: time.Now}
 }
 
 func (sc *Scheduler) WithInterval(d time.Duration) *Scheduler {
@@ -79,7 +84,7 @@ func (sc *Scheduler) Run(ctx context.Context) {
 // RunOnce evaluates every server once under the advisory lock. If the lock
 // is held by another replica it returns nil (that replica owns this tick).
 func (sc *Scheduler) RunOnce(ctx context.Context) error {
-	conn, err := sc.stats.Pool().Acquire(ctx)
+	conn, err := sc.lockPool.Acquire(ctx)
 	if err != nil {
 		return err
 	}
