@@ -13,7 +13,6 @@ import (
 
 // Stats is the reader/writer seam over the time-series stats database.
 type Stats interface {
-	Pool() *pgxpool.Pool
 	WriteQueryStats(ctx context.Context, rows []QueryStat) error
 	TopQueriesByTotalTime(ctx context.Context, since, until time.Time, limit int) ([]TopQuery, error)
 	WaitEventHistogram(ctx context.Context, serverID string, since, until time.Time) ([]WaitEventCount, error)

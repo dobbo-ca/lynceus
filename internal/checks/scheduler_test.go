@@ -18,7 +18,7 @@ import (
 // so RecentServerIDs finds it. Mirrors internal/store's newPool helper
 // (duplicated minimally here since that helper lives in package store_test
 // and is not importable from this package).
-func newSchedulerTestStore(t *testing.T) store.Stats {
+func newSchedulerTestStore(t *testing.T) (store.Stats, *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -54,7 +54,7 @@ func newSchedulerTestStore(t *testing.T) store.Stats {
 	}}); err != nil {
 		t.Fatalf("seed table_stats: %v", err)
 	}
-	return s
+	return s, pool
 }
 
 type recordingNotifier struct{ got []Result }
@@ -80,9 +80,9 @@ func (alwaysCritical) Eval(in *Input) []Result {
 
 func TestSchedulerRunOncePersistsAndNotifies(t *testing.T) {
 	ctx := context.Background()
-	s := newSchedulerTestStore(t)
+	s, lockPool := newSchedulerTestStore(t)
 	notif := &recordingNotifier{}
-	sc := NewScheduler(s, []Check{alwaysCritical{}}, notif).WithNow(func() time.Time {
+	sc := NewScheduler(s, lockPool, []Check{alwaysCritical{}}, notif).WithNow(func() time.Time {
 		return time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 	})
 	if err := sc.RunOnce(ctx); err != nil {
@@ -101,12 +101,12 @@ func TestSchedulerRunOncePersistsAndNotifies(t *testing.T) {
 
 func TestSchedulerHonorsMute(t *testing.T) {
 	ctx := context.Background()
-	s := newSchedulerTestStore(t)
+	s, lockPool := newSchedulerTestStore(t)
 	if err := s.SetMute(ctx, "srv-a", "test.always", "", time.Now().Add(time.Hour), "muted"); err != nil {
 		t.Fatalf("mute: %v", err)
 	}
 	notif := &recordingNotifier{}
-	sc := NewScheduler(s, []Check{alwaysCritical{}}, notif)
+	sc := NewScheduler(s, lockPool, []Check{alwaysCritical{}}, notif)
 	if err := sc.RunOnce(ctx); err != nil {
 		t.Fatalf("RunOnce: %v", err)
 	}

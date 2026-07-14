@@ -26,6 +26,13 @@ func main() {
 	if err := secure.CheckDatabaseDSN(dsn, secure.RequireTLS()); err != nil {
 		log.Fatal(err)
 	}
+	configDSN := os.Getenv("LYNCEUS_CONFIG_DSN")
+	if configDSN == "" {
+		log.Fatal("LYNCEUS_CONFIG_DSN required")
+	}
+	if err := secure.CheckDatabaseDSN(configDSN, secure.RequireTLS()); err != nil {
+		log.Fatal(err)
+	}
 	addr := envDefault("LYNCEUS_INGESTION_ADDR", ":8081")
 	token := os.Getenv("LYNCEUS_DEV_TOKEN") // empty disables auth — dev only
 
@@ -42,6 +49,15 @@ func main() {
 	}
 	defer pool.Close()
 
+	// Config-DB pool: the checks scheduler takes its cross-replica advisory
+	// lock here (always vanilla Postgres), since the stats backend may be
+	// ClickHouse, which has no advisory locks.
+	configPool, err := pgxpool.New(ctx, configDSN)
+	if err != nil {
+		log.Fatalf("connect config db: %v", err)
+	}
+	defer configPool.Close()
+
 	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
 		log.Fatalf("migrate stats: %v", err)
 	}
@@ -51,7 +67,7 @@ func main() {
 	}, store.NewStats(pool), pool)
 
 	checksInterval := time.Duration(envInt("LYNCEUS_CHECKS_INTERVAL_SEC", 60)) * time.Second
-	scheduler := checks.NewScheduler(store.NewStats(pool), checks.DefaultChecks(), checks.NopNotifier{}).
+	scheduler := checks.NewScheduler(store.NewStats(pool), configPool, checks.DefaultChecks(), checks.NopNotifier{}).
 		WithInterval(checksInterval)
 	go scheduler.Run(ctx)
 
