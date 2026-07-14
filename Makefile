@@ -43,8 +43,9 @@ templ:
 gen: proto templ
 
 dev-up:
+	@grep -q '^CLICKHOUSE_PASSWORD=' .env 2>/dev/null || echo "CLICKHOUSE_PASSWORD=$$(openssl rand -hex 24)" >> .env
 	docker compose -f docker-compose.dev.yml up -d
-	@echo ">> config DB on localhost:5432  /  stats DB on localhost:5433"
+	@echo ">> config DB on localhost:5432  /  stats DB on localhost:5433  /  ClickHouse on localhost:8123"
 
 dev-down:
 	docker compose -f docker-compose.dev.yml down
