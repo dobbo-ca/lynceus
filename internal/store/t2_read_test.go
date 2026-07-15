@@ -250,9 +250,11 @@ func TestT2Read_ConfigDBIsSourceOfTruth(t *testing.T) {
 	}
 }
 
-// No-unaudited-T2-path guard: exactly one `data_tier = 2` SELECT literal
-// exists in non-test store source, and it lives in the tier-2 read method
-// the gateway calls. Demonstrates the gateway is the single choke point.
+// No-unaudited-T2-path guard: exactly one read of the literal-bearing
+// query_stats_t2 table exists in non-test store source, and it lives in the
+// tier-2 read method the gateway calls. Under the ClickHouse-only backend, T2
+// isolation is table separation (query_stats_t2), not a data_tier=2 filter, so
+// a single `FROM query_stats_t2` SELECT is the choke point the gateway guards.
 func TestT2Read_OnlyOneTier2SelectInStoreSource(t *testing.T) {
 	root := "." // internal/store
 	entries, err := os.ReadDir(root)
@@ -269,16 +271,16 @@ func TestT2Read_OnlyOneTier2SelectInStoreSource(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", e.Name(), err)
 		}
-		n := strings.Count(string(b), "data_tier = 2")
+		n := strings.Count(string(b), "FROM query_stats_t2")
 		if n > 0 {
 			hits += n
 			files = append(files, e.Name())
 		}
 	}
 	if hits != 1 {
-		t.Fatalf("`data_tier = 2` appears %d time(s) in %v; must be exactly 1 (the gateway choke point)", hits, files)
+		t.Fatalf("`FROM query_stats_t2` appears %d time(s) in %v; must be exactly 1 (the gateway choke point)", hits, files)
 	}
-	if len(files) != 1 || files[0] != "t2_read.go" {
-		t.Fatalf("`data_tier = 2` must live only in t2_read.go, found in %v", files)
+	if len(files) != 1 || files[0] != "chstats.go" {
+		t.Fatalf("`FROM query_stats_t2` must live only in chstats.go, found in %v", files)
 	}
 }

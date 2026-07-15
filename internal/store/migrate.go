@@ -18,9 +18,6 @@ import (
 //go:embed migrations/config/*.sql
 var configMigrations embed.FS
 
-//go:embed migrations/stats/*.sql
-var statsMigrations embed.FS
-
 // Migrate applies every .sql file under fsys/dir in lexical filename
 // order. Each migration runs in its own transaction. Applied versions
 // (the filename minus the .sql suffix) are recorded in a
@@ -89,9 +86,4 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, dir string) er
 // ApplyConfigMigrations applies the bundled config-DB migrations.
 func ApplyConfigMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 	return Migrate(ctx, pool, configMigrations, "migrations/config")
-}
-
-// ApplyStatsMigrations applies the bundled stats-DB migrations.
-func ApplyStatsMigrations(ctx context.Context, pool *pgxpool.Pool) error {
-	return Migrate(ctx, pool, statsMigrations, "migrations/stats")
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/store"
 	"github.com/dobbo-ca/lynceus/internal/testch"
-	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 func TestOpenStats_RequiresBackend(t *testing.T) {
@@ -37,21 +36,6 @@ func TestOpenStats_ClickHouse(t *testing.T) {
 	assertStatsRoundTrip(t, s)
 }
 
-func TestOpenStats_Postgres(t *testing.T) {
-	ctx := context.Background()
-	dsn := startPG(t)
-	t.Setenv("LYNCEUS_REQUIRE_TLS", "false") // plaintext testcontainer DSN
-	t.Setenv("LYNCEUS_STATS_BACKEND", "postgres")
-	t.Setenv("LYNCEUS_STATS_DSN", dsn)
-	t.Setenv("LYNCEUS_STATS_RO_DSN", "")
-
-	s, err := store.OpenStats(ctx)
-	if err != nil {
-		t.Fatalf("OpenStats(postgres): %v", err)
-	}
-	assertStatsRoundTrip(t, s)
-}
-
 // assertStatsRoundTrip proves the returned backend is wired and functional:
 // a written T1 row is read back by TopQueriesByTotalTime.
 func assertStatsRoundTrip(t *testing.T, s store.Stats) {
@@ -70,10 +54,4 @@ func assertStatsRoundTrip(t *testing.T, s store.Stats) {
 	if len(got) != 1 || got[0].Fingerprint != "fp" {
 		t.Fatalf("round-trip mismatch: %+v", got)
 	}
-}
-
-func startPG(t *testing.T) string {
-	t.Helper()
-	_, dsn := testpg.StartDSN(t)
-	return dsn
 }

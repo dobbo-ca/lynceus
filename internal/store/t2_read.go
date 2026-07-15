@@ -94,37 +94,3 @@ func (c *pgxConfig) ServerT2Enabled(ctx context.Context, serverID string) (enabl
 		return enabled, true, nil
 	}
 }
-
-// ReadQueryStatsTier2 is the ONLY data_tier=2 SELECT in the store. It is
-// unguarded on purpose: the T2Reader gateway is its sole caller and
-// enforces the fast-reject + authz + audit-before-read ordering. Returns
-// the literal-capable query_stats rows in [since, until) for serverID.
-func (s *pgxStats) ReadQueryStatsTier2(ctx context.Context, serverID string, since, until time.Time, limit int) ([]QueryStat, error) {
-	rows, err := s.ro.Query(ctx,
-		`SELECT server_id, collected_at, fingerprint, normalized_query, data_tier,
-		        calls, total_time_ms, mean_time_ms, rows, shared_blks_hit, shared_blks_read
-		   FROM query_stats
-		  WHERE server_id = $1 AND collected_at >= $2 AND collected_at < $3
-		    AND data_tier = 2
-		  ORDER BY collected_at DESC
-		  LIMIT $4`,
-		serverID, since, until, limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []QueryStat
-	for rows.Next() {
-		var q QueryStat
-		if err := rows.Scan(
-			&q.ServerID, &q.CollectedAt, &q.Fingerprint, &q.NormalizedQuery, &q.DataTier,
-			&q.Calls, &q.TotalTimeMs, &q.MeanTimeMs, &q.Rows, &q.SharedBlksHit, &q.SharedBlksRead,
-		); err != nil {
-			return nil, err
-		}
-		out = append(out, q)
-	}
-	return out, rows.Err()
-}
