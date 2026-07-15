@@ -10,6 +10,7 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/api"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testch"
 )
 
 // setupClusterViews wires a server with two separate DBs (config + stats),
@@ -20,17 +21,17 @@ func setupClusterViews(t *testing.T) (srv *httptest.Server, clusterID, fp string
 	ctx := context.Background()
 
 	configPool := newDBPool(t)
-	statsPool := newDBPool(t)
+	conn := testch.Start(t)
 
 	if err := store.ApplyConfigMigrations(ctx, configPool); err != nil {
 		t.Fatalf("config migrate: %v", err)
 	}
-	if err := store.ApplyStatsMigrations(ctx, statsPool); err != nil {
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
 		t.Fatalf("stats migrate: %v", err)
 	}
 
 	cfg := store.NewConfig(configPool)
-	stats := store.NewStats(statsPool)
+	stats := store.NewCHStats(conn)
 
 	for _, id := range []string{"cv-srv-a", "cv-srv-b"} {
 		if _, err := configPool.Exec(ctx, `INSERT INTO servers (id, name) VALUES ($1, $1)`, id); err != nil {
