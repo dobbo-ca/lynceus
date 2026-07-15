@@ -145,3 +145,23 @@ func StartDSN(t *testing.T) (driver.Conn, string) {
 		opts.Auth.Username, opts.Auth.Password, opts.Addr[0], db)
 	return conn, dsn
 }
+
+// OpenAs opens a second connection to the same shared server and database as
+// `dsn` but authenticated as user/pass — for RBAC/isolation tests that read as
+// a non-Lynceus identity. Closed via t.Cleanup.
+func OpenAs(t *testing.T, dsn, user, pass string) driver.Conn {
+	t.Helper()
+	opts, err := clickhouse.ParseDSN(dsn)
+	if err != nil {
+		t.Fatalf("parse dsn: %v", err)
+	}
+	o := *opts
+	o.Auth.Username = user
+	o.Auth.Password = pass
+	conn, err := clickhouse.Open(&o)
+	if err != nil {
+		t.Fatalf("open as %s: %v", user, err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	return conn
+}
