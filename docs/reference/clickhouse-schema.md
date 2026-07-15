@@ -2,6 +2,11 @@
 
 **Living reference — regenerate when `internal/store/migrations/clickhouse/*.sql` changes.**
 
+> **ClickHouse is the sole stats store (ly-cwr.7/8).** The Postgres stats backend
+> (`pgxStats`, `migrations/stats/`, the `LYNCEUS_STATS_DSN` pool) has been removed;
+> `LYNCEUS_STATS_BACKEND=clickhouse` is the only supported value. Postgres remains
+> only for the config/metadata + authoritative audit DB and the dev monitored target.
+
 - **Source of truth:** `internal/store/migrations/clickhouse/*.sql`, applied in lexical order by
   `store.ApplyClickHouseMigrations` (`internal/store/chmigrate.go`). Each file is split on `;` and
   run statement-by-statement; applied versions are tracked in `schema_migrations`.
@@ -307,45 +312,6 @@ ORDER BY (server_id, event_type, occurred_at)
 TTL toDateTime(occurred_at) + INTERVAL 90 DAY;
 ```
 
----
-
-## Database `lynceus_stats` — T2 (literal-bearing) — INTERIM location
-
-> ⚠️ **Interim.** `query_stats_t2` currently lives in the **same database and under the same
-> credential** as the T1 tables. The ADR §4.4 raw-isolation guardrail is **not yet enforced**.
-> ly-cwr.6 moves it to an isolated database + dedicated gateway credential — see
-> "T2 access control & isolation" below. Do **not** write production T2 literals to ClickHouse
-> before ly-cwr.6 lands.
-
-### `lynceus_stats.query_stats_t2` — literal-bearing query statistics (T2)
-Same shape as `query_stats`, `data_tier` defaults to 2, **7-day TTL** (short literal-custody
-window). Read **only** by `chStats.ReadQueryStatsTier2`, whose sole caller is the audited
-`T2Reader` gateway.
-```sql
-CREATE TABLE lynceus_stats.query_stats_t2 (
-  server_id         String,
-  collected_at      DateTime64(3, 'UTC'),
-  fingerprint       String,
-  normalized_query  String,          -- MAY carry literals (T2)
-  data_tier         Int16   DEFAULT 2,
-  calls             Int64,
-  total_time_ms     Float64,
-  mean_time_ms      Float64,
-  `rows`            Int64,
-  shared_blks_hit   Int64,
-  shared_blks_read  Int64
-) ENGINE = MergeTree
-PARTITION BY toYYYYMM(collected_at)
-ORDER BY (server_id, collected_at)
-TTL toDateTime(collected_at) + INTERVAL 7 DAY;
-```
-
----
-
-## Pending — added by ly-cwr.7 (ingestion on ClickHouse)
-
-Not yet in `main`. Design: `docs/superpowers/specs/2026-07-14-ly-cwr7-ingestion-on-clickhouse-design.md`.
-
 ### `lynceus_stats.dlq` — dead-letter queue (operational, T1 payloads)
 Parks ingest frames that failed to write (rate-limited / malformed / write error). Append-only,
 TTL-bounded (no retry consumer exists today). `raw` holds a serialized `Snapshot` protobuf — T1,
@@ -387,6 +353,39 @@ ORDER BY (server_id, kind, fqn);
 ```
 Read current state with `FINAL` or `GROUP BY (server_id, kind, fqn)` +
 `min(first_seen_at)`, `max(last_seen_at)`, `anyLast(size_bytes)`, …
+
+---
+
+## Database `lynceus_stats` — T2 (literal-bearing) — INTERIM location
+
+> ⚠️ **Interim.** `query_stats_t2` currently lives in the **same database and under the same
+> credential** as the T1 tables. The ADR §4.4 raw-isolation guardrail is **not yet enforced**.
+> ly-cwr.6 moves it to an isolated database + dedicated gateway credential — see
+> "T2 access control & isolation" below. Do **not** write production T2 literals to ClickHouse
+> before ly-cwr.6 lands.
+
+### `lynceus_stats.query_stats_t2` — literal-bearing query statistics (T2)
+Same shape as `query_stats`, `data_tier` defaults to 2, **7-day TTL** (short literal-custody
+window). Read **only** by `chStats.ReadQueryStatsTier2`, whose sole caller is the audited
+`T2Reader` gateway.
+```sql
+CREATE TABLE lynceus_stats.query_stats_t2 (
+  server_id         String,
+  collected_at      DateTime64(3, 'UTC'),
+  fingerprint       String,
+  normalized_query  String,          -- MAY carry literals (T2)
+  data_tier         Int16   DEFAULT 2,
+  calls             Int64,
+  total_time_ms     Float64,
+  mean_time_ms      Float64,
+  `rows`            Int64,
+  shared_blks_hit   Int64,
+  shared_blks_read  Int64
+) ENGINE = MergeTree
+PARTITION BY toYYYYMM(collected_at)
+ORDER BY (server_id, collected_at)
+TTL toDateTime(collected_at) + INTERVAL 7 DAY;
+```
 
 ---
 
