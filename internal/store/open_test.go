@@ -82,7 +82,7 @@ func userDSNFor(t *testing.T, adminDSN string) string {
 }
 
 func replaceUserInfo(dsn, user, pass string) string {
-	// dsn: scheme://user:pass@rest
+	// Replace the credentials in the userinfo portion (before the '@').
 	at := indexOf(dsn, '@')
 	scheme := "clickhouse://"
 	return scheme + user + ":" + pass + dsn[at:]

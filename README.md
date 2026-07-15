@@ -26,9 +26,9 @@ Three Go services, two databases, an SSR frontend — all Kubernetes-native and 
 | **ingestion_server** | Terminates collector websockets, rate-limits, dead-letter-queues, writes to the stats database. |
 | **api_server** | OIDC/SCIM auth, RBAC, audit, collector token issuance, config API; serves the templ + HTMX frontend. |
 
-Both config/metadata and time-series stats live in **vanilla PostgreSQL** — the stats store uses native time-range partitioning so the whole platform runs on managed Postgres including **AWS RDS / Aurora** (no extensions required). TimescaleDB is supported as an optional stats backend where available.
+The **config/metadata + tamper-evident audit** database is **vanilla PostgreSQL** — it runs on managed Postgres including **AWS RDS / Aurora** (no extensions required). Time-series **stats** live in **ClickHouse**, the sole stats store (behind the `store.Stats` interface).
 
-The **stats** backend is selected at startup by the **required** `LYNCEUS_STATS_BACKEND` env var (`postgres` | `clickhouse`, no default) behind the `store.Stats` interface — set `LYNCEUS_STATS_BACKEND=postgres` for existing Postgres/TimescaleDB deployments. ClickHouse is the stats backend (`LYNCEUS_STATS_BACKEND=clickhouse`), reached with **two identities**: `LYNCEUS_CLICKHOUSE_ADMIN_DSN` (DDL + one-time T2 security provisioning) and `LYNCEUS_CLICKHOUSE_USER_DSN` (all runtime reads/writes — the only identity permitted to read the literal-bearing `query_stats_t2` rows). `LYNCEUS_CLICKHOUSE_T2_TTL_DAYS` (default 7) bounds T2 retention. The **config + tamper-evident audit** database always stays vanilla PostgreSQL.
+ClickHouse is selected at startup by the **required** `LYNCEUS_STATS_BACKEND=clickhouse` and is reached with **two identities**: `LYNCEUS_CLICKHOUSE_ADMIN_DSN` (DDL + one-time T2 security provisioning) and `LYNCEUS_CLICKHOUSE_USER_DSN` (all runtime reads/writes — the only identity permitted to read the literal-bearing `query_stats_t2` rows). `LYNCEUS_CLICKHOUSE_T2_TTL_DAYS` (default 7) bounds T2 retention. The config + audit database always stays vanilla PostgreSQL.
 
 - **Design (architecture/tech):** [`docs/specs/2026-05-29-lynceus-design.md`](docs/specs/2026-05-29-lynceus-design.md)
 - **Feature parity catalog (what it does):** [`docs/specs/2026-05-29-lynceus-features.md`](docs/specs/2026-05-29-lynceus-features.md)
