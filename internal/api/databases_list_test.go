@@ -13,7 +13,7 @@ import (
 func setupDatabasesScreen(t *testing.T) *httptest.Server {
 	t.Helper()
 	ctx := context.Background()
-	srv, cfg, stats, configPool, _ := newVerticalFleet(t)
+	srv, cfg, stats, configPool := newVerticalFleet(t)
 	now := time.Now().UTC()
 
 	cl, err := cfg.CreateCluster(ctx, "orders-prod")

@@ -62,7 +62,7 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 ## Build & Test
 
 ```bash
-make dev-up        # start dev databases (config Postgres + TimescaleDB) via docker-compose
+make dev-up        # start dev databases (config Postgres + ClickHouse stats) via docker-compose
 make proto         # regenerate Go from proto/ (the wire contract)
 go build ./...     # build all binaries (cmd/collector, cmd/ingestion, cmd/api)
 go test ./...      # unit + integration tests (integration uses testcontainers)
@@ -74,10 +74,10 @@ make dev-down      # stop dev databases
 Lynceus is an open-source, Kubernetes-native, HA PostgreSQL monitoring platform — a privacy-first reimagining of pganalyze. Three Go services share `internal/` packages and a versioned protobuf wire contract:
 
 - **collector** (`cmd/collector`) — runs near Postgres, outbound-only, as a limited DB role. Reads `pg_stat_*` / `auto_explain` / logs, **normalizes and analyzes locally**, ships only normalized (T1) data over a websocket.
-- **ingestion_server** (`cmd/ingestion`) — terminates collector websockets, rate-limits, dead-letter-queues, writes to the TimescaleDB stats store.
+- **ingestion_server** (`cmd/ingestion`) — terminates collector websockets, rate-limits, dead-letter-queues, writes to the ClickHouse stats store.
 - **api_server** (`cmd/api`) — OIDC/SCIM auth, RBAC, audit log, collector token issuance, config API; serves the templ+HTMX SSR frontend.
 
-Two databases, both **vanilla PostgreSQL** (must run on AWS RDS/Aurora — no extensions): config/metadata + audit, and the stats store (native time-range partitioning managed in Go). TimescaleDB is an optional stats backend behind the `store.Stats` interface; **no feature may depend on it.**
+Two data stores: the **config/metadata + audit** DB is **vanilla PostgreSQL** (must run on AWS RDS/Aurora — no extensions), and the **stats store is ClickHouse** — the sole stats backend, behind the `store.Stats` interface. The authoritative hash-chained `audit_log` never leaves Postgres. (Postgres also backs the collector's dev monitored target.)
 
 **Full design:** `docs/specs/2026-05-29-lynceus-design.md`. **MVP plan:** `docs/superpowers/plans/2026-05-29-lynceus-mvp-vertical-slice.md`.
 

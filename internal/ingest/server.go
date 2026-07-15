@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 
@@ -39,18 +38,16 @@ type Config struct {
 
 // Server is the websocket receiver.
 type Server struct {
-	cfg           Config
-	stats         store.Stats
-	schemaObjects *store.SchemaObjects
-	pool          *pgxpool.Pool
+	cfg   Config
+	stats store.Stats
 
 	mu       sync.Mutex
 	limiters map[string]*rate.Limiter
 }
 
-// NewServer returns a Server. pool is the stats-DB pool (used for the
-// DLQ table and the schema_objects upsert); stats is the typed writer.
-func NewServer(cfg Config, stats store.Stats, pool *pgxpool.Pool) *Server {
+// NewServer returns a Server. stats is the typed writer/DLQ seam; DLQ and
+// schema_objects now ride store.Stats, so the server holds no raw pool.
+func NewServer(cfg Config, stats store.Stats) *Server {
 	if cfg.ReadTimeout == 0 {
 		cfg.ReadTimeout = 30 * time.Second
 	}
@@ -58,11 +55,9 @@ func NewServer(cfg Config, stats store.Stats, pool *pgxpool.Pool) *Server {
 		cfg.RateBurst = 1
 	}
 	return &Server{
-		cfg:           cfg,
-		stats:         stats,
-		schemaObjects: store.NewSchemaObjects(pool),
-		pool:          pool,
-		limiters:      map[string]*rate.Limiter{},
+		cfg:      cfg,
+		stats:    stats,
+		limiters: map[string]*rate.Limiter{},
 	}
 }
 
@@ -147,7 +142,7 @@ func (s *Server) persistSnapshot(ctx context.Context, snap *lynceusv1.Snapshot) 
 // and the error on the first write failure, "" otherwise.
 func (s *Server) persistExtendedRows(ctx context.Context, snap *lynceusv1.Snapshot) (string, error) {
 	if objs := snapshotToSchemaObjects(snap); len(objs) > 0 {
-		if err := s.schemaObjects.UpsertSchemaObjects(ctx, objs); err != nil {
+		if err := s.stats.WriteSchemaObjects(ctx, objs); err != nil {
 			return "write schema_objects", err
 		}
 	}
@@ -206,12 +201,7 @@ func (s *Server) limiterFor(serverID string) *rate.Limiter {
 }
 
 func (s *Server) parkDLQ(ctx context.Context, serverID, reason string, raw []byte) {
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO dlq (server_id, reason, raw)
-		 VALUES (NULLIF($1, ''), $2, $3)`,
-		serverID, reason, raw,
-	)
-	if err != nil && !errors.Is(err, context.Canceled) {
+	if err := s.stats.ParkDLQ(ctx, serverID, reason, raw); err != nil && !errors.Is(err, context.Canceled) {
 		log.Printf("ingest: dlq insert failed: %v", err)
 	}
 }

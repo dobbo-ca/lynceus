@@ -1,5 +1,5 @@
 // Integration tests for the ingestion websocket server. They wire
-// the real Server against a real Postgres (testcontainers) and a
+// the real Server against a real ClickHouse (testcontainers) and a
 // real Shipper, then assert two properties:
 //
 //   - the happy path actually lands rows in query_stats; and
@@ -13,50 +13,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/testcontainers/testcontainers-go"
-	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
 	"github.com/dobbo-ca/lynceus/internal/collector"
 	"github.com/dobbo-ca/lynceus/internal/ingest"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 	"github.com/dobbo-ca/lynceus/internal/store"
-	"github.com/dobbo-ca/lynceus/internal/testpg"
+	"github.com/dobbo-ca/lynceus/internal/testch"
 )
 
-func setup(t *testing.T, cfg ingest.Config) (*pgxpool.Pool, *httptest.Server) {
+func setup(t *testing.T, cfg ingest.Config) (driver.Conn, *httptest.Server) {
 	t.Helper()
 	ctx := context.Background()
 
-	c, err := tcpostgres.Run(ctx,
-		"postgres:16",
-		tcpostgres.WithDatabase("lynceus_stats"),
-		tcpostgres.WithUsername("test"),
-		tcpostgres.WithPassword("test"),
-		testpg.ReadyWait(),
-	)
-	if err != nil {
-		t.Skipf("docker/testcontainers unavailable: %v", err)
-	}
-	t.Cleanup(func() { _ = testcontainers.TerminateContainer(c) })
-
-	url, err := c.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		t.Fatal(err)
-	}
-	pool, err := pgxpool.New(ctx, url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
-
-	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+	conn := testch.Start(t)
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	srv := httptest.NewServer(ingest.NewServer(cfg, store.NewStats(pool), pool).Handler())
+	srv := httptest.NewServer(ingest.NewServer(cfg, store.NewCHStats(conn)).Handler())
 	t.Cleanup(srv.Close)
-	return pool, srv
+	return conn, srv
 }
 
 func wsURL(httpURL string) string {
@@ -77,7 +54,7 @@ func makeSnapshot(serverID, fp, q string, totalMs float64) *lynceusv1.Snapshot {
 }
 
 func TestServer_acceptsValidSnapshotAndPersistsToStatsDB(t *testing.T) {
-	pool, srv := setup(t, ingest.Config{
+	conn, srv := setup(t, ingest.Config{
 		DevToken:  "dev",
 		RateLimit: 10, RateBurst: 10,
 	})
@@ -88,9 +65,9 @@ func TestServer_acceptsValidSnapshotAndPersistsToStatsDB(t *testing.T) {
 		t.Fatalf("send: %v", err)
 	}
 
-	var rows int
+	var rows uint64
 	for i := 0; i < 50 && rows == 0; i++ {
-		_ = pool.QueryRow(ctx,
+		_ = conn.QueryRow(ctx,
 			`SELECT count(*) FROM query_stats WHERE server_id='srv-1' AND fingerprint='fp-A'`,
 		).Scan(&rows)
 		if rows > 0 {
@@ -102,15 +79,15 @@ func TestServer_acceptsValidSnapshotAndPersistsToStatsDB(t *testing.T) {
 		t.Fatalf("query_stats row count = %d, want 1", rows)
 	}
 
-	var dlq int
-	_ = pool.QueryRow(ctx, `SELECT count(*) FROM dlq`).Scan(&dlq)
+	var dlq uint64
+	_ = conn.QueryRow(ctx, `SELECT count(*) FROM dlq`).Scan(&dlq)
 	if dlq != 0 {
 		t.Errorf("dlq count = %d, want 0 (nothing should have been parked)", dlq)
 	}
 }
 
 func TestServer_persistsSchemaObjectsWithServerSideFirstSeen(t *testing.T) {
-	pool, srv := setup(t, ingest.Config{
+	conn, srv := setup(t, ingest.Config{
 		DevToken:  "dev",
 		RateLimit: 10, RateBurst: 10,
 	})
@@ -134,10 +111,10 @@ func TestServer_persistsSchemaObjectsWithServerSideFirstSeen(t *testing.T) {
 		t.Fatalf("send: %v", err)
 	}
 
-	var rows int
+	var rows uint64
 	for i := 0; i < 50 && rows == 0; i++ {
-		_ = pool.QueryRow(ctx,
-			`SELECT count(*) FROM schema_objects WHERE server_id='srv-inv' AND fqn='public.orders'`,
+		_ = conn.QueryRow(ctx,
+			`SELECT count(*) FROM schema_objects FINAL WHERE server_id='srv-inv' AND fqn='public.orders'`,
 		).Scan(&rows)
 		if rows > 0 {
 			break
@@ -149,8 +126,8 @@ func TestServer_persistsSchemaObjectsWithServerSideFirstSeen(t *testing.T) {
 	}
 
 	var firstSeen time.Time
-	if err := pool.QueryRow(ctx,
-		`SELECT first_seen_at FROM schema_objects WHERE server_id='srv-inv' AND fqn='public.orders'`,
+	if err := conn.QueryRow(ctx,
+		`SELECT first_seen_at FROM schema_objects FINAL WHERE server_id='srv-inv' AND fqn='public.orders'`,
 	).Scan(&firstSeen); err != nil {
 		t.Fatalf("read first_seen_at: %v", err)
 	}
@@ -160,7 +137,7 @@ func TestServer_persistsSchemaObjectsWithServerSideFirstSeen(t *testing.T) {
 }
 
 func TestIngest_writesTableStats(t *testing.T) {
-	pool, srv := setup(t, ingest.Config{
+	conn, srv := setup(t, ingest.Config{
 		DevToken:  "dev",
 		RateLimit: 10, RateBurst: 10,
 	})
@@ -182,7 +159,7 @@ func TestIngest_writesTableStats(t *testing.T) {
 		t.Fatalf("send: %v", err)
 	}
 
-	stats := store.NewStats(pool)
+	stats := store.NewCHStats(conn)
 	out, err := stats.LatestTableStats(ctx, "srv-ts", now.Add(time.Hour))
 	if err != nil {
 		t.Fatalf("latest: %v", err)
@@ -196,7 +173,7 @@ func TestIngest_writesTableStats(t *testing.T) {
 }
 
 func TestIngest_writesIndexStats(t *testing.T) {
-	pool, srv := setup(t, ingest.Config{
+	conn, srv := setup(t, ingest.Config{
 		DevToken:  "dev",
 		RateLimit: 10, RateBurst: 10,
 	})
@@ -217,7 +194,7 @@ func TestIngest_writesIndexStats(t *testing.T) {
 		t.Fatalf("send: %v", err)
 	}
 
-	stats := store.NewStats(pool)
+	stats := store.NewCHStats(conn)
 	out, err := stats.LatestIndexStats(ctx, "srv-ix", now.Add(time.Hour))
 	if err != nil {
 		t.Fatalf("latest: %v", err)
@@ -231,7 +208,7 @@ func TestIngest_writesIndexStats(t *testing.T) {
 }
 
 func TestIngest_writesSettings(t *testing.T) {
-	pool, srv := setup(t, ingest.Config{
+	conn, srv := setup(t, ingest.Config{
 		DevToken:  "dev",
 		RateLimit: 10, RateBurst: 10,
 	})
@@ -254,7 +231,7 @@ func TestIngest_writesSettings(t *testing.T) {
 		t.Fatalf("send: %v", err)
 	}
 
-	stats := store.NewStats(pool)
+	stats := store.NewCHStats(conn)
 	out, err := stats.LatestSettings(ctx, "srv-set", now.Add(time.Hour))
 	if err != nil {
 		t.Fatalf("latest: %v", err)
@@ -273,7 +250,7 @@ func TestIngest_writesSettings(t *testing.T) {
 
 //nolint:gocyclo // scenario-driven integration test; the assertions make complexity inherent
 func TestIngest_persistsLogEvents_alongsideQueryPlans(t *testing.T) {
-	pool, srv := setup(t, ingest.Config{
+	conn, srv := setup(t, ingest.Config{
 		DevToken: "dev", RateLimit: 10, RateBurst: 10,
 	})
 	ctx := context.Background()
@@ -300,9 +277,9 @@ func TestIngest_persistsLogEvents_alongsideQueryPlans(t *testing.T) {
 		t.Fatalf("shipper send (log events should be accepted, not rejected): %v", err)
 	}
 
-	var plans int
+	var plans uint64
 	for i := 0; i < 100 && plans == 0; i++ {
-		_ = pool.QueryRow(ctx,
+		_ = conn.QueryRow(ctx,
 			`SELECT count(*) FROM query_plans WHERE server_id = 'srv-logpark'`).Scan(&plans)
 		if plans > 0 {
 			break
@@ -314,9 +291,9 @@ func TestIngest_persistsLogEvents_alongsideQueryPlans(t *testing.T) {
 	}
 
 	// Shipped LogEvents now land in the log_events table.
-	var events int
+	var events uint64
 	for i := 0; i < 100 && events == 0; i++ {
-		_ = pool.QueryRow(ctx,
+		_ = conn.QueryRow(ctx,
 			`SELECT count(*) FROM log_events WHERE server_id = 'srv-logpark'`).Scan(&events)
 		if events > 0 {
 			break
@@ -333,7 +310,7 @@ func TestIngest_persistsLogEvents_alongsideQueryPlans(t *testing.T) {
 		pid, line, txid                int64
 		tier                           int16
 	)
-	if err := pool.QueryRow(ctx,
+	if err := conn.QueryRow(ctx,
 		`SELECT severity, database_name, user_name, application_name,
 		        client_addr_hash, sql_state, pid, session_line_num, transaction_id, data_tier
 		   FROM log_events
@@ -348,8 +325,8 @@ func TestIngest_persistsLogEvents_alongsideQueryPlans(t *testing.T) {
 	}
 
 	// A successful persist parks nothing.
-	var dlq int
-	_ = pool.QueryRow(ctx,
+	var dlq uint64
+	_ = conn.QueryRow(ctx,
 		`SELECT count(*) FROM dlq WHERE server_id = 'srv-logpark'`).Scan(&dlq)
 	if dlq != 0 {
 		t.Fatalf("nothing should be parked on the happy path; dlq rows = %d", dlq)
@@ -360,7 +337,7 @@ func TestServer_parksOverLimitSnapshotInDLQ(t *testing.T) {
 	// Per-server rate.Limit of 1/s with burst 1: the first snapshot
 	// consumes the burst, the second arrives "too soon" and must be
 	// DLQ'd rather than dropped.
-	pool, srv := setup(t, ingest.Config{
+	conn, srv := setup(t, ingest.Config{
 		DevToken:  "dev",
 		RateLimit: 1, RateBurst: 1,
 	})
@@ -378,9 +355,9 @@ func TestServer_parksOverLimitSnapshotInDLQ(t *testing.T) {
 	_ = err
 
 	// Wait for DLQ insertion to land (it may race with the close).
-	var dlq int
+	var dlq uint64
 	for i := 0; i < 50 && dlq == 0; i++ {
-		_ = pool.QueryRow(ctx,
+		_ = conn.QueryRow(ctx,
 			`SELECT count(*) FROM dlq WHERE server_id='srv-2' AND reason='rate_limited'`,
 		).Scan(&dlq)
 		if dlq > 0 {
@@ -393,8 +370,8 @@ func TestServer_parksOverLimitSnapshotInDLQ(t *testing.T) {
 	}
 
 	// First snapshot should still have landed in query_stats.
-	var qs int
-	_ = pool.QueryRow(ctx,
+	var qs uint64
+	_ = conn.QueryRow(ctx,
 		`SELECT count(*) FROM query_stats WHERE server_id='srv-2'`,
 	).Scan(&qs)
 	if qs != 1 {
@@ -406,7 +383,7 @@ func TestServer_parksOverLimitSnapshotInDLQ(t *testing.T) {
 // slow-scan QueryPlan and asserts the ingest server derives + persists an
 // insights row (server-side derivation; no collector emission).
 func TestServer_derivesAndPersistsInsightsFromPlan(t *testing.T) {
-	pool, srv := setup(t, ingest.Config{DevToken: "dev", RateLimit: 10, RateBurst: 10})
+	conn, srv := setup(t, ingest.Config{DevToken: "dev", RateLimit: 10, RateBurst: 10})
 	ctx := context.Background()
 
 	captured := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
@@ -432,9 +409,9 @@ func TestServer_derivesAndPersistsInsightsFromPlan(t *testing.T) {
 		t.Fatalf("send: %v", err)
 	}
 
-	var rows int
+	var rows uint64
 	for i := 0; i < 50 && rows == 0; i++ {
-		_ = pool.QueryRow(ctx,
+		_ = conn.QueryRow(ctx,
 			`SELECT count(*) FROM insights WHERE server_id='srv-ins' AND kind='slow_scan'`,
 		).Scan(&rows)
 		if rows > 0 {
@@ -447,7 +424,7 @@ func TestServer_derivesAndPersistsInsightsFromPlan(t *testing.T) {
 	}
 
 	var sev, rel string
-	if err := pool.QueryRow(ctx,
+	if err := conn.QueryRow(ctx,
 		`SELECT severity, relation FROM insights WHERE server_id='srv-ins'`,
 	).Scan(&sev, &rel); err != nil {
 		t.Fatalf("read insight: %v", err)
@@ -456,8 +433,8 @@ func TestServer_derivesAndPersistsInsightsFromPlan(t *testing.T) {
 		t.Fatalf("insight = (%s, %s), want (high, events)", sev, rel)
 	}
 
-	var dlq int
-	_ = pool.QueryRow(ctx, `SELECT count(*) FROM dlq`).Scan(&dlq)
+	var dlq uint64
+	_ = conn.QueryRow(ctx, `SELECT count(*) FROM dlq`).Scan(&dlq)
 	if dlq != 0 {
 		t.Errorf("dlq count = %d, want 0", dlq)
 	}

@@ -11,7 +11,7 @@ import (
 // for Databases).
 func setupEmptyFleet(t *testing.T) *httptest.Server {
 	t.Helper()
-	srv, _, _, _, _ := newVerticalFleet(t)
+	srv, _, _, _ := newVerticalFleet(t)
 	return srv
 }
 

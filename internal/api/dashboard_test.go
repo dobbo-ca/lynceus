@@ -10,8 +10,8 @@ import (
 )
 
 func TestDashboard_rendersTableWithSeededRowsAndNoLiterals(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedStats(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedStats(t, stats)
 
 	resp, err := http.Get(srv.URL + "/queries") // top-queries moved off root; root is the fleet shell (ly-ae6.2)
 	if err != nil {
@@ -52,8 +52,8 @@ func TestDashboard_rendersTableWithSeededRowsAndNoLiterals(t *testing.T) {
 }
 
 func TestQueriesPartial_returnsTableFragmentOnly(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedStats(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedStats(t, stats)
 
 	resp, err := http.Get(srv.URL + "/partial/queries")
 	if err != nil {

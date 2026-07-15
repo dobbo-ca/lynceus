@@ -51,9 +51,16 @@ func TestParseStream_realPostgresCsvlog(t *testing.T) {
 			"-c", "log_connections=on",
 			"-c", "log_disconnections=on",
 		),
+		// Wait for the listening port AND pg_isready: the mapped port opens
+		// during the entrypoint's temporary init server (before the final
+		// server accepts TCP), so a port-only wait races into "connection
+		// reset by peer". pg_isready over TCP only succeeds against the final
+		// server. Mirrors internal/testpg.ReadyWait.
 		testcontainers.WithWaitStrategyAndDeadline(
 			120*time.Second,
 			wait.ForListeningPort("5432/tcp").WithStartupTimeout(120*time.Second),
+			wait.ForExec([]string{"pg_isready", "-h", "127.0.0.1", "-p", "5432"}).
+				WithStartupTimeout(120*time.Second),
 		),
 	)
 	if err != nil {

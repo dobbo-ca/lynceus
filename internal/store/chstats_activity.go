@@ -8,7 +8,7 @@ import (
 )
 
 // chActivityBucketCols is the shared column order for activity_buckets writes,
-// mirroring pgxStats.activityBucketColumns. No reserved-word columns here.
+// carried over from the removed Postgres backend. No reserved-word columns here.
 const chActivityBucketCols = "server_id, database_name, state, wait_event_type, wait_event, " +
 	"bucket_start, bucket_seconds, sample_count, count_sum, count_max, data_tier"
 

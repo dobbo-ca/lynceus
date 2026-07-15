@@ -11,6 +11,7 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/api"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testch"
 )
 
 // setupOverview wires a server with two separate DBs (config + stats),
@@ -21,17 +22,17 @@ func setupOverview(t *testing.T) (srv *httptest.Server, clusterID, fp string) {
 	ctx := context.Background()
 
 	configPool := newDBPool(t)
-	statsPool := newDBPool(t)
+	conn := testch.Start(t)
 
 	if err := store.ApplyConfigMigrations(ctx, configPool); err != nil {
 		t.Fatalf("config migrate: %v", err)
 	}
-	if err := store.ApplyStatsMigrations(ctx, statsPool); err != nil {
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
 		t.Fatalf("stats migrate: %v", err)
 	}
 
 	cfg := store.NewConfig(configPool)
-	stats := store.NewStats(statsPool)
+	stats := store.NewCHStats(conn)
 
 	// Seed two server rows.
 	for _, id := range []string{"ov-srv-a", "ov-srv-b"} {

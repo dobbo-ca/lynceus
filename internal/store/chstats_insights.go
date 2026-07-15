@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// insights (chStats) — ClickHouse port of the pgxStats insights methods
+// insights (chStats) — ClickHouse port of the removed Postgres insights methods
 // (insights.go). Single T1 table; every read filters data_tier = 1. Column
 // order reuses insightsColumns so writes stay in lock-step with the pgx COPY.
 

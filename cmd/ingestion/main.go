@@ -19,13 +19,6 @@ import (
 )
 
 func main() {
-	dsn := os.Getenv("LYNCEUS_STATS_DSN")
-	if dsn == "" {
-		log.Fatal("LYNCEUS_STATS_DSN required")
-	}
-	if err := secure.CheckDatabaseDSN(dsn, secure.RequireTLS()); err != nil {
-		log.Fatal(err)
-	}
 	configDSN := os.Getenv("LYNCEUS_CONFIG_DSN")
 	if configDSN == "" {
 		log.Fatal("LYNCEUS_CONFIG_DSN required")
@@ -43,11 +36,10 @@ func main() {
 		syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	pool, err := pgxpool.New(ctx, dsn)
+	stats, err := store.OpenStats(ctx)
 	if err != nil {
-		log.Fatalf("connect stats db: %v", err) //nolint:gocritic // exitAfterDefer: deferred cleanup is best-effort on a fatal process exit
+		log.Fatalf("open stats backend: %v", err) //nolint:gocritic // exitAfterDefer: best-effort cleanup on fatal exit
 	}
-	defer pool.Close()
 
 	// Config-DB pool: the checks scheduler takes its cross-replica advisory
 	// lock here (always vanilla Postgres), since the stats backend may be
@@ -58,16 +50,12 @@ func main() {
 	}
 	defer configPool.Close()
 
-	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
-		log.Fatalf("migrate stats: %v", err)
-	}
-
 	srv := ingest.NewServer(ingest.Config{
 		DevToken: token, RateLimit: rateLimit, RateBurst: rateBurst,
-	}, store.NewStats(pool), pool)
+	}, stats)
 
 	checksInterval := time.Duration(envInt("LYNCEUS_CHECKS_INTERVAL_SEC", 60)) * time.Second
-	scheduler := checks.NewScheduler(store.NewStats(pool), configPool, checks.DefaultChecks(), checks.NopNotifier{}).
+	scheduler := checks.NewScheduler(stats, configPool, checks.DefaultChecks(), checks.NopNotifier{}).
 		WithInterval(checksInterval)
 	go scheduler.Run(ctx)
 

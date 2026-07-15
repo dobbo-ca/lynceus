@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/dobbo-ca/lynceus/internal/api"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 	"github.com/dobbo-ca/lynceus/internal/store"
@@ -24,10 +22,9 @@ const insightCanary = "PHI-CANARY-INSIGHT-7f3a"
 // seedPlans writes one stored plan whose Seq Scan child trips DefaultSlowScan
 // (MinRowsScanned=1000, MaxSelectivity=0.10, slowscan.go:18). Mirrors seedStats
 // (server_test.go:80) but for query_plans via store.WriteQueryPlans.
-func seedPlans(t *testing.T, pool *pgxpool.Pool) {
+func seedPlans(t *testing.T, s store.Stats) {
 	t.Helper()
 	ctx := context.Background()
-	s := store.NewStats(pool)
 	capturedAt := time.Now().UTC().Add(-time.Hour)
 	plan := &lynceusv1.QueryPlan{
 		Fingerprint:    "fp-slowscan",
@@ -52,8 +49,8 @@ func seedPlans(t *testing.T, pool *pgxpool.Pool) {
 }
 
 func TestInsightsPage_rendersDetectedInsights(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedPlans(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedPlans(t, stats)
 
 	resp, err := http.Get(srv.URL + "/insights")
 	if err != nil {
@@ -91,8 +88,8 @@ func TestInsightsPage_rendersDetectedInsights(t *testing.T) {
 }
 
 func TestInsightsPartial_returnsFragmentOnly(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedPlans(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedPlans(t, stats)
 
 	resp, err := http.Get(srv.URL + "/partial/insights")
 	if err != nil {

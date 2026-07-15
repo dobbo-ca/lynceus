@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/dobbo-ca/lynceus/internal/api"
 	"github.com/dobbo-ca/lynceus/internal/store"
 )
@@ -18,10 +16,9 @@ import (
 // via RecentServerIDs finds srv-1) plus curated settings rows with fsync=off
 // and shared_buffers at its default, so ConfigAdvice emits durability + memory
 // findings.
-func seedConfigData(t *testing.T, pool *pgxpool.Pool) {
+func seedConfigData(t *testing.T, s store.Stats) {
 	t.Helper()
 	ctx := context.Background()
-	s := store.NewStats(pool)
 	at := time.Now().UTC().Add(-time.Hour)
 	if err := s.WriteTableStats(ctx, []store.TableStatRow{{
 		ServerID:    "srv-1",
@@ -42,8 +39,8 @@ func seedConfigData(t *testing.T, pool *pgxpool.Pool) {
 }
 
 func TestConfigAdvisorPage_rendersRecommendations(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedConfigData(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedConfigData(t, stats)
 
 	resp, err := http.Get(srv.URL + "/config-advisor")
 	if err != nil {
@@ -74,8 +71,8 @@ func TestConfigAdvisorPage_rendersRecommendations(t *testing.T) {
 }
 
 func TestConfigAdvisorPartial_returnsFragmentOnly(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedConfigData(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedConfigData(t, stats)
 
 	resp, err := http.Get(srv.URL + "/partial/config-advisor")
 	if err != nil {

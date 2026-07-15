@@ -122,6 +122,9 @@ Three Go services, two databases, an SSR frontend. Kubernetes-native and horizon
 - **config/metadata DB** — plain PostgreSQL: orgs, servers, users, groups, RBAC grants, collector enrollment, audit log.
 - **stats DB** — PostgreSQL using **native declarative range partitioning** by time (e.g. weekly partitions), with partition creation and retention (drop old partitions) managed by Lynceus itself in Go. This needs **only vanilla Postgres** and runs on RDS/Aurora. Indexing favors BRIN on the time column plus btree on `(server_id, fingerprint)`.
 - **Optional stats backend — TimescaleDB.** Where operators run self-managed Postgres with the extension available, the stats store can be configured to use TimescaleDB hypertables (and compression / continuous aggregates) instead of native partitions. This is selected behind the `store.Stats` interface; **no Lynceus feature depends on it.**
+
+> **Update (ly-cwr.7/8, 2026-07):** the stats store is now **ClickHouse** — the *sole* stats backend, behind the `store.Stats` interface. The Postgres stats backend (`pgxStats`, native weekly partitioning) and the TimescaleDB option in the two bullets above have been **removed** (bullets kept for design history). Postgres remains only for the **config/metadata + audit** DB (still vanilla, RDS/Aurora-compatible) and the dev monitored target. See `docs/research/2026-07-14-clickhouse-bedrock-architecture.md` and `docs/reference/clickhouse-schema.md`.
+
 - Deployment of the databases is operator-agnostic: self-hosted via the **CloudNativePG** operator, or pointed at an external managed instance (RDS/Aurora/Cloud SQL) via connection string.
 
 ## 4. Wire Contract (collector ↔ server)

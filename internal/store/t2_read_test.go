@@ -1,8 +1,8 @@
 // Integration tests for the T2 literal-read gateway (ly-06i). Real
-// Postgres via testcontainers — two pools (config DB + stats DB), never
-// mocked, because the cross-DB coupling (config-DB gate + audit chain vs
-// stats-DB literal SELECT) and the fail-closed ordering are exactly what
-// we are validating.
+// engines via testcontainers — a config/audit Postgres pool and a stats
+// ClickHouse conn, never mocked, because the cross-DB coupling (config-DB
+// gate + audit chain vs stats-DB literal SELECT) and the fail-closed
+// ordering are exactly what we are validating.
 package store_test
 
 import (
@@ -13,17 +13,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testch"
 )
 
-// t2Fixture spins a config pool and a stats pool, migrates both, seeds a
-// servers row (t2_enabled per arg), optionally an enabled capability
-// policy, and writes one data_tier=2 query_stats row for readback.
+// t2Fixture spins a config pool and a stats ClickHouse conn, migrates
+// both, seeds a servers row (t2_enabled per arg), optionally an enabled
+// capability policy, and writes one data_tier=2 query_stats row for
+// readback.
 type t2Fixture struct {
 	cfg      *pgxpool.Pool
-	stats    *pgxpool.Pool
+	stats    driver.Conn
 	reader   *store.T2Reader
 	serverID string
 	capName  string
@@ -35,21 +38,23 @@ func newT2Fixture(t *testing.T, t2Enabled, capEnabled bool) t2Fixture {
 	t.Helper()
 	ctx := context.Background()
 	cfgPool := newPool(t)
-	statsPool := newPool(t)
+	conn := testch.Start(t)
 	if err := store.ApplyConfigMigrations(ctx, cfgPool); err != nil {
 		t.Fatalf("migrate config: %v", err)
 	}
-	if err := store.ApplyStatsMigrations(ctx, statsPool); err != nil {
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
 		t.Fatalf("migrate stats: %v", err)
 	}
 
 	f := t2Fixture{
 		cfg:      cfgPool,
-		stats:    statsPool,
+		stats:    conn,
 		serverID: "srv-1",
 		capName:  "query_text",
 		dbName:   "app",
-		when:     time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC),
+		// Recent so the row stays inside query_stats_t2's 7-day TTL window
+		// (the PG stats store had no TTL; ClickHouse's T2 table retains 7d).
+		when: time.Now().UTC(),
 	}
 
 	if _, err := cfgPool.Exec(ctx,
@@ -72,7 +77,7 @@ func newT2Fixture(t *testing.T, t2Enabled, capEnabled bool) t2Fixture {
 	}
 
 	// One literal-capable T2 row to read back.
-	s := store.NewStats(statsPool)
+	s := store.NewCHStats(conn)
 	if err := s.WriteQueryStats(ctx, []store.QueryStat{{
 		ServerID: f.serverID, CollectedAt: f.when,
 		Fingerprint: "fp-secret", NormalizedQuery: "SELECT * FROM t WHERE ssn = '123-45-6789'",
@@ -245,9 +250,11 @@ func TestT2Read_ConfigDBIsSourceOfTruth(t *testing.T) {
 	}
 }
 
-// No-unaudited-T2-path guard: exactly one `data_tier = 2` SELECT literal
-// exists in non-test store source, and it lives in the tier-2 read method
-// the gateway calls. Demonstrates the gateway is the single choke point.
+// No-unaudited-T2-path guard: exactly one read of the literal-bearing
+// query_stats_t2 table exists in non-test store source, and it lives in the
+// tier-2 read method the gateway calls. Under the ClickHouse-only backend, T2
+// isolation is table separation (query_stats_t2), not a data_tier=2 filter, so
+// a single `FROM query_stats_t2` SELECT is the choke point the gateway guards.
 func TestT2Read_OnlyOneTier2SelectInStoreSource(t *testing.T) {
 	root := "." // internal/store
 	entries, err := os.ReadDir(root)
@@ -264,16 +271,16 @@ func TestT2Read_OnlyOneTier2SelectInStoreSource(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", e.Name(), err)
 		}
-		n := strings.Count(string(b), "data_tier = 2")
+		n := strings.Count(string(b), "FROM query_stats_t2")
 		if n > 0 {
 			hits += n
 			files = append(files, e.Name())
 		}
 	}
 	if hits != 1 {
-		t.Fatalf("`data_tier = 2` appears %d time(s) in %v; must be exactly 1 (the gateway choke point)", hits, files)
+		t.Fatalf("`FROM query_stats_t2` appears %d time(s) in %v; must be exactly 1 (the gateway choke point)", hits, files)
 	}
-	if len(files) != 1 || files[0] != "t2_read.go" {
-		t.Fatalf("`data_tier = 2` must live only in t2_read.go, found in %v", files)
+	if len(files) != 1 || files[0] != "chstats.go" {
+		t.Fatalf("`FROM query_stats_t2` must live only in chstats.go, found in %v", files)
 	}
 }

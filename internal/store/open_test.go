@@ -5,12 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/testcontainers/testcontainers-go"
-	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
-
 	"github.com/dobbo-ca/lynceus/internal/store"
 	"github.com/dobbo-ca/lynceus/internal/testch"
-	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
 func TestOpenStats_RequiresBackend(t *testing.T) {
@@ -40,21 +36,6 @@ func TestOpenStats_ClickHouse(t *testing.T) {
 	assertStatsRoundTrip(t, s)
 }
 
-func TestOpenStats_Postgres(t *testing.T) {
-	ctx := context.Background()
-	dsn := startPG(t)
-	t.Setenv("LYNCEUS_REQUIRE_TLS", "false") // plaintext testcontainer DSN
-	t.Setenv("LYNCEUS_STATS_BACKEND", "postgres")
-	t.Setenv("LYNCEUS_STATS_DSN", dsn)
-	t.Setenv("LYNCEUS_STATS_RO_DSN", "")
-
-	s, err := store.OpenStats(ctx)
-	if err != nil {
-		t.Fatalf("OpenStats(postgres): %v", err)
-	}
-	assertStatsRoundTrip(t, s)
-}
-
 // assertStatsRoundTrip proves the returned backend is wired and functional:
 // a written T1 row is read back by TopQueriesByTotalTime.
 func assertStatsRoundTrip(t *testing.T, s store.Stats) {
@@ -73,24 +54,4 @@ func assertStatsRoundTrip(t *testing.T, s store.Stats) {
 	if len(got) != 1 || got[0].Fingerprint != "fp" {
 		t.Fatalf("round-trip mismatch: %+v", got)
 	}
-}
-
-func startPG(t *testing.T) string {
-	t.Helper()
-	ctx := context.Background()
-	c, err := tcpostgres.Run(ctx, "postgres:16",
-		tcpostgres.WithDatabase("lynceus_test"),
-		tcpostgres.WithUsername("test"),
-		tcpostgres.WithPassword("test"),
-		testpg.ReadyWait(),
-	)
-	if err != nil {
-		t.Skipf("docker/testcontainers unavailable: %v", err)
-	}
-	t.Cleanup(func() { _ = testcontainers.TerminateContainer(c) })
-	dsn, err := c.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		t.Fatalf("connection string: %v", err)
-	}
-	return dsn
 }

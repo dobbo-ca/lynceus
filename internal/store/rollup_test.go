@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testch"
 )
 
 func seedQueryStats(t *testing.T, ctx context.Context, s store.Stats, now time.Time) {
@@ -24,12 +25,12 @@ func seedQueryStats(t *testing.T, ctx context.Context, s store.Stats, now time.T
 }
 
 func TestQueryReadsForServers_scopeAndAggregate(t *testing.T) {
-	pool := newPool(t)
 	ctx := context.Background()
-	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+	conn := testch.Start(t)
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	s := store.NewStats(pool)
+	s := store.NewCHStats(conn)
 	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
 	seedQueryStats(t, ctx, s, now)
 
@@ -71,12 +72,12 @@ func TestQueryReadsForServers_scopeAndAggregate(t *testing.T) {
 }
 
 func TestActivitySummaryForServers(t *testing.T) {
-	pool := newPool(t)
 	ctx := context.Background()
-	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+	conn := testch.Start(t)
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	s := store.NewStats(pool)
+	s := store.NewCHStats(conn)
 
 	t0 := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
 	t1 := t0.Add(time.Minute) // a later bucket

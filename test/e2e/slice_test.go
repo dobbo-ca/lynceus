@@ -29,6 +29,7 @@ import (
 	"github.com/dobbo-ca/lynceus/internal/ingest"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testch"
 	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
@@ -82,36 +83,22 @@ func TestVerticalSlice_normalizedQueryRoundtripsAndCanaryNeverLeaks(t *testing.T
 		t.Fatalf("target query with canary: %v", err)
 	}
 
-	// --- stats Postgres + migrations ---
-	statsC, err := tcpostgres.Run(ctx,
-		"postgres:16",
-		tcpostgres.WithDatabase("stats"),
-		tcpostgres.WithUsername("test"),
-		tcpostgres.WithPassword("test"),
-		testpg.ReadyWait(),
-	)
-	if err != nil {
-		t.Skipf("stats container unavailable: %v", err)
+	// --- stats store: ClickHouse (the sole stats backend) + migrations ---
+	conn := testch.Start(t)
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
+		t.Fatalf("apply clickhouse migrations: %v", err)
 	}
-	t.Cleanup(func() { _ = testcontainers.TerminateContainer(statsC) })
+	stats := store.NewCHStats(conn)
 
-	statsURL, err := statsC.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		t.Fatal(err)
-	}
-	statsPool, err := pgxpool.New(ctx, statsURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(statsPool.Close)
-	if err := store.ApplyStatsMigrations(ctx, statsPool); err != nil {
-		t.Fatalf("apply stats migrations: %v", err)
-	}
+	// --- config store: vanilla Postgres (config/audit stays PG) ---
+	// DevAuth is on and /queries reads only the stats store, so the config
+	// store is never exercised here; it exists to satisfy api.NewServer.
+	cfgPool := testpg.Start(t)
 
 	// --- ingestion server (in-process) ---
 	ingSrv := httptest.NewServer(ingest.NewServer(
 		ingest.Config{DevToken: "dev", RateLimit: 10, RateBurst: 10},
-		store.NewStats(statsPool), statsPool,
+		stats,
 	).Handler())
 	t.Cleanup(ingSrv.Close)
 	wsURL := "ws" + strings.TrimPrefix(ingSrv.URL, "http")
@@ -119,8 +106,8 @@ func TestVerticalSlice_normalizedQueryRoundtripsAndCanaryNeverLeaks(t *testing.T
 	// --- api server (in-process) ---
 	apiSrv := httptest.NewServer(api.NewServer(
 		api.Config{DevAuth: true},
-		store.NewStats(statsPool),
-		store.NewConfig(statsPool),
+		stats,
+		store.NewConfig(cfgPool),
 	).Handler())
 	t.Cleanup(apiSrv.Close)
 
@@ -141,9 +128,13 @@ func TestVerticalSlice_normalizedQueryRoundtripsAndCanaryNeverLeaks(t *testing.T
 		}
 	}
 
+	// Stamp the snapshot a moment in the past (as a real collector's shipped
+	// snapshot always is). The dashboard reads query_stats over [now-30d, now)
+	// and the ClickHouse driver binds the `collected_at < now` bound truncated
+	// to whole seconds, so a same-second snapshot would fall out of the window.
 	snap := &lynceusv1.Snapshot{
 		ServerId:        "srv-e2e",
-		CollectedAtUnix: time.Now().Unix(),
+		CollectedAtUnix: time.Now().Add(-time.Minute).Unix(),
 		QueryStats:      rows,
 	}
 	if err := collector.NewShipper(wsURL, "dev").Send(ctx, snap); err != nil {
@@ -151,9 +142,9 @@ func TestVerticalSlice_normalizedQueryRoundtripsAndCanaryNeverLeaks(t *testing.T
 	}
 
 	// --- wait for ingestion to persist ---
-	var persisted int
+	var persisted uint64
 	for i := 0; i < 100 && persisted == 0; i++ {
-		_ = statsPool.QueryRow(ctx,
+		_ = conn.QueryRow(ctx,
 			`SELECT count(*) FROM query_stats WHERE server_id = 'srv-e2e'`,
 		).Scan(&persisted)
 		if persisted > 0 {
@@ -166,7 +157,7 @@ func TestVerticalSlice_normalizedQueryRoundtripsAndCanaryNeverLeaks(t *testing.T
 	}
 
 	// --- assert STORAGE has no canary ---
-	storedRows, err := statsPool.Query(ctx,
+	storedRows, err := conn.Query(ctx,
 		`SELECT normalized_query FROM query_stats WHERE server_id = 'srv-e2e'`,
 	)
 	if err != nil {

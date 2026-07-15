@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/dobbo-ca/lynceus/internal/api"
 	"github.com/dobbo-ca/lynceus/internal/store"
 )
@@ -17,10 +15,9 @@ import (
 // seedChecksData writes one table_stats row (so the handler's
 // RecentServerIDs server-discovery finds srv-a) plus one firing
 // checks_results row. Mirrors seedVacuumData (vacuum_advisor_test.go).
-func seedChecksData(t *testing.T, pool *pgxpool.Pool) {
+func seedChecksData(t *testing.T, s store.Stats) {
 	t.Helper()
 	ctx := context.Background()
-	s := store.NewStats(pool)
 	at := time.Now().UTC().Add(-time.Hour)
 	if err := s.WriteTableStats(ctx, []store.TableStatRow{{
 		ServerID: "srv-a", CollectedAt: at, FQN: "public.t", SchemaName: "public", ObjectName: "t",
@@ -36,8 +33,8 @@ func seedChecksData(t *testing.T, pool *pgxpool.Pool) {
 }
 
 func TestChecksPageRenders(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedChecksData(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedChecksData(t, stats)
 
 	resp, err := http.Get(srv.URL + "/checks")
 	if err != nil {
@@ -55,8 +52,8 @@ func TestChecksPageRenders(t *testing.T) {
 }
 
 func TestChecksMute_toggleRoundTrip(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedChecksData(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedChecksData(t, stats)
 
 	muteURL := srv.URL + "/partial/checks/mute?server=srv-a&check=test.always&object=obj1"
 

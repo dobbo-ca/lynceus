@@ -28,6 +28,7 @@ import (
 	"github.com/dobbo-ca/lynceus/internal/logparse"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testch"
 	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
@@ -109,35 +110,15 @@ func TestLogSlice_planExtractedAndCanaryNeverLeaks(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	// --- stats Postgres + migrations + in-process ingestion server ---
-	statsC, err := tcpostgres.Run(ctx,
-		"postgres:16",
-		tcpostgres.WithDatabase("stats"),
-		tcpostgres.WithUsername("test"),
-		tcpostgres.WithPassword("test"),
-		testpg.ReadyWait(),
-	)
-	if err != nil {
-		t.Skipf("stats container unavailable: %v", err)
-	}
-	t.Cleanup(func() { _ = testcontainers.TerminateContainer(statsC) })
-
-	statsURL, err := statsC.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		t.Fatal(err)
-	}
-	statsPool, err := pgxpool.New(ctx, statsURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(statsPool.Close)
-	if err := store.ApplyStatsMigrations(ctx, statsPool); err != nil {
-		t.Fatalf("apply stats migrations: %v", err)
+	// --- stats store: ClickHouse (the sole stats backend) + in-process ingestion server ---
+	conn := testch.Start(t)
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
+		t.Fatalf("apply clickhouse migrations: %v", err)
 	}
 
 	ingSrv := httptest.NewServer(ingest.NewServer(
 		ingest.Config{DevToken: "dev", RateLimit: 10, RateBurst: 10},
-		store.NewStats(statsPool), statsPool,
+		store.NewCHStats(conn),
 	).Handler())
 	t.Cleanup(ingSrv.Close)
 	wsURL := "ws" + strings.TrimPrefix(ingSrv.URL, "http")
@@ -193,9 +174,9 @@ func TestLogSlice_planExtractedAndCanaryNeverLeaks(t *testing.T) {
 	}
 
 	// --- wait for the plan to persist ---
-	var persisted int
+	var persisted uint64
 	for i := 0; i < 100 && persisted == 0; i++ {
-		_ = statsPool.QueryRow(ctx,
+		_ = conn.QueryRow(ctx,
 			`SELECT count(*) FROM query_plans WHERE server_id = 'srv-log-e2e'`,
 		).Scan(&persisted)
 		if persisted > 0 {
@@ -208,8 +189,8 @@ func TestLogSlice_planExtractedAndCanaryNeverLeaks(t *testing.T) {
 	}
 
 	// STORAGE checkpoint: the persisted plan JSON must not contain the canary.
-	rows, err := statsPool.Query(ctx,
-		`SELECT plan_tree::text FROM query_plans WHERE server_id = 'srv-log-e2e'`)
+	rows, err := conn.Query(ctx,
+		`SELECT plan_tree FROM query_plans WHERE server_id = 'srv-log-e2e'`)
 	if err != nil {
 		t.Fatal(err)
 	}
