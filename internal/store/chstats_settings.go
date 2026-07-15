@@ -12,7 +12,7 @@ const chSettingsCols = "server_id, collected_at, name, value, unit, source, " +
 
 // WriteSettings appends a batch of settings rows. DataTier zero is coerced to 1
 // (settings are T1-only). pending_restart (bool) is stored as UInt8. Empty
-// input is a no-op. Mirrors pgxStats.WriteSettings.
+// input is a no-op. Mirrors the removed Postgres WriteSettings.
 func (s *chStats) WriteSettings(ctx context.Context, rows []SettingRow) error {
 	if len(rows) == 0 {
 		return nil
@@ -46,7 +46,7 @@ func (s *chStats) WriteSettings(ctx context.Context, rows []SettingRow) error {
 // or before asOf, data_tier = 1 only, ordered by name. argMax(col, collected_at)
 // picks each column from the row with the greatest collected_at per name — the
 // idiomatic ClickHouse spelling of the pgx "(name, max(collected_at)) IN (…)"
-// latest-as-of correlation. Mirrors pgxStats.LatestSettings.
+// latest-as-of correlation. Mirrors the removed Postgres LatestSettings.
 func (s *chStats) LatestSettings(ctx context.Context, serverID string, asOf time.Time) ([]SettingRow, error) {
 	rows, err := s.conn.Query(ctx,
 		`SELECT server_id,

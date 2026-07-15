@@ -9,7 +9,7 @@ import (
 // This file holds the backend-agnostic row/value types and the one shared
 // column-order const consumed by the ClickHouse stats implementation
 // (chstats_*.go) and the Stats interface. They were relocated here when the
-// Postgres stats backend (pgxStats) was removed.
+// Postgres stats backend was removed.
 
 // Throughput is the aggregate query volume for a server set over a window.
 type Throughput struct {
