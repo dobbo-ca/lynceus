@@ -11,7 +11,7 @@
   `store.ApplyClickHouseMigrations` (`internal/store/chmigrate.go`). Each file is split on `;` and
   run statement-by-statement; applied versions are tracked in `schema_migrations`.
 - **Database:** every table is defined **unqualified** and resolves against the connection's
-  default database, which comes from `LYNCEUS_CLICKHOUSE_DSN`. In dev/CI that database is
+  default database, which comes from `LYNCEUS_CLICKHOUSE_USER_DSN`. In dev/CI that database is
   **`lynceus_stats`** (`docker-compose.dev.yml` → `CLICKHOUSE_DB=lynceus_stats`; `internal/testch`
   → `WithDatabase("lynceus_stats")`). Tables are shown here **db-qualified for clarity**
   (`lynceus_stats.<table>`); the DDL itself is **not** qualified — see "Database qualification"
@@ -356,13 +356,14 @@ Read current state with `FINAL` or `GROUP BY (server_id, kind, fqn)` +
 
 ---
 
-## Database `lynceus_stats` — T2 (literal-bearing) — INTERIM location
+## Database `lynceus_stats` — T2 (literal-bearing)
 
-> ⚠️ **Interim.** `query_stats_t2` currently lives in the **same database and under the same
-> credential** as the T1 tables. The ADR §4.4 raw-isolation guardrail is **not yet enforced**.
-> ly-cwr.6 moves it to an isolated database + dedicated gateway credential — see
-> "T2 access control & isolation" below. Do **not** write production T2 literals to ClickHouse
-> before ly-cwr.6 lands.
+> **ly-cwr.6 has landed.** `query_stats_t2` lives in the same `lynceus_stats` database as the T1
+> tables, but is isolated at the ClickHouse layer: a row policy makes the Lynceus runtime **USER**
+> the only identity that can read its rows (`USING (currentUser() = '<user>') TO ALL`), the T2
+> read/write path runs with `log_queries=0` so literals never reach the shared `system.query_log`,
+> and the retention window is configurable (`LYNCEUS_CLICKHOUSE_T2_TTL_DAYS`, default 7). See
+> "T2 access control & isolation" below.
 
 ### `lynceus_stats.query_stats_t2` — literal-bearing query statistics (T2)
 Same shape as `query_stats`, `data_tier` defaults to 2, **7-day TTL** (short literal-custody
@@ -400,38 +401,37 @@ Qualification becomes meaningful only for **T2/raw isolation** (below), where a 
 plus a *dedicated credential* is the boundary — and even there, the enforced boundary is the
 credential/role, not the name prefix.
 
-## T2 access control & isolation (ly-cwr.5 / ly-cwr.6)
+## T2 access control & isolation (ly-cwr.6 — SHIPPED)
 
-Layers, from enforced to defense-in-depth:
+Lynceus is a **tenant** of a shared, org-operated ClickHouse; it does not own the store, so the
+boundary is what a tenant controls, not a separate database.
 
 1. **Audited gateway is the enforcement point (unchanged).** Everything Lynceus serves reaches T2
-   literals **only** through the Go `T2Reader` gateway: fast-reject on `servers.t2_enabled` →
-   `EffectiveCapability` authorize → **audit append FIRST, fail-closed (Postgres hash-chain)** →
-   the sole literal-returning SELECT (`ReadQueryStatsTier2`). ClickHouse RBAC **cannot audit a
-   read** (no SELECT trigger), so CH controls are never the enforcement/audit point — only
-   containment beneath the gateway.
+   literals only through the Go `T2Reader`: fast-reject on `servers.t2_enabled` →
+   `EffectiveCapability` → audit append FIRST, fail-closed (Postgres hash-chain) → the sole
+   literal-returning SELECT (`ReadQueryStatsTier2`). ClickHouse cannot audit a read.
 
-2. **Isolated database + dedicated credential (ly-cwr.6).** Move `query_stats_t2` (and any future
-   raw table) into a dedicated database — e.g. **`lynceus_raw`** — reachable **only** by a
-   dedicated gateway CH role. Analysis / Bedrock roles are granted the T1 database only and
-   **denied** the raw database. This is the strongest lever: the raw table is network/credential
-   isolated, and the gateway connection is the only client that can reach it.
+2. **Two Lynceus identities.** `LYNCEUS_CLICKHOUSE_ADMIN_DSN` runs DDL + one-time provisioning;
+   `LYNCEUS_CLICKHOUSE_USER_DSN` runs all runtime reads/writes.
 
-3. **Row-level & column-level security as defense-in-depth (colleague's suggestion — adopted).**
-   ClickHouse OSS supports:
-   - **Column grants:** `GRANT SELECT(col, …) ON <db>.<table> TO <role>` — grant a role the
-     non-literal columns and **withhold the literal-bearing column** (`normalized_query`).
-   - **Row policies:** `CREATE ROW POLICY … USING data_tier = 1 TO <analysis_role>` — a role sees
-     only T1 rows even on a shared table.
+3. **Row-level security restricts `query_stats_t2` to the USER.**
+   `CREATE ROW POLICY t2_lynceus_only ON query_stats_t2 USING (currentUser() = '<user>') TO ALL`.
+   Because the policy applies to *all* users, only the Lynceus USER's rows pass; every other tenant
+   (and the ADMIN identity) sees zero rows. **Verified on ClickHouse 25.8** — the naive
+   `USING 1 TO <user>` does *not* deny users not named in it. T1 tables carry no policy → readable
+   by all, per design.
 
-   These are **enforced RBAC** (unlike a plain `VIEW`, which the ADR rejected as merely
-   conventional), so they are a legitimate containment layer. Use them belt-and-suspenders under
-   layers 1–2: even if a query reaches the store on the analysis role, column/row policy denies
-   the literal. They **do not** replace the audited gateway (they cannot audit) and are weaker
-   alone than a separate database + credential (a single misgrant re-exposes literals on a shared
-   table). Recommended posture: **separate `lynceus_raw` DB + dedicated gateway role (primary
-   boundary) + row/column policies on every non-gateway role (defense-in-depth)**, with
-   `query_log` scrubbed/disabled on the raw path and the raw table TTL-bounded.
+4. **`query_log` scrub.** The T2 read/write (and the provisioning `CREATE USER`) run with
+   `log_queries=0`, so T2 literals and the runtime password never reach the shared
+   `system.query_log`.
 
-**Open item (ADR §7.3):** raw-table retention — short TTL (retrospective T2, bounded custody) vs a
-`Null`/ultra-short engine (zero literals at rest, no retrospective T2). Decided in ly-cwr.6.
+5. **Configurable retention.** `LYNCEUS_CLICKHOUSE_T2_TTL_DAYS` (default 7) sets the `query_stats_t2`
+   TTL via `ALTER TABLE … MODIFY TTL` at bootstrap.
+
+**Accepted residual risk:** a leaked USER credential can read T2 directly (no separate gateway role).
+Narrower than the prior single-shared-credential state; the audited `T2Reader` remains the
+enforcement point for everything Lynceus serves.
+
+**Optional future hardening (not built):** column-level security withholding `normalized_query`
+from other identities (redundant while the row policy already yields zero rows). Org-owned RBAC for
+Grafana / analysts / Bedrock is out of Lynceus's scope.

@@ -52,6 +52,7 @@ services:
       CLICKHOUSE_USER: lynceus
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run 'make dev-up' to generate a random dev token in .env}
       CLICKHOUSE_DB: lynceus_stats
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
     ports:
       - "8123:8123"
       - "9000:9000"
