@@ -13,6 +13,7 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/api"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testch"
 )
 
 // setupConsole seeds cluster(clusterName) → instance "primary" → server stream
@@ -41,7 +42,11 @@ func setupConsole(t *testing.T, clusterName string) (*httptest.Server, string, s
 		"srv-con", inst.ID, "appdb"); err != nil {
 		t.Fatalf("seed server stream: %v", err)
 	}
-	srv := httptest.NewServer(api.NewServer(api.Config{DevAuth: true}, store.NewStats(pool), cfg).Handler())
+	conn := testch.Start(t)
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
+		t.Fatalf("migrate stats: %v", err)
+	}
+	srv := httptest.NewServer(api.NewServer(api.Config{DevAuth: true}, store.NewCHStats(conn), cfg).Handler())
 	t.Cleanup(srv.Close)
 	return srv, cl.ID, inst.ID, pool
 }

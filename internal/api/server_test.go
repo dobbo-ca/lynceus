@@ -12,6 +12,7 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/api"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testch"
 	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
@@ -22,19 +23,21 @@ func newPGPool(t *testing.T) *pgxpool.Pool {
 	return testpg.Start(t)
 }
 
-// setup wires a server backed by the stats DB (the original MVP path).
-// The config store points at the same pool but is unused by these tests;
-// it exists only to satisfy NewServer.
-func setup(t *testing.T, cfg api.Config) (*pgxpool.Pool, *httptest.Server) {
+// setup wires a server backed by a ClickHouse stats store (the original MVP
+// path). The config store points at a fresh, unmigrated Postgres pool — it is
+// unused by these tests and exists only to satisfy NewServer.
+func setup(t *testing.T, cfg api.Config) (store.Stats, *httptest.Server) {
 	t.Helper()
-	pool := newPGPool(t)
-	if err := store.ApplyStatsMigrations(context.Background(), pool); err != nil {
+	ctx := context.Background()
+	conn := testch.Start(t)
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
 		t.Fatalf("migrate stats: %v", err)
 	}
+	stats := store.NewCHStats(conn)
 	srv := httptest.NewServer(
-		api.NewServer(cfg, store.NewStats(pool), store.NewConfig(pool)).Handler())
+		api.NewServer(cfg, stats, store.NewConfig(newPGPool(t))).Handler())
 	t.Cleanup(srv.Close)
-	return pool, srv
+	return stats, srv
 }
 
 // setupAudit wires a server backed by the config DB. Only the config
@@ -43,20 +46,24 @@ func setup(t *testing.T, cfg api.Config) (*pgxpool.Pool, *httptest.Server) {
 // on the shared schema_migrations version "0001_init".
 func setupAudit(t *testing.T, cfg api.Config) (*pgxpool.Pool, *httptest.Server) {
 	t.Helper()
+	ctx := context.Background()
 	pool := newPGPool(t)
-	if err := store.ApplyConfigMigrations(context.Background(), pool); err != nil {
+	if err := store.ApplyConfigMigrations(ctx, pool); err != nil {
 		t.Fatalf("migrate config: %v", err)
 	}
+	conn := testch.Start(t)
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
+		t.Fatalf("migrate stats: %v", err)
+	}
 	srv := httptest.NewServer(
-		api.NewServer(cfg, store.NewStats(pool), store.NewConfig(pool)).Handler())
+		api.NewServer(cfg, store.NewCHStats(conn), store.NewConfig(pool)).Handler())
 	t.Cleanup(srv.Close)
 	return pool, srv
 }
 
-func seedStats(t *testing.T, pool *pgxpool.Pool) {
+func seedStats(t *testing.T, s store.Stats) {
 	t.Helper()
 	ctx := context.Background()
-	s := store.NewStats(pool)
 	now := time.Now().UTC().Add(-time.Hour)
 	rows := []store.QueryStat{
 		{ServerID: "srv", CollectedAt: now, Fingerprint: "fp-fast", NormalizedQuery: "SELECT 1", Calls: 100, TotalTimeMs: 10},
@@ -85,8 +92,8 @@ func seedAudit(t *testing.T, pool *pgxpool.Pool) {
 }
 
 func TestTopQueries_devAuth_returnsRowsSortedByTotalTimeDesc(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedStats(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedStats(t, stats)
 
 	resp, err := http.Get(srv.URL + "/api/queries/top?limit=10")
 	if err != nil {

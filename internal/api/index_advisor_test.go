@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/dobbo-ca/lynceus/internal/api"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 	"github.com/dobbo-ca/lynceus/internal/store"
@@ -25,10 +23,9 @@ const advisorCanary = "PHI-CANARY-ADVISOR-9d2c"
 // (yielding a "status" index candidate) plus a matching table_stats row so the
 // recommender can size/rank it. Mirrors seedPlans (insights_test.go:27) +
 // seedStats (server_test.go:80).
-func seedAdvisorData(t *testing.T, pool *pgxpool.Pool) {
+func seedAdvisorData(t *testing.T, s store.Stats) {
 	t.Helper()
 	ctx := context.Background()
-	s := store.NewStats(pool)
 	capturedAt := time.Now().UTC().Add(-time.Hour)
 	plan := &lynceusv1.QueryPlan{
 		Fingerprint:    "fp-advisor",
@@ -61,8 +58,8 @@ func seedAdvisorData(t *testing.T, pool *pgxpool.Pool) {
 }
 
 func TestIndexAdvisorPage_rendersRecommendations(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedAdvisorData(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedAdvisorData(t, stats)
 
 	resp, err := http.Get(srv.URL + "/index-advisor")
 	if err != nil {
@@ -99,8 +96,8 @@ func TestIndexAdvisorPage_rendersRecommendations(t *testing.T) {
 }
 
 func TestIndexAdvisorPartial_returnsFragmentOnly(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedAdvisorData(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedAdvisorData(t, stats)
 
 	resp, err := http.Get(srv.URL + "/partial/index-advisor")
 	if err != nil {

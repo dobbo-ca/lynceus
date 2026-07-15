@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/dobbo-ca/lynceus/internal/api"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 	"github.com/dobbo-ca/lynceus/internal/store"
@@ -19,10 +17,9 @@ import (
 // ListPlanKeys finds srv-1) plus a table_stats row that is bloated, stale, and
 // behind on autovacuum so the recommender emits Bloat + Performance + Activity
 // findings. Mirrors seedAdvisorData (index_advisor_test.go:28).
-func seedVacuumData(t *testing.T, pool *pgxpool.Pool) {
+func seedVacuumData(t *testing.T, s store.Stats) {
 	t.Helper()
 	ctx := context.Background()
-	s := store.NewStats(pool)
 	capturedAt := time.Now().UTC().Add(-time.Hour)
 	plan := &lynceusv1.QueryPlan{
 		Fingerprint:    "fp-vacuum",
@@ -57,8 +54,8 @@ func seedVacuumData(t *testing.T, pool *pgxpool.Pool) {
 }
 
 func TestVacuumAdvisorPage_rendersRecommendations(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedVacuumData(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedVacuumData(t, stats)
 
 	resp, err := http.Get(srv.URL + "/vacuum-advisor")
 	if err != nil {
@@ -89,8 +86,8 @@ func TestVacuumAdvisorPage_rendersRecommendations(t *testing.T) {
 }
 
 func TestVacuumAdvisorPartial_returnsFragmentOnly(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedVacuumData(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedVacuumData(t, stats)
 
 	resp, err := http.Get(srv.URL + "/partial/vacuum-advisor")
 	if err != nil {

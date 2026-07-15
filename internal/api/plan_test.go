@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/dobbo-ca/lynceus/internal/api"
 	lynceusv1 "github.com/dobbo-ca/lynceus/internal/proto/lynceus/v1"
 	"github.com/dobbo-ca/lynceus/internal/store"
@@ -20,10 +18,9 @@ import (
 // ago, with a Seq Scan child under an Aggregate root so the tree has at
 // least two levels and the grid has two rows. Mirrors seedStats
 // (server_test.go:80) and the plans_test fixture (plans_test.go:40-66).
-func seedPlanRows(t *testing.T, pool *pgxpool.Pool) {
+func seedPlanRows(t *testing.T, s store.Stats) {
 	t.Helper()
 	ctx := context.Background()
-	s := store.NewStats(pool)
 	now := time.Now().UTC().Add(-time.Hour)
 	plan := &lynceusv1.QueryPlan{
 		Fingerprint:       "fp-plan",
@@ -54,8 +51,8 @@ func seedPlanRows(t *testing.T, pool *pgxpool.Pool) {
 }
 
 func TestPlanPage_rendersTreeAndGrid(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedPlanRows(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedPlanRows(t, stats)
 
 	resp, err := http.Get(srv.URL + "/plan?server=srv&fp=fp-plan")
 	if err != nil {
@@ -96,8 +93,8 @@ func TestPlanPage_rendersTreeAndGrid(t *testing.T) {
 }
 
 func TestPlanPartial_returnsFragmentOnly(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedPlanRows(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedPlanRows(t, stats)
 
 	resp, err := http.Get(srv.URL + "/partial/plan?server=srv&fp=fp-plan")
 	if err != nil {
@@ -123,8 +120,8 @@ func TestPlanPartial_returnsFragmentOnly(t *testing.T) {
 }
 
 func TestPlan_flatListRendersAllNodes(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedPlanRows(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedPlanRows(t, stats)
 
 	resp, err := http.Get(srv.URL + "/partial/plan?server=srv&fp=fp-plan")
 	if err != nil {
@@ -146,8 +143,8 @@ func TestPlan_flatListRendersAllNodes(t *testing.T) {
 }
 
 func TestPlan_missingKey_rendersEmpty(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedPlanRows(t, pool) // seed a real plan so we know the empty branch is key-driven
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedPlanRows(t, stats) // seed a real plan so we know the empty branch is key-driven
 
 	// A fingerprint that was never stored.
 	u := srv.URL + "/plan?server=srv&fp=" + url.QueryEscape("does-not-exist")

@@ -13,8 +13,11 @@ import (
 func setupNodes(t *testing.T) *httptest.Server {
 	t.Helper()
 	ctx := context.Background()
-	srv, cfg, stats, configPool, _ := newVerticalFleet(t)
-	now := time.Now().UTC()
+	srv, cfg, stats, configPool := newVerticalFleet(t)
+	// Seed an hour back so rows land strictly inside the handler's
+	// [now-1d, now) window (exclusive upper bound); seeding at exactly now
+	// races the request instant under the stats store's timestamp precision.
+	now := time.Now().UTC().Add(-time.Hour)
 
 	// --- orders-prod (healthy, rich metrics) ---
 	for _, id := range []string{"srv-orders-primary", "srv-orders-replica"} {

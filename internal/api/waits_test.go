@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/dobbo-ca/lynceus/internal/api"
 	"github.com/dobbo-ca/lynceus/internal/store"
 )
@@ -17,10 +15,9 @@ import (
 // seedWaits writes a few activity buckets for server "s1" inside the page's
 // 7-day window: an IO wait, a Lock wait, and an on-CPU sample (empty labels).
 // Mirrors seedStats (server_test.go:80) but for activity_buckets.
-func seedWaits(t *testing.T, pool *pgxpool.Pool) {
+func seedWaits(t *testing.T, s store.Stats) {
 	t.Helper()
 	ctx := context.Background()
-	s := store.NewStats(pool)
 	now := time.Now().UTC().Add(-time.Hour)
 	rows := []store.ActivityBucket{
 		{ServerID: "s1", Database: "db", State: "active", WaitEventType: "IO", WaitEvent: "DataFileRead",
@@ -36,8 +33,8 @@ func seedWaits(t *testing.T, pool *pgxpool.Pool) {
 }
 
 func TestWaitsPage_rendersHistogram(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedWaits(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedWaits(t, stats)
 
 	resp, err := http.Get(srv.URL + "/waits?server=s1")
 	if err != nil {
@@ -68,8 +65,8 @@ func TestWaitsPage_rendersHistogram(t *testing.T) {
 }
 
 func TestWaitsPartial_returnsFragmentOnly(t *testing.T) {
-	pool, srv := setup(t, api.Config{DevAuth: true})
-	seedWaits(t, pool)
+	stats, srv := setup(t, api.Config{DevAuth: true})
+	seedWaits(t, stats)
 
 	resp, err := http.Get(srv.URL + "/partial/waits?server=s1")
 	if err != nil {

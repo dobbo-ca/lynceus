@@ -11,6 +11,7 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/api"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testch"
 	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
@@ -25,22 +26,22 @@ func newDBPool(t *testing.T) *pgxpool.Pool {
 // newVerticalFleet migrates the two stores and starts an httptest server with
 // the real API handler wired, returning everything the per-screen setups need
 // to seed. Seeding after NewServer is fine — handlers read the DB per request.
-func newVerticalFleet(t *testing.T) (srv *httptest.Server, cfg store.Config, stats store.Stats, configPool, statsPool *pgxpool.Pool) {
+func newVerticalFleet(t *testing.T) (srv *httptest.Server, cfg store.Config, stats store.Stats, configPool *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
 	configPool = newDBPool(t)
-	statsPool = newDBPool(t)
+	conn := testch.Start(t)
 	if err := store.ApplyConfigMigrations(ctx, configPool); err != nil {
 		t.Fatalf("config migrate: %v", err)
 	}
-	if err := store.ApplyStatsMigrations(ctx, statsPool); err != nil {
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
 		t.Fatalf("stats migrate: %v", err)
 	}
 	cfg = store.NewConfig(configPool)
-	stats = store.NewStats(statsPool)
+	stats = store.NewCHStats(conn)
 	srv = httptest.NewServer(api.NewServer(api.Config{DevAuth: true}, stats, cfg).Handler())
 	t.Cleanup(srv.Close)
-	return srv, cfg, stats, configPool, statsPool
+	return srv, cfg, stats, configPool
 }
 
 // body reads an *http.Response body to a string (used by shell_test.go and the
