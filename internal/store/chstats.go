@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 )
 
@@ -26,6 +27,18 @@ func NewCHStats(conn driver.Conn) *chStats { return &chStats{conn: conn} }
 const chQueryStatsCols = "server_id, collected_at, fingerprint, normalized_query, data_tier, " +
 	"calls, total_time_ms, mean_time_ms, `rows`, shared_blks_hit, shared_blks_read"
 
+// scrubbedCtx suppresses ClickHouse query logging for statements on the T2
+// (literal-bearing) path, so a T2 SELECT/INSERT — and, on the provisioning
+// path, a CREATE USER … IDENTIFIED BY — never lands in the shared
+// system.query_log. Structural to the query (literals are bind params or in
+// row data, not the query text), but scrubbed regardless per the ADR §4.5.
+func scrubbedCtx(ctx context.Context) context.Context {
+	return clickhouse.Context(ctx, clickhouse.WithSettings(clickhouse.Settings{
+		"log_queries":       0,
+		"log_query_threads": 0,
+	}))
+}
+
 // WriteQueryStats routes rows by data tier: DataTier==2 -> query_stats_t2,
 // everything else (0 normalized to 1) -> query_stats. Two batches, one call.
 func (s *chStats) WriteQueryStats(ctx context.Context, rows []QueryStat) error {
@@ -47,7 +60,7 @@ func (s *chStats) WriteQueryStats(ctx context.Context, rows []QueryStat) error {
 	if err := s.insertQueryStats(ctx, "query_stats", t1); err != nil {
 		return err
 	}
-	return s.insertQueryStats(ctx, "query_stats_t2", t2)
+	return s.insertQueryStats(scrubbedCtx(ctx), "query_stats_t2", t2)
 }
 
 func (s *chStats) insertQueryStats(ctx context.Context, table string, rows []QueryStat) error {
@@ -103,7 +116,7 @@ func (s *chStats) TopQueriesByTotalTime(ctx context.Context, since, until time.T
 // unguarded on purpose: the T2Reader gateway is its sole caller and enforces
 // fast-reject + authz + audit-before-read. Reads query_stats_t2 only.
 func (s *chStats) ReadQueryStatsTier2(ctx context.Context, serverID string, since, until time.Time, limit int) ([]QueryStat, error) {
-	rows, err := s.conn.Query(ctx,
+	rows, err := s.conn.Query(scrubbedCtx(ctx),
 		`SELECT `+chQueryStatsCols+`
 		   FROM query_stats_t2
 		  WHERE server_id = ? AND collected_at >= ? AND collected_at < ?
