@@ -9,42 +9,17 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/testcontainers/testcontainers-go"
-	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/dobbo-ca/lynceus/internal/api"
 	"github.com/dobbo-ca/lynceus/internal/store"
 	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
-// newPGPool starts a fresh postgres:16 container and returns a connected
-// pool. Cleanup terminates the container and closes the pool.
+// newPGPool returns a pool scoped to a fresh, isolated database on the shared
+// per-package Postgres container (see internal/testpg).
 func newPGPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	ctx := context.Background()
-
-	c, err := tcpostgres.Run(ctx,
-		"postgres:16",
-		tcpostgres.WithDatabase("lynceus_test"),
-		tcpostgres.WithUsername("test"),
-		tcpostgres.WithPassword("test"),
-		testpg.ReadyWait(),
-	)
-	if err != nil {
-		t.Skipf("docker/testcontainers unavailable: %v", err)
-	}
-	t.Cleanup(func() { _ = testcontainers.TerminateContainer(c) })
-
-	url, err := c.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		t.Fatal(err)
-	}
-	pool, err := pgxpool.New(ctx, url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
-	return pool
+	return testpg.Start(t)
 }
 
 // setup wires a server backed by the stats DB (the original MVP path).
