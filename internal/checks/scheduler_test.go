@@ -6,55 +6,35 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/testcontainers/testcontainers-go"
-	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testch"
 	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
-// newSchedulerTestStore spins up a fresh postgres:16 via testcontainers,
-// applies the stats migrations, and seeds one table_stats row for "srv-a"
-// so RecentServerIDs finds it. Mirrors internal/store's newPool helper
-// (duplicated minimally here since that helper lives in package store_test
-// and is not importable from this package).
+// newSchedulerTestStore stands up a ClickHouse stats store (the sole stats
+// backend) seeded with one table_stats row for "srv-a" so RecentServerIDs
+// finds it, plus a vanilla Postgres pool for the scheduler's cross-replica
+// advisory lock (ClickHouse has no advisory locks).
 func newSchedulerTestStore(t *testing.T) (store.Stats, *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
 
-	c, err := tcpostgres.Run(ctx,
-		"postgres:16",
-		tcpostgres.WithDatabase("lynceus_test"),
-		tcpostgres.WithUsername("test"),
-		tcpostgres.WithPassword("test"),
-		testpg.ReadyWait(),
-	)
-	if err != nil {
-		t.Skipf("docker/testcontainers unavailable: %v", err)
-	}
-	t.Cleanup(func() { _ = testcontainers.TerminateContainer(c) })
-
-	url, err := c.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		t.Fatalf("connection string: %v", err)
-	}
-	pool, err := pgxpool.New(ctx, url)
-	if err != nil {
-		t.Fatalf("pool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-
-	if err := store.ApplyStatsMigrations(ctx, pool); err != nil {
+	conn := testch.Start(t)
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	s := store.NewStats(pool)
+	s := store.NewCHStats(conn)
 	if err := s.WriteTableStats(ctx, []store.TableStatRow{{
 		ServerID: "srv-a", CollectedAt: time.Now().UTC(),
 		SchemaName: "public", ObjectName: "t", FQN: "public.t",
 	}}); err != nil {
 		t.Fatalf("seed table_stats: %v", err)
 	}
-	return s, pool
+
+	lockPool := testpg.Start(t)
+
+	return s, lockPool
 }
 
 type recordingNotifier struct{ got []Result }

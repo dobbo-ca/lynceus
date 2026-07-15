@@ -6,57 +6,30 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/testcontainers/testcontainers-go"
-	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/dobbo-ca/lynceus/internal/fleetview"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testch"
 	"github.com/dobbo-ca/lynceus/internal/testpg"
 )
 
-// newDB starts a fresh postgres:16 container and returns a connected pool.
-func newDB(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	ctx := context.Background()
-	c, err := tcpostgres.Run(ctx, "postgres:16",
-		tcpostgres.WithDatabase("lynceus_test"),
-		tcpostgres.WithUsername("test"),
-		tcpostgres.WithPassword("test"),
-		testpg.ReadyWait(),
-	)
-	if err != nil {
-		t.Skipf("docker/testcontainers unavailable: %v", err)
-	}
-	t.Cleanup(func() { _ = testcontainers.TerminateContainer(c) })
-	url, err := c.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		t.Fatalf("connection string: %v", err)
-	}
-	pool, err := pgxpool.New(ctx, url)
-	if err != nil {
-		t.Fatalf("pool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-	return pool
-}
-
-// newStores spins up TWO separate databases. Config and stats live in distinct
-// Postgres databases in production (each with its own schema_migrations), so the
-// aggregator — which takes a Config and a Stats backed by different pools — is
-// tested against that same split. The config pool is returned too, for seeding
-// the servers table directly.
+// newStores spins up two backends. Config lives in Postgres (with its own
+// schema_migrations); stats lives in ClickHouse (the sole stats store). The
+// aggregator — which takes a Config and a Stats backed by different engines —
+// is tested against that same split. The config pool is returned too, for
+// seeding the servers table directly.
 func newStores(t *testing.T) (store.Config, store.Stats, *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
-	configPool := newDB(t)
-	statsPool := newDB(t)
+	configPool := testpg.Start(t)
 	if err := store.ApplyConfigMigrations(ctx, configPool); err != nil {
 		t.Fatalf("config migrate: %v", err)
 	}
-	if err := store.ApplyStatsMigrations(ctx, statsPool); err != nil {
+	conn := testch.Start(t)
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
 		t.Fatalf("stats migrate: %v", err)
 	}
-	return store.NewConfig(configPool), store.NewStats(statsPool), configPool
+	return store.NewConfig(configPool), store.NewCHStats(conn), configPool
 }
 
 func TestListClusterSummaries_rollsUpAcrossStreams(t *testing.T) {

@@ -7,15 +7,16 @@ import (
 
 	"github.com/dobbo-ca/lynceus/internal/fleetview"
 	"github.com/dobbo-ca/lynceus/internal/store"
+	"github.com/dobbo-ca/lynceus/internal/testch"
 )
 
 func TestScopeIssues_firingChecksAndInsights(t *testing.T) {
 	ctx := context.Background()
-	statsPool := newDB(t)
-	if err := store.ApplyStatsMigrations(ctx, statsPool); err != nil {
+	conn := testch.Start(t)
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
 		t.Fatalf("stats migrate: %v", err)
 	}
-	stats := store.NewStats(statsPool)
+	stats := store.NewCHStats(conn)
 	now := time.Now().UTC()
 	since := now.AddDate(0, 0, -1)
 
