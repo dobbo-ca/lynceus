@@ -22,6 +22,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/testcontainers/testcontainers-go"
 	tcclickhouse "github.com/testcontainers/testcontainers-go/modules/clickhouse"
 )
 
@@ -48,6 +49,7 @@ func boot() {
 		tcclickhouse.WithDatabase("lynceus_stats"),
 		tcclickhouse.WithUsername("test"),
 		tcclickhouse.WithPassword("test"),
+		testcontainers.WithEnv(map[string]string{"CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT": "1"}),
 	)
 	if err != nil {
 		base.err = err
