@@ -59,17 +59,21 @@ at the config surface.
 
 ### 2.2 Row-level security is the ClickHouse boundary
 
-A **permissive row policy** on `query_stats_t2`:
+A row policy on `query_stats_t2` that applies to **all** users and passes rows only for the Lynceus
+USER:
 
 ```sql
-CREATE ROW POLICY IF NOT EXISTS t2_lynceus_only ON query_stats_t2 USING 1 TO <lynceus_user>;
+CREATE ROW POLICY IF NOT EXISTS t2_lynceus_only ON query_stats_t2
+  USING (currentUser() = '<lynceus_user>') TO ALL;
 ```
 
-ClickHouse semantics (to be **pinned by a red test against a real container**, not trusted from
-memory): once *any* permissive row policy exists on a table, a user not covered by a permissive
-policy sees **zero rows**. So on the shared ClickHouse, the **Lynceus USER is the only identity that
-sees `query_stats_t2` rows**; every other tenant/user sees none — even if the org granted them broad
-`SELECT`. **T1 tables carry no restrictive policy → available to all users**, per directive.
+**Verified empirically (ClickHouse 25.8, spike 2026-07-15):** the naive `USING 1 TO <lynceus_user>`
+does **not** work — ClickHouse does **not** default-deny users *not named* in a policy; `third`
+(uncovered) still saw all rows. The construct that works is `USING (currentUser() = '<user>') TO
+ALL`: because the policy applies to everyone, only the USER's rows pass and every other identity
+(including a broadly-`GRANT`ed org user, and the ADMIN identity) sees **zero** `query_stats_t2` rows.
+This behavior is re-pinned by test #1 (red-first). **T1 tables carry no policy → available to all
+users**, per directive.
 
 `<lynceus_user>` is derived at bootstrap from the *username* in `LYNCEUS_CLICKHOUSE_USER_DSN`
 (`clickhouse.ParseDSN(...).Auth.Username`), so the policy always targets whatever runtime user is
@@ -108,7 +112,8 @@ Bootstrap (once per process start, ADMIN identity):
     ├─ ApplyClickHouseMigrations         (CREATE TABLE IF NOT EXISTS …, unchanged)
     ├─ ProvisionCHSecurity               (idempotent, tolerant of insufficient-privilege):
     │     • ALTER TABLE query_stats_t2 MODIFY TTL … (from LYNCEUS_CLICKHOUSE_T2_TTL_DAYS)
-    │     • CREATE ROW POLICY IF NOT EXISTS t2_lynceus_only ON query_stats_t2 USING 1 TO <user>
+    │     • CREATE ROW POLICY IF NOT EXISTS t2_lynceus_only ON query_stats_t2
+    │           USING (currentUser() = '<user>') TO ALL
     │     • GRANT SELECT, INSERT ON query_stats_t2 TO <user>   (dev/test; org may pre-grant in prod)
     ├─ close ADMIN conn
     └─ open USER conn (LYNCEUS_CLICKHOUSE_USER_DSN) → return NewCHStats(userConn)
@@ -211,5 +216,7 @@ Red-first. Shared-container helpers only — never per-test `tcpostgres.Run`.
 
 ## 9. Open questions
 
-None blocking. The one behavior this design leans on — ClickHouse's "any permissive policy ⇒
-uncovered users see zero rows" — is deliberately pinned by test #1 (red-first) rather than assumed.
+None blocking. The one behavior this design leans on — the correct ClickHouse RLS construct — was
+**verified empirically** on 2026-07-15 (ClickHouse 25.8): `USING 1 TO <user>` does not isolate
+(uncovered users are not denied); `USING (currentUser() = '<user>') TO ALL` does. The finding is
+re-pinned by test #1 (red-first) so a future CH version change surfaces immediately.
