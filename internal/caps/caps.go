@@ -54,6 +54,10 @@ const (
 	// probe: the Gate is fail-open (absent key => Allowed==true), so the
 	// reader is default-enabled and the operator can disable it via policy.
 	Settings Capability = "settings"
+	// QueryTextT2 gates raw (literal-bearing) query-text egress (ly-cwr.5). It is
+	// fail-CLOSED (see Gate.AllowedStrict): raw ships only on an explicit enable
+	// (= servers.t2_enabled ∧ capability policy).
+	QueryTextT2 Capability = "query_text_t2"
 )
 
 // Declared returns every capability the package knows how to probe.
@@ -76,6 +80,7 @@ func Declared() []Capability {
 		IndexStats,
 		XminHorizon,
 		Settings,
+		QueryTextT2,
 	}
 }
 

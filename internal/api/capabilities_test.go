@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -269,8 +270,10 @@ func TestPolicySnapshot_returnsEnabledFlagsPerCapability(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("entries = %d, want 2 (%+v)", len(got), got)
+	// Two seeded policy rows plus the always-present explicit query_text_t2
+	// entry (t2_enabled ∧ policy => false here: srv-1's t2_enabled defaults false).
+	if len(got) != 3 {
+		t.Fatalf("entries = %d, want 3 (%+v)", len(got), got)
 	}
 
 	type key struct {
@@ -286,6 +289,69 @@ func TestPolicySnapshot_returnsEnabledFlagsPerCapability(t *testing.T) {
 	}
 	if !seen[key{"schema_inventory", "appdb", true}] {
 		t.Errorf("missing appdb schema_inventory=true; got %+v", got)
+	}
+	if !seen[key{"query_text_t2", "", false}] {
+		t.Errorf("missing explicit query_text_t2=false; got %+v", got)
+	}
+}
+
+// TestPolicySnapshot_QueryTextT2Gate asserts the explicit query_text_t2 entry is
+// enabled iff servers.t2_enabled AND the capability policy allow it. It is always
+// present so the collector's fail-closed AllowedStrict always has a value.
+func TestPolicySnapshot_QueryTextT2Gate(t *testing.T) {
+	pool, srv := setupAudit(t, api.Config{DevAuth: true})
+	ctx := context.Background()
+	cfg := store.NewConfig(pool)
+
+	cases := []struct {
+		name                    string
+		t2Enabled, policy, want bool
+	}{
+		{"both-on", true, true, true},
+		{"t2-on-policy-off", true, false, false},
+		{"t2-off-policy-on", false, true, false},
+		{"both-off", false, false, false},
+	}
+	for i, tc := range cases {
+		id := fmt.Sprintf("srv-t2-%d", i)
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO servers (id, name, t2_enabled) VALUES ($1, $1, $2)`, id, tc.t2Enabled); err != nil {
+			t.Fatalf("%s: seed server: %v", tc.name, err)
+		}
+		if _, err := cfg.SetCapabilityPolicy(ctx, store.SetCapabilityPolicyInput{
+			ServerID: id, Capability: "query_text_t2", Enabled: tc.policy, SetBy: "alice",
+		}); err != nil {
+			t.Fatalf("%s: set policy: %v", tc.name, err)
+		}
+
+		resp, err := http.Get(srv.URL + "/api/servers/" + id + "/policy-snapshot")
+		if err != nil {
+			t.Fatalf("%s: GET: %v", tc.name, err)
+		}
+		var got []struct {
+			Capability   string `json:"capability"`
+			DatabaseName string `json:"database_name"`
+			Enabled      bool   `json:"enabled"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+			_ = resp.Body.Close()
+			t.Fatalf("%s: decode: %v", tc.name, err)
+		}
+		_ = resp.Body.Close()
+
+		var found bool
+		for _, e := range got {
+			if e.Capability == "query_text_t2" && e.DatabaseName == "" {
+				found = true
+				if e.Enabled != tc.want {
+					t.Errorf("%s: query_text_t2 enabled = %v, want %v (t2=%v policy=%v)",
+						tc.name, e.Enabled, tc.want, tc.t2Enabled, tc.policy)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s: query_text_t2 entry missing from snapshot %+v", tc.name, got)
+		}
 	}
 }
 
