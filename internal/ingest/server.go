@@ -118,6 +118,11 @@ func (s *Server) persistSnapshot(ctx context.Context, snap *lynceusv1.Snapshot) 
 	if err := s.stats.WriteQueryStats(ctx, snapshotToRows(snap)); err != nil {
 		return "write", err
 	}
+	if raws := snapshotToRawRows(snap); len(raws) > 0 {
+		if err := s.stats.WriteQueryStats(ctx, raws); err != nil {
+			return "write raw", err
+		}
+	}
 	if buckets := snapshotToActivityBuckets(snap); len(buckets) > 0 {
 		if err := s.stats.WriteActivityBuckets(ctx, buckets); err != nil {
 			return "write activity", err
@@ -219,6 +224,35 @@ func snapshotToRows(snap *lynceusv1.Snapshot) []store.QueryStat {
 			Fingerprint:     q.Fingerprint,
 			NormalizedQuery: q.NormalizedQuery,
 			DataTier:        1,
+			Calls:           q.Calls,
+			TotalTimeMs:     q.TotalTimeMs,
+			MeanTimeMs:      q.MeanTimeMs,
+			Rows:            q.Rows,
+			SharedBlksHit:   q.SharedBlksHit,
+			SharedBlksRead:  q.SharedBlksRead,
+		})
+	}
+	return rows
+}
+
+// snapshotToRawRows maps the opt-in T2 raw query payload to store rows
+// (DataTier=2). It is populated only for a T2-enabled server; the ClickHouse
+// normalization MV derives the literal-free T1 rows from these query_stats_t2
+// writes, so the ingest path never writes T1 directly for a raw payload.
+func snapshotToRawRows(snap *lynceusv1.Snapshot) []store.QueryStat {
+	collectedAt := time.Unix(snap.CollectedAtUnix, 0).UTC()
+	if collectedAt.IsZero() || snap.CollectedAtUnix == 0 {
+		collectedAt = time.Now().UTC()
+	}
+	rows := make([]store.QueryStat, 0, len(snap.QueryStatRaws))
+	for _, q := range snap.QueryStatRaws {
+		rows = append(rows, store.QueryStat{
+			ServerID:        snap.ServerId,
+			CollectedAt:     collectedAt,
+			Fingerprint:     q.Fingerprint,
+			NormalizedQuery: q.NormalizedQuery,
+			RawQuery:        q.RawQuery,
+			DataTier:        2,
 			Calls:           q.Calls,
 			TotalTimeMs:     q.TotalTimeMs,
 			MeanTimeMs:      q.MeanTimeMs,
