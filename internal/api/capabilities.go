@@ -189,7 +189,10 @@ func (s *Server) handlePolicySnapshot(w http.ResponseWriter, r *http.Request) {
 
 	// query_text_t2 (ly-cwr.5): explicit, so the collector's fail-closed
 	// AllowedStrict always has a value. Enabled only when the per-server T2 kill
-	// switch AND the capability policy both allow raw-text egress.
+	// switch AND the capability policy both allow raw-text egress. Raw egress is a
+	// SERVER-WIDE gate here: only the server-wide default is resolved/emitted
+	// (DatabaseName ""); a per-database query_text_t2 override is not represented
+	// (tracked as a follow-up under epic ly-cwr). t2_enabled is itself server-level.
 	t2Enabled, _, err := s.conf.ServerT2Enabled(r.Context(), serverID)
 	if err != nil {
 		http.Error(w, "server t2_enabled", http.StatusInternalServerError)
