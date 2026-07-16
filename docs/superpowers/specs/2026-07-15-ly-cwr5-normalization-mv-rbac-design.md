@@ -117,25 +117,38 @@ one spec.
   `QueryStatRaw` is the **one** message permitted a `raw_query` field.
 - **Depends on:** nothing.
 
-### 4.2 caps + api gate — surface `t2_enabled ∧ policy` to the collector
+### 4.2 caps + api gate — surface `t2_enabled ∧ policy` to the collector, **fail-closed**
 - New capability constant `caps.QueryTextT2 = "query_text_t2"` (`internal/caps/caps.go`, added to
   `Declared()`).
-- `internal/api/capabilities.go` `handlePolicySnapshot`: emit `query_text_t2 = true` **iff**
-  `servers.t2_enabled` (from `store.ServerStream.T2Enabled`, `internal/store/fleet.go`) **AND**
-  `EffectiveCapability(serverID, db, "query_text_t2")` allows it. `t2_enabled` is the master kill
-  switch; the capability policy provides RBAC granularity. Both true → gate on.
-- **Interface:** policy snapshot JSON already carries `map[GateKey]bool`; this adds one key.
+- **Fail-closed gate lookup (load-bearing for privacy).** `caps.Gate.Allowed` is **fail-open** — an
+  absent key returns `true` (`gate.go:34-44`), correct for T1 capabilities so a collector is never
+  "silently dark" before its first policy fetch. That default is a **privacy hole** for a raw-egress
+  gate: an empty gate (pre-first-fetch) or a missing key would ship raw by default. Add a fail-closed
+  variant `func (g *Gate) AllowedStrict(db string, c Capability) bool` that returns **false** when the
+  key is absent, and use it for `query_text_t2` (§4.3). Raw ships **only** on an explicit `true`.
+- `internal/api/capabilities.go` `handlePolicySnapshot`: **explicitly** emit a `query_text_t2` entry —
+  `Enabled = servers.t2_enabled ∧ EffectiveCapability(serverID, db, "query_text_t2")` — for the
+  server-wide default (`DatabaseName: ""`). `t2_enabled` comes from `s.conf.ResolveServer(serverID)`
+  → `ServerStream.T2Enabled` (`internal/store/fleet.go`). `t2_enabled` is the master kill switch; the
+  capability policy provides RBAC granularity. Emitting it explicitly (true or false) means the
+  collector always has a value; `AllowedStrict` is the belt-and-suspenders default for the pre-fetch /
+  fetch-failure window.
+- **Interface:** policy snapshot JSON already carries `[]policySnapshotEntry`; this appends one
+  explicit entry.
 - **Depends on:** nothing (independent of 4.1).
 
 ### 4.3 Collector — ship raw when gated, else unchanged
-- `internal/collector/reader.go`: after computing `normText`/`fp` (pg_query, unchanged), branch on
-  `r.gate.Allowed(r.db, caps.QueryTextT2)`:
-  - **gate on:** append a `QueryStatRaw{RawQuery: raw, Fingerprint: fp, NormalizedQuery: normText, …}`
-    to a new `[]*QueryStatRaw` return, and **do not** emit the plain `QueryStat` for that row.
-  - **gate off:** current behaviour (emit `QueryStat`).
+- `internal/collector/reader.go`: `Read` returns `([]*lynceusv1.QueryStat, []*lynceusv1.QueryStatRaw,
+  error)` (was `([]*lynceusv1.QueryStat, error)`). After computing `normText`/`fp` (pg_query,
+  unchanged), branch on the **fail-closed** `r.gate.AllowedStrict(r.db, caps.QueryTextT2)`:
+  - **gate strictly on:** append a `QueryStatRaw{RawQuery: raw, Fingerprint: fp,
+    NormalizedQuery: normText, …}` to the raws slice, and **do not** emit the plain `QueryStat` for
+    that row.
+  - **gate off / absent (default):** current behaviour (emit `QueryStat`), raws empty.
   - `TierBlocked` (unparseable) rows are still **dropped** in both modes (parity preserved; shipping
     raw-only-unparseable rows is a documented follow-up, not built here).
-- The shipper/pipeline carries the new slice into `Snapshot.query_stat_raws`.
+- `cmd/collector/main.go:165` sets `QueryStats: stats` **and** `QueryStatRaws: raws` on the Snapshot
+  (exactly one is non-empty for a given db, per the per-db gate).
 - **Guardrail** ("CH normalize where necessary" / "as a guarantee"): the production MV is a pure
   literal-free **projection** (raw_query excluded), so T1's literal-freeness rests on (1) edge pg_query
   normalization and (2) column exclusion. CH `normalizeQuery` is used as a **test-time defense-in-depth
@@ -188,7 +201,7 @@ one spec.
 | Threat | Control | Layer |
 |---|---|---|
 | Raw literal reaches broadly-readable T1 | MV `SELECT` **excludes `raw_query`** → T1 literal-free by construction; edge pg_query keeps `normalized_query` literal-free; CH `normalizeQuery` test-time backstop (§6.3) | ClickHouse MV + edge (new) |
-| Raw leaves the edge without opt-in | Collector ships raw **only** when `query_text_t2` gate on (= `servers.t2_enabled` ∧ policy) — the §7.4 per-server conscious opt-in | Collector gate + api policy (new) |
+| Raw leaves the edge without opt-in | Collector ships raw **only** on an explicit `query_text_t2 = true` via the **fail-closed** `AllowedStrict` (= `servers.t2_enabled` ∧ policy). Empty gate (pre-first-fetch), absent key, or fetch failure → **no raw** — the §7.4 per-server conscious opt-in, fail-closed | Collector gate + api policy (new) |
 | Another CH tenant reads raw literals | ly-cwr.6 RLS `t2_lynceus_only` on `query_stats_t2` → non-USER sees zero rows | ClickHouse RLS (unchanged) |
 | Lynceus reads literals without audit | `T2Reader` gateway: audit-first, fail-closed; single `FROM query_stats_t2` | App (unchanged) |
 | Literal custody window unbounded | ly-cwr.6 configurable TTL on `query_stats_t2` | CH TTL (unchanged) |
@@ -206,8 +219,9 @@ Red-first. Shared-container helpers only — never per-test `tcpostgres.Run` / p
 1. **Proto contract** — `QueryStat` T1 allowlist unchanged (still fails on any new field);
    `Snapshot` allows exactly `query_stat_raws` added; `QueryStatRaw` is the sole message permitted
    `raw_query`.
-2. **api gate** — `handlePolicySnapshot` emits `query_text_t2=true` **iff** `t2_enabled ∧
-   EffectiveCapability`; false when either is off (all four combinations).
+2. **api gate** — `handlePolicySnapshot` emits an explicit `query_text_t2` entry = `t2_enabled ∧
+   EffectiveCapability` (all four on/off combinations). **Fail-closed** unit test on `caps.Gate`:
+   `AllowedStrict` returns false for an absent key and for an empty gate; true only on explicit true.
 3. **MV literal-free + parity + guardrail** — insert a `query_stats_t2` row with a literal in
    `raw_query` and a pg_query `$1` `normalized_query`; assert the MV-derived `query_stats` row (a) has
    **no** `raw_query` reachable and **no** literal (grep), (b) carries the **exact** pg_query
@@ -217,8 +231,9 @@ Red-first. Shared-container helpers only — never per-test `tcpostgres.Run` / p
    the ly-cwr.6 policy) **populates** `query_stats` via the MV; document/assert that an insert by a
    non-policy identity does not. Pins the §3 coupling and re-pins the spiked CH behaviour so a future
    CH version change surfaces immediately.
-5. **Collector** — with the gate on, `reader.go` emits `QueryStatRaw` (raw + pg_query fields) and **not**
-   `QueryStat`; with it off, emits `QueryStat` only; `TierBlocked` dropped in both.
+5. **Collector** — with `query_text_t2` explicitly true, `reader.go` emits `QueryStatRaw` (raw +
+   pg_query fields) and **not** `QueryStat`; with it explicitly false **or absent/empty gate**
+   (fail-closed), emits `QueryStat` only and no raw; `TierBlocked` dropped in both.
 6. **Ingestion** — a snapshot with `query_stat_raws` writes `query_stats_t2` (raw_query populated) and
    no direct `query_stats` row; the MV then yields the T1 row.
 7. **T2Reader** — `ReadQueryStatsTier2` returns `raw_query`; the gateway ordering tests
