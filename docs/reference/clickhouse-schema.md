@@ -366,26 +366,51 @@ Read current state with `FINAL` or `GROUP BY (server_id, kind, fqn)` +
 > "T2 access control & isolation" below.
 
 ### `lynceus_stats.query_stats_t2` — literal-bearing query statistics (T2)
-Same shape as `query_stats`, `data_tier` defaults to 2, **7-day TTL** (short literal-custody
-window). Read **only** by `chStats.ReadQueryStatsTier2`, whose sole caller is the audited
-`T2Reader` gateway.
+`query_stats` shape plus the literal-bearing `raw_query` column (ly-cwr.5); `data_tier`
+defaults to 2, **7-day TTL** (short literal-custody window). Read **only** by
+`chStats.ReadQueryStatsTier2`, whose sole caller is the audited `T2Reader` gateway.
+For a T2-enabled server this is the **source** table: the collector ships raw
+(`QueryStatRaw`) rows here, and the `mv_query_stats_t2_to_t1` materialized view (below)
+derives the literal-free T1 `query_stats` rows by projection.
 ```sql
 CREATE TABLE lynceus_stats.query_stats_t2 (
   server_id         String,
   collected_at      DateTime64(3, 'UTC'),
-  fingerprint       String,
-  normalized_query  String,          -- MAY carry literals (T2)
+  fingerprint       String,           -- pg_query fingerprint (literal-free)
+  normalized_query  String,           -- pg_query normalized ($1) skeleton — literal-free
   data_tier         Int16   DEFAULT 2,
   calls             Int64,
   total_time_ms     Float64,
   mean_time_ms      Float64,
   `rows`            Int64,
   shared_blks_hit   Int64,
-  shared_blks_read  Int64
+  shared_blks_read  Int64,
+  raw_query         String            -- literal-bearing raw pg_stat_statements text (T2 only)
 ) ENGINE = MergeTree
 PARTITION BY toYYYYMM(collected_at)
 ORDER BY (server_id, collected_at)
 TTL toDateTime(collected_at) + INTERVAL 7 DAY;
+```
+`raw_query` is added idempotently by migration `0013_query_stats_raw_mv.sql`
+(`ALTER TABLE … ADD COLUMN IF NOT EXISTS`). It is the **one** literal-bearing column in the
+schema; every T1 column of `query_stats_t2` is copied verbatim into `query_stats` by the MV,
+and `raw_query` is deliberately excluded from that projection.
+
+### `mv_query_stats_t2_to_t1` — normalization materialized view (T2 → T1)
+The **enforced T1/T2 boundary in ClickHouse.** For T2-enabled servers, ingestion writes only
+`query_stats_t2`; this `MATERIALIZED VIEW` projects the literal-free columns of each inserted
+T2 row into `query_stats` (T1) with `data_tier = 1`, **excluding `raw_query`**. The edge
+`pg_query` `fingerprint` and `normalized_query` are copied verbatim — the MV does not compute
+its own fingerprint (parity with the direct T1 path). Because the MV reads the *inserting*
+identity, the ly-cwr.6 row policy on `query_stats_t2` scopes the transform to the Lynceus
+runtime USER's inserts. T2-**disabled** servers are unaffected: the collector edge-normalizes
+and ingestion writes `query_stats` (T1) directly, with no `query_stats_t2` row and nothing for
+the MV to project.
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS mv_query_stats_t2_to_t1 TO query_stats AS
+SELECT server_id, collected_at, fingerprint, normalized_query, 1 AS data_tier,
+       calls, total_time_ms, mean_time_ms, `rows`, shared_blks_hit, shared_blks_read
+FROM query_stats_t2;
 ```
 
 ---
