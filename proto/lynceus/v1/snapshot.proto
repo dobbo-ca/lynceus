@@ -94,6 +94,11 @@ message Snapshot {
   // `SELECT * FROM pg_settings`. The redaction boundary is the reader's
   // allowlist, never this proto. See contract_test.go + settings_reader.go.
   repeated Setting settings = 14;
+
+  // query_stat_raws (ly-cwr.5): opt-in T2 raw query payload. Populated ONLY for a
+  // T2-enabled server; empty otherwise. Literal-bearing — the one T2 field on the
+  // envelope. See QueryStatRaw.
+  repeated QueryStatRaw query_stat_raws = 15;
 }
 
 // QueryStat is one row of per-fingerprint query statistics, derived
@@ -120,6 +125,25 @@ message QueryStat {
   int64  rows             = 6;
   int64  shared_blks_hit  = 7;
   int64  shared_blks_read = 8;
+}
+
+// QueryStatRaw is the T2 (literal-bearing) sibling of QueryStat, shipped ONLY
+// when the query_text_t2 capability is enabled for the server (servers.t2_enabled
+// ∧ capability policy). The literal lives ONLY in raw_query; fingerprint and
+// normalized_query are the pg_query (literal-free) values. Ingestion writes this
+// to ClickHouse query_stats_t2; a materialized view projects the literal-free
+// columns (raw_query excluded) into the T1 query_stats table. Gated behind RBAC +
+// audit — see docs/superpowers/specs/2026-07-15-ly-cwr5-normalization-mv-rbac-design.md.
+message QueryStatRaw {
+  string raw_query        = 1; // literal-bearing (T2): raw pg_stat_statements text
+  string fingerprint      = 2; // pg_query fingerprint (literal-free)
+  string normalized_query = 3; // pg_query normalized ($1) skeleton (literal-free)
+  int64  calls            = 4;
+  double total_time_ms    = 5;
+  double mean_time_ms     = 6;
+  int64  rows             = 7;
+  int64  shared_blks_hit  = 8;
+  int64  shared_blks_read = 9;
 }
 
 // ActivityBucket is a 60-second histogram bucket of pg_stat_activity samples
