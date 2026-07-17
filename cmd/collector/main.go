@@ -108,6 +108,7 @@ func main() {
 		// sibling — each result var is assembled after the join below.
 		var (
 			stats        []*lynceusv1.QueryStat
+			raws         []*lynceusv1.QueryStatRaw
 			objs         []*lynceusv1.SchemaObject
 			tableStats   []*lynceusv1.TableStat
 			freezeAges   []*lynceusv1.FreezeAge
@@ -118,7 +119,7 @@ func main() {
 		tasks := []collector.Task{
 			{Name: "read query stats", Run: func(ctx context.Context) error {
 				var e error
-				stats, e = reader.Read(ctx)
+				stats, raws, e = reader.Read(ctx)
 				return e
 			}},
 			{Name: "read schema inventory", Run: func(ctx context.Context) error {
@@ -166,6 +167,7 @@ func main() {
 			ServerId:        cfg.serverID,
 			CollectedAtUnix: time.Now().Unix(),
 			QueryStats:      stats,
+			QueryStatRaws:   raws,
 			SchemaObjects:   objs,
 			TableStats:      tableStats,
 			FreezeAges:      freezeAges,
@@ -177,7 +179,7 @@ func main() {
 			log.Printf("ship full: %v", err)
 			return
 		}
-		log.Printf("shipped %d query_stats, %d schema_objects, %d table_stats, %d freeze_ages, %d index_stats, %d xmin_horizons, %d settings", len(stats), len(objs), len(tableStats), len(freezeAges), len(indexStats), len(xminHorizons), len(settings))
+		log.Printf("shipped %d query_stats, %d query_stat_raws, %d schema_objects, %d table_stats, %d freeze_ages, %d index_stats, %d xmin_horizons, %d settings", len(stats), len(raws), len(objs), len(tableStats), len(freezeAges), len(indexStats), len(xminHorizons), len(settings))
 	}
 
 	// Sample pg_stat_activity into the aggregator on the activity cadence.

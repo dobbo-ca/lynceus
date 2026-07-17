@@ -54,13 +54,17 @@ type QueryStat struct {
 	CollectedAt     time.Time
 	Fingerprint     string
 	NormalizedQuery string
-	DataTier        int16
-	Calls           int64
-	TotalTimeMs     float64
-	MeanTimeMs      float64
-	Rows            int64
-	SharedBlksHit   int64
-	SharedBlksRead  int64
+	// RawQuery is the literal-bearing raw query text. Populated ONLY on T2 rows
+	// (DataTier==2) written to query_stats_t2; empty on T1. The normalization MV
+	// projects the literal-free columns to query_stats and EXCLUDES this one.
+	RawQuery       string
+	DataTier       int16
+	Calls          int64
+	TotalTimeMs    float64
+	MeanTimeMs     float64
+	Rows           int64
+	SharedBlksHit  int64
+	SharedBlksRead int64
 }
 
 // TopQuery is one row returned by TopQueriesByTotalTime.

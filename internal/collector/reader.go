@@ -38,10 +38,20 @@ func NewReader(pool *pgxpool.Pool, gate *caps.Gate, db string) *Reader {
 // Read returns the current pg_stat_statements rows, normalized.
 // Rows whose query text cannot be parsed (TierBlocked) are dropped,
 // not returned. The returned QueryStat values are safe to transmit.
-func (r *Reader) Read(ctx context.Context) ([]*lynceusv1.QueryStat, error) {
+//
+// When the query_text_t2 capability is strictly enabled for the
+// connection's database (fail-closed AllowedStrict — see ly-cwr.5), Read
+// emits the literal-bearing QueryStatRaw sibling instead of the T1
+// QueryStat: raw query text alongside the pg_query fingerprint +
+// normalized skeleton. Ingestion writes these to query_stats_t2 and a
+// ClickHouse materialized view derives the literal-free T1 rows. When the
+// capability is absent or off (the fail-closed default), Read emits T1
+// QueryStat only and no raw ever leaves the edge.
+func (r *Reader) Read(ctx context.Context) ([]*lynceusv1.QueryStat, []*lynceusv1.QueryStatRaw, error) {
 	if !r.gate.Allowed(r.db, caps.PgStatStatements) {
-		return nil, nil // capability disabled: build & ship nothing
+		return nil, nil, nil // capability disabled: build & ship nothing
 	}
+	shipRaw := r.gate.AllowedStrict(r.db, caps.QueryTextT2) // fail-closed
 	rows, err := r.pool.Query(ctx,
 		`SELECT query, calls, total_exec_time, mean_exec_time,
 		        rows, shared_blks_hit, shared_blks_read
@@ -49,11 +59,12 @@ func (r *Reader) Read(ctx context.Context) ([]*lynceusv1.QueryStat, error) {
 		  WHERE query IS NOT NULL`,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("query pg_stat_statements: %w", err)
+		return nil, nil, fmt.Errorf("query pg_stat_statements: %w", err)
 	}
 	defer rows.Close()
 
 	var out []*lynceusv1.QueryStat
+	var raws []*lynceusv1.QueryStatRaw
 	for rows.Next() {
 		var (
 			raw            string
@@ -65,7 +76,7 @@ func (r *Reader) Read(ctx context.Context) ([]*lynceusv1.QueryStat, error) {
 			sharedBlksRead int64
 		)
 		if err := rows.Scan(&raw, &calls, &totalTimeMs, &meanTimeMs, &rowsOut, &sharedBlksHit, &sharedBlksRead); err != nil {
-			return nil, fmt.Errorf("scan: %w", err)
+			return nil, nil, fmt.Errorf("scan: %w", err)
 		}
 
 		normText, tier := normalize.Normalize(raw)
@@ -80,6 +91,21 @@ func (r *Reader) Read(ctx context.Context) ([]*lynceusv1.QueryStat, error) {
 			continue
 		}
 
+		if shipRaw {
+			raws = append(raws, &lynceusv1.QueryStatRaw{
+				RawQuery:        raw,
+				Fingerprint:     fp,
+				NormalizedQuery: normText,
+				Calls:           calls,
+				TotalTimeMs:     totalTimeMs,
+				MeanTimeMs:      meanTimeMs,
+				Rows:            rowsOut,
+				SharedBlksHit:   sharedBlksHit,
+				SharedBlksRead:  sharedBlksRead,
+			})
+			continue
+		}
+
 		out = append(out, &lynceusv1.QueryStat{
 			Fingerprint:     fp,
 			NormalizedQuery: normText,
@@ -91,5 +117,5 @@ func (r *Reader) Read(ctx context.Context) ([]*lynceusv1.QueryStat, error) {
 			SharedBlksRead:  sharedBlksRead,
 		})
 	}
-	return out, rows.Err()
+	return out, raws, rows.Err()
 }

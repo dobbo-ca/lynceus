@@ -43,6 +43,15 @@ func (g *Gate) Allowed(db string, c Capability) bool {
 	return enabled
 }
 
+// AllowedStrict is the fail-CLOSED counterpart to Allowed: an absent key returns
+// false. Use it for privacy-sensitive capabilities (raw-literal egress) where
+// "no policy yet" must mean DENY, not default-enabled.
+func (g *Gate) AllowedStrict(db string, c Capability) bool {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.enabled[GateKey{Db: db, Cap: c}]
+}
+
 // Replace atomically installs a new snapshot. A nil snap clears the gate
 // (back to all-enabled).
 func (g *Gate) Replace(snap map[GateKey]bool) {

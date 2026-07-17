@@ -56,7 +56,7 @@ func TestReader_gatedOff_returnsNoRows(t *testing.T) {
 	})
 
 	r := collector.NewReader(pool, gate, "appdb")
-	stats, err := r.Read(ctx)
+	stats, _, err := r.Read(ctx)
 	if err != nil {
 		t.Fatalf("read (gated off): %v", err)
 	}
@@ -69,7 +69,7 @@ func TestReader_gatedOff_returnsNoRows(t *testing.T) {
 	gate.Replace(map[caps.GateKey]bool{
 		{Db: "appdb", Cap: caps.PgStatStatements}: true,
 	})
-	stats, err = r.Read(ctx)
+	stats, _, err = r.Read(ctx)
 	if err != nil {
 		t.Fatalf("read (gated on): %v", err)
 	}

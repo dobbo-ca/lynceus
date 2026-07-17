@@ -15,7 +15,7 @@ import (
 // operator-supplied database identifier — no monitored-DB literal.
 type capabilityCellDTO struct {
 	Capability       string `json:"capability"`
-	DatabaseName     string `json:"database_name"`     // "" = server-wide
+	DatabaseName     string `json:"database_name"` // "" = server-wide
 	DiscoveredAvail  bool   `json:"discovered_available"`
 	DiscoveredReason string `json:"discovered_reason"` // bounded, package-authored
 	PolicyEnabled    *bool  `json:"policy_enabled"`    // nil = no explicit policy row
@@ -172,14 +172,43 @@ func (s *Server) handlePolicySnapshot(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "list capability policies", http.StatusInternalServerError)
 		return
 	}
-	out := make([]policySnapshotEntry, 0, len(rows))
+	out := make([]policySnapshotEntry, 0, len(rows)+1)
 	for _, p := range rows {
+		// query_text_t2 is emitted explicitly below as t2_enabled ∧ policy, so
+		// its raw policy row must NOT also ship — the collector's fail-closed
+		// AllowedStrict needs a single authoritative entry for this capability.
+		if p.Capability == string(caps.QueryTextT2) {
+			continue
+		}
 		out = append(out, policySnapshotEntry{
 			Capability:   p.Capability,
 			DatabaseName: p.DatabaseName,
 			Enabled:      p.Enabled,
 		})
 	}
+
+	// query_text_t2 (ly-cwr.5): explicit, so the collector's fail-closed
+	// AllowedStrict always has a value. Enabled only when the per-server T2 kill
+	// switch AND the capability policy both allow raw-text egress. Raw egress is a
+	// SERVER-WIDE gate here: only the server-wide default is resolved/emitted
+	// (DatabaseName ""); a per-database query_text_t2 override is not represented
+	// (tracked as a follow-up under epic ly-cwr). t2_enabled is itself server-level.
+	t2Enabled, _, err := s.conf.ServerT2Enabled(r.Context(), serverID)
+	if err != nil {
+		http.Error(w, "server t2_enabled", http.StatusInternalServerError)
+		return
+	}
+	polOK, _, _, err := s.conf.EffectiveCapability(r.Context(), serverID, "", string(caps.QueryTextT2))
+	if err != nil {
+		http.Error(w, "effective capability", http.StatusInternalServerError)
+		return
+	}
+	out = append(out, policySnapshotEntry{
+		Capability:   string(caps.QueryTextT2),
+		DatabaseName: "",
+		Enabled:      t2Enabled && polOK,
+	})
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(out)
 }

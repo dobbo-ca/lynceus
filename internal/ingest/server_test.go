@@ -10,6 +10,7 @@ import (
 	"context"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -50,6 +51,112 @@ func makeSnapshot(serverID, fp, q string, totalMs float64) *lynceusv1.Snapshot {
 			Calls:           7,
 			TotalTimeMs:     totalMs,
 		}},
+	}
+}
+
+// recordingStats decorates a real store.Stats: it records the rows passed to
+// every WriteQueryStats call, then delegates to the wrapped store so the writes
+// still land in real ClickHouse. It lets a test assert exactly which rows the
+// ingest path routed to WriteQueryStats without mocking the database.
+type recordingStats struct {
+	store.Stats
+	mu      sync.Mutex
+	batches [][]store.QueryStat
+}
+
+func (r *recordingStats) WriteQueryStats(ctx context.Context, rows []store.QueryStat) error {
+	r.mu.Lock()
+	r.batches = append(r.batches, append([]store.QueryStat(nil), rows...))
+	r.mu.Unlock()
+	return r.Stats.WriteQueryStats(ctx, rows)
+}
+
+func (r *recordingStats) rows() []store.QueryStat {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var all []store.QueryStat
+	for _, b := range r.batches {
+		all = append(all, b...)
+	}
+	return all
+}
+
+// TestPersist_RawGoesToT2_NotT1 asserts that a raw-only snapshot (empty
+// QueryStats, one QueryStatRaw) writes exactly one query_stats_t2 row with
+// raw_query populated and issues no direct T1 (query_stats) write — the
+// ClickHouse MV derives the literal-free T1 row from the T2 row, so the ingest
+// path must not double-write T1.
+func TestPersist_RawGoesToT2_NotT1(t *testing.T) {
+	ctx := context.Background()
+	conn := testch.Start(t)
+	if err := store.ApplyClickHouseMigrations(ctx, conn); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	rec := &recordingStats{Stats: store.NewCHStats(conn)}
+	srv := httptest.NewServer(ingest.NewServer(ingest.Config{
+		DevToken: "dev", RateLimit: 10, RateBurst: 10,
+	}, rec).Handler())
+	t.Cleanup(srv.Close)
+
+	const literal = "SELECT * FROM users WHERE email='secret@x.com'"
+	snap := &lynceusv1.Snapshot{
+		ServerId:        "srv-raw",
+		CollectedAtUnix: time.Now().Unix(),
+		QueryStatRaws: []*lynceusv1.QueryStatRaw{{
+			RawQuery:        literal,
+			Fingerprint:     "fp-raw",
+			NormalizedQuery: "SELECT * FROM users WHERE email=$1",
+			Calls:           3,
+			TotalTimeMs:     12,
+		}},
+	}
+	if err := collector.NewShipper(wsURL(srv.URL), "dev").Send(ctx, snap); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	// The raw payload landed in query_stats_t2 with the literal in raw_query.
+	var t2 uint64
+	for i := 0; i < 50 && t2 == 0; i++ {
+		_ = conn.QueryRow(ctx,
+			`SELECT count(*) FROM query_stats_t2 WHERE server_id='srv-raw'`).Scan(&t2)
+		if t2 > 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if t2 != 1 {
+		t.Fatalf("query_stats_t2 row count = %d, want 1", t2)
+	}
+	var rawq string
+	if err := conn.QueryRow(ctx,
+		`SELECT raw_query FROM query_stats_t2 WHERE server_id='srv-raw' LIMIT 1`).Scan(&rawq); err != nil {
+		t.Fatalf("read raw_query: %v", err)
+	}
+	if !strings.Contains(rawq, "secret@x.com") {
+		t.Fatalf("raw_query not persisted to T2: %q", rawq)
+	}
+
+	// The ingest path routed exactly one DataTier==2 row (with RawQuery set) to
+	// WriteQueryStats and zero DataTier==1 rows: no direct T1 write. The MV — not
+	// the ingest server — produces the literal-free T1 row.
+	var t1rows, t2rows int
+	rawSet := false
+	for _, q := range rec.rows() {
+		switch q.DataTier {
+		case 1:
+			t1rows++
+		case 2:
+			t2rows++
+			if q.RawQuery != "" {
+				rawSet = true
+			}
+		}
+	}
+	if t1rows != 0 {
+		t.Fatalf("direct T1 writes reaching WriteQueryStats = %d, want 0 (MV derives T1)", t1rows)
+	}
+	if t2rows != 1 || !rawSet {
+		t.Fatalf("T2 rows reaching WriteQueryStats = %d (RawQuery set = %v), want 1 with RawQuery set", t2rows, rawSet)
 	}
 }
 

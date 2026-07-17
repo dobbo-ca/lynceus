@@ -71,8 +71,11 @@ func TestCH_activity_RollupForServers_RoundTrip(t *testing.T) {
 		{ServerID: "srv1", CollectedAt: base.Add(time.Minute), Fingerprint: "fp-a", NormalizedQuery: "SELECT a", DataTier: 1, Calls: 20, TotalTimeMs: 300},
 		{ServerID: "srv1", CollectedAt: base, Fingerprint: "fp-b", NormalizedQuery: "SELECT b", DataTier: 1, Calls: 5, TotalTimeMs: 500},
 		{ServerID: "srv2", CollectedAt: base, Fingerprint: "fp-c", NormalizedQuery: "SELECT c", DataTier: 1, Calls: 7, TotalTimeMs: 70},
-		// Tier-2 noise on srv1 must be excluded from every T1 read.
-		{ServerID: "srv1", CollectedAt: base, Fingerprint: "fp-secret", NormalizedQuery: "SELECT secret", DataTier: 2, Calls: 999, TotalTimeMs: 9999},
+		// (ly-cwr.5) No tier-2 row here: writing one to query_stats_t2 now triggers
+		// the normalization MV, which projects a literal-free T1 row into
+		// query_stats — so tier-2 stats DO participate in T1 rollups by design. That
+		// projection is pinned by TestMV_DerivesLiteralFreeT1FromRaw; this rollup test
+		// stays focused on the aggregation math over direct T1 rows.
 	}
 	if err := s.WriteQueryStats(ctx, qs); err != nil {
 		t.Fatalf("write: %v", err)

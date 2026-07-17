@@ -113,14 +113,19 @@ func TestVerticalSlice_normalizedQueryRoundtripsAndCanaryNeverLeaks(t *testing.T
 
 	// --- collector pass ---
 	// A fresh gate is fail-open (empty => every capability enabled), so the
-	// reader behaves as before the ly-xnk.3 capability gate landed.
+	// reader behaves as before the ly-xnk.3 capability gate landed. The one
+	// exception is query_text_t2 (ly-cwr.5), which is fail-CLOSED: an empty gate
+	// must never ship raw literals, so raws stays empty and only T1 rows flow.
 	reader := collector.NewReader(target, caps.NewGate(), "e2e")
-	rows, err := reader.Read(ctx)
+	rows, raws, err := reader.Read(ctx)
 	if err != nil {
 		t.Fatalf("reader: %v", err)
 	}
 	if len(rows) == 0 {
 		t.Fatal("collector read no rows from pg_stat_statements")
+	}
+	if len(raws) != 0 {
+		t.Fatalf("fail-closed violated: empty gate shipped %d raw (T2) rows", len(raws))
 	}
 	for _, r := range rows {
 		if strings.Contains(r.NormalizedQuery, canaryLiteral) {

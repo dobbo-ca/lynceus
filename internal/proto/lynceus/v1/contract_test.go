@@ -362,6 +362,7 @@ func TestSnapshotCarriesLogEvents(t *testing.T) {
 		"index_stats":        {},
 		"xmin_horizons":      {},
 		"settings":           {},
+		"query_stat_raws":    {}, // ly-cwr.5: opt-in T2 raw payload (gated, literal-bearing) — deliberately allowed
 	}
 	assertOnlyAllowed(t, (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields(), allowed, "Snapshot")
 
@@ -496,5 +497,40 @@ func TestSnapshotCarriesSettings(t *testing.T) {
 	}
 	if got := f.Message(); got == nil || got.Name() != "Setting" {
 		t.Fatalf("settings must be repeated Setting, got %v", got)
+	}
+}
+
+// TestSnapshotCarriesQueryStatRaws verifies the opt-in T2 raw payload field
+// exists on the Snapshot envelope as repeated QueryStatRaw at field 15.
+func TestSnapshotCarriesQueryStatRaws(t *testing.T) {
+	fields := (&lynceusv1.Snapshot{}).ProtoReflect().Descriptor().Fields()
+	f := fields.ByName("query_stat_raws")
+	if f == nil {
+		t.Fatal("query_stat_raws field missing from Snapshot")
+	}
+	if f.Number() != 15 {
+		t.Fatalf("query_stat_raws field number = %d, want 15", f.Number())
+	}
+	if !f.IsList() {
+		t.Fatal("query_stat_raws must be a repeated field")
+	}
+	if got := f.Message(); got == nil || got.Name() != "QueryStatRaw" {
+		t.Fatalf("query_stat_raws must be repeated QueryStatRaw, got %v", got)
+	}
+}
+
+// TestQueryStatRawCarriesRawQuery documents that QueryStatRaw is the ONE T2
+// message permitted a literal-bearing raw_query field, alongside the pg_query
+// fingerprint + normalized_query (literal-free). It is shipped only when the
+// query_text_t2 gate is on (servers.t2_enabled ∧ policy).
+func TestQueryStatRawCarriesRawQuery(t *testing.T) {
+	fields := (&lynceusv1.QueryStatRaw{}).ProtoReflect().Descriptor().Fields()
+	if f := fields.ByName("raw_query"); f == nil || f.Kind().String() != "string" {
+		t.Fatal("QueryStatRaw.raw_query must exist and be string kind")
+	}
+	for _, n := range []string{"fingerprint", "normalized_query"} {
+		if fields.ByName(protoreflect.Name(n)) == nil {
+			t.Fatalf("QueryStatRaw.%s missing", n)
+		}
 	}
 }

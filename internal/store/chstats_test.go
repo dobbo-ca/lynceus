@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,27 +56,39 @@ func TestCHStats_TierSeparation(t *testing.T) {
 	base := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
 	rows := []store.QueryStat{
 		{ServerID: "srv1", CollectedAt: base, Fingerprint: "fp-t1", NormalizedQuery: "SELECT 1", DataTier: 1, Calls: 1, TotalTimeMs: 10},
-		{ServerID: "srv1", CollectedAt: base, Fingerprint: "fp-t2", NormalizedQuery: "SELECT * WHERE ssn='123-45-6789'", DataTier: 2, Calls: 2, TotalTimeMs: 20},
+		// T2 row: the literal lives ONLY in RawQuery; normalized_query is the
+		// literal-free pg_query skeleton. It is written to query_stats_t2 and the
+		// normalization MV derives the literal-free T1 row (raw_query excluded).
+		{ServerID: "srv1", CollectedAt: base, Fingerprint: "fp-t2", NormalizedQuery: "SELECT * FROM t WHERE ssn=$1", RawQuery: "SELECT * FROM t WHERE ssn='123-45-6789'", DataTier: 2, Calls: 2, TotalTimeMs: 20},
 	}
 	if err := s.WriteQueryStats(ctx, rows); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
-	// T1 read must NOT see the tier-2 row.
-	top, err := s.TopQueriesByTotalTime(ctx, base.Add(-time.Hour), base.Add(time.Hour), 10)
-	if err != nil {
-		t.Fatalf("top: %v", err)
-	}
-	if len(top) != 1 || top[0].Fingerprint != "fp-t1" {
-		t.Fatalf("T1 read leaked or missing rows: %+v", top)
-	}
-
-	// T2 read returns only the tier-2 row from query_stats_t2.
+	// T2 read returns the tier-2 row from query_stats_t2, carrying the literal in RawQuery.
 	t2, err := s.ReadQueryStatsTier2(ctx, "srv1", base.Add(-time.Hour), base.Add(time.Hour), 10)
 	if err != nil {
 		t.Fatalf("t2 read: %v", err)
 	}
 	if len(t2) != 1 || t2[0].Fingerprint != "fp-t2" || t2[0].DataTier != 2 {
 		t.Fatalf("T2 read wrong: %+v", t2)
+	}
+	if t2[0].RawQuery != "SELECT * FROM t WHERE ssn='123-45-6789'" {
+		t.Fatalf("T2 read must return the raw_query literal, got %q", t2[0].RawQuery)
+	}
+
+	// The MV derives a literal-free T1 row from the tier-2 raw: the T1 read now sees
+	// both fp-t1 (direct) and fp-t2 (MV-projected), and no raw literal leaks into T1.
+	top, err := s.TopQueriesByTotalTime(ctx, base.Add(-time.Hour), base.Add(time.Hour), 10)
+	if err != nil {
+		t.Fatalf("top: %v", err)
+	}
+	if len(top) != 2 {
+		t.Fatalf("T1 read want 2 rows (fp-t1 + MV-derived fp-t2), got %+v", top)
+	}
+	for _, q := range top {
+		if strings.Contains(q.NormalizedQuery, "123-45-6789") {
+			t.Fatalf("literal leaked into T1 normalized_query: %q", q.NormalizedQuery)
+		}
 	}
 }

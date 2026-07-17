@@ -16,6 +16,15 @@ Comparable products ship samples to a cloud backend and analyze them server-side
 - Log analysis from local files, **AWS S3**, **Azure Blob Storage**, and filesystem directories
 - OIDC login, SCIM 2.0 provisioning, RBAC by group, and a tamper-evident audit log
 
+**Raw query text is opt-in, off by default, and fail-closed.** By default the collector ships
+only normalized, literal-free query text. Raw (literal-bearing) `pg_stat_statements` text leaves
+the edge **only** for a server whose per-server `servers.t2_enabled` kill switch is on **and** whose
+`query_text_t2` capability policy allows it — both must be true. This gate is fail-closed: absent
+policy means deny, never default-enabled. When enabled, the raw text is written to the
+literal-bearing ClickHouse `query_stats_t2` (T2) table, from which a materialized view derives the
+broadly-readable, literal-free `query_stats` (T1) rows by projection (raw text excluded). Reading
+the raw text back is RBAC-gated and every read is audited in the Postgres hash-chain.
+
 ## Architecture
 
 Three Go services, two databases, an SSR frontend — all Kubernetes-native and horizontally scalable.
